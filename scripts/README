@@ -1,3 +1,6 @@
+--Various references and commands--
+
+dos2unix update_repo.sh
 sh /var/www/html/homeio/scripts/update_repo.sh "Comment"
 
 ///manually run a service process
