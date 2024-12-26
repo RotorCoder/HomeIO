@@ -1,0 +1,24 @@
+<?php
+
+date_default_timezone_set('America/Detroit');
+
+$sharedPathDepth = (basename(__DIR__) === 'scripts') ? '../../../shared' : '../../shared';
+$config['sharedpath'] = __DIR__ . '/' . $sharedPathDepth;
+
+// Database configuration
+$config['db_config'] = [
+    'host' => 'localhost',
+    'dbname' => 'coderhome',
+    'user' => 'coderhome_rw',
+    'password' => 'your_db_password'
+];
+
+$config['govee_api_key'] = 'your_govee_api_key';
+$config['govee_api_url'] = 'https://developer-api.govee.com/v1/devices';
+
+$config['hue_bridge_ip'] = '192.168.1.x';
+$config['hue_api_key'] = 'your_hue_api_key';
+
+$config['x10_log_file'] = '/mnt/X10Commander/X10 Commander.log';
+
+?>

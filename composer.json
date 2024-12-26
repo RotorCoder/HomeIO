@@ -1,0 +1,16 @@
+{
+    "config": {
+        "vendor-dir": "../vendor"
+    },
+    "name": "sjones/homeio",
+    "description": "HomeIO roject",
+    "type": "project",
+    "require": {
+        "phpmailer/phpmailer": "^6.9"
+    },
+    "authors": [
+        {
+            "name": "sjones"
+        }
+    ]
+}

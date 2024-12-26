@@ -1,0 +1,28 @@
+# Configuration files
+config.php
+*.config.php
+.env
+
+# Dependency directories
+/vendor/
+/node_modules/
+
+# Cache and logs
+/scripts/logs/*
+/logs/*
+*.log
+*.cache
+*.pid
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-workspace
+.DS_Store
+
+# Temporary files
+*.swp
+*.swo
+*update_repo.sh
+
+

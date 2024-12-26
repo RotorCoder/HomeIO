@@ -1,0 +1,29 @@
+# Deny access to all files by default
+#<FilesMatch "^.*$">
+    #Order Allow,Deny
+    #Deny from all
+#</FilesMatch>
+
+# Allow access only to PHP files
+<FilesMatch "\.php$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Protect against viewing hidden files
+<FilesMatch "^\.">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Protect sensitive files
+<FilesMatch "^(composer\.json|composer\.lock|README\.md|\.)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Protect config and logs directories
+<FilesMatch "^(config|logs)/">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

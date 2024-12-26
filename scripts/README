@@ -1,0 +1,83 @@
+sh /var/www/html/homeio/scripts/update_repo.sh "Comment"
+
+///manually run a service process
+php /var/www/html/homeio/scripts/govee_processor.php
+php /var/www/html/homeio/scripts/hue_processor.php
+php /var/www/html/homeio/scripts/x10_monitor.php
+ 
+//edit the services
+sudo nano /etc/systemd/system/govee-processor.service
+sudo nano /etc/systemd/system/hue-processor.service
+sudo nano /etc/systemd/system/x10-monitor.service
+
+//reload the services (after modifying a /etc/systemd/system/*.service file)
+sudo systemctl daemon-reload
+
+//start/restart a service
+sudo service govee-processor restart
+sudo service hue-processor restart
+sudo service x10-monitor restart
+sudo service govee-processor restart && sudo service hue-processor restart && sudo service x10-monitor restart
+
+//monitor a service
+sudo service govee-processor status
+sudo service hue-processor status
+sudo service x10-monitor status
+
+//stop a service
+sudo service govee-processor stop
+sudo service hue-processor stop
+sudo service x10-monitor stop
+sudo service govee-processor stop && sudo service hue-processor stop && sudo service x10-monitor stop
+
+//contents of etc/systemd/system/govee-processor.service
+[Unit]
+Description=Govee Command Processor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/govee_processor.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
+//contents of etc/systemd/system/hue-processor.service
+[Unit]
+Description=Govee Command Processor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/hue_processor.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
+//contents of etc/systemd/system/x10_monitor.php
+[Unit]
+Description=Govee Command Processor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/x10_monitor.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
