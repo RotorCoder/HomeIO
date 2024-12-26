@@ -2,6 +2,7 @@
     "config": {
         "vendor-dir": "../vendor"
     },
+    "license": "proprietary",
     "name": "sjones/homeio",
     "description": "HomeIO roject",
     "type": "project",
