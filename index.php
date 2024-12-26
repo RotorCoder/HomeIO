@@ -495,8 +495,20 @@ function showConfigOptions() {
 
 function scrollToRoom(roomId) {
     const roomElement = document.getElementById(`room-${roomId}`);
+    const allRoomsContent = document.querySelector('.all-rooms-content');
+    
     if (roomElement) {
-        roomElement.scrollIntoView({ behavior: 'smooth' });
+        // Clear any existing room sections display
+        document.querySelectorAll('.room-section').forEach(section => {
+            section.style.display = section.id === `room-${roomId}` ? 'block' : 'none';
+        });
+        
+        // Ensure the section is visible and scroll to top
+        roomElement.style.display = 'block';
+        window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+        });
     }
 }
 
