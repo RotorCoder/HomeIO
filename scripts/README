@@ -3,7 +3,7 @@
 git rm --cached scripts/temp/x10_log_last_position.txt
 
 dos2unix update_repo.sh
-sh /var/www/html/homeio/scripts/update_repo.sh "Comment"
+sh /var/www/html/homeio/scripts/update_repo.sh ""
 
 ///manually run a service process
 php /var/www/html/homeio/scripts/govee_processor.php
