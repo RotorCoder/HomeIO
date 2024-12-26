@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: application/json');
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 

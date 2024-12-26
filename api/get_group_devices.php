@@ -1,10 +1,10 @@
 <?php
 header('Content-Type: application/json');
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 
 try {
-    if (!isset($_GET['model'])) {
-        throw new Exception('Model parameter is required');
+    if (!isset($_GET['groupId'])) {
+        throw new Exception('Group ID is required');
     }
     
     $pdo = new PDO(
@@ -14,14 +14,14 @@ try {
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
     
-    // Get existing groups for this model
-    $stmt = $pdo->prepare("SELECT id, name FROM device_groups WHERE model = ?");
-    $stmt->execute([$_GET['model']]);
-    $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Get all devices in the group
+    $stmt = $pdo->prepare("SELECT device, powerState, online FROM devices WHERE deviceGroup = ?");
+    $stmt->execute([$_GET['groupId']]);
+    $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     echo json_encode([
         'success' => true,
-        'groups' => $groups
+        'devices' => $devices
     ]);
     
 } catch (Exception $e) {

@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeIO</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="apple-touch-icon" sizes="180x180" href="images/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16x16.png">
-    <link rel="manifest" href="images/site.webmanifest">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
+    <link rel="manifest" href="assets/images/site.webmanifest">
+    <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
     <div class="container">
@@ -62,7 +62,7 @@
 
         async function fetchRooms() {
             try {
-                const response = await fetch('get_rooms.php');
+                const response = await fetch('api/get_rooms.php');
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Failed to fetch rooms');
                 rooms = data.rooms;
@@ -196,7 +196,7 @@
     document.body.appendChild(popup);
 
     // Fetch and display default room devices
-    fetch('get_devices.php?room=1')
+    fetch('api/get_devices.php?room=1')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -229,7 +229,7 @@
     
     // Always do a quick refresh when switching tabs
     console.log(`[${new Date().toLocaleTimeString()}] Tab switch - performing quick refresh for room ${roomId}`);
-    fetch(`get_devices.php?room=${roomId}&quick=1`)
+    fetch(`api/get_devices.php?room=${roomId}&quick=1`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -395,7 +395,7 @@
     try {
         // If this is a group command, get all devices in the group
         if (groupId) {
-            const response = await fetch(`get_group_devices.php?groupId=${groupId}`);
+            const response = await fetch(`api/get_group_devices.php?groupId=${groupId}`);
             const data = await response.json();
             if (data.success) {
                 devicesToUpdate = data.devices.map(d => d.device);
@@ -406,7 +406,7 @@
 
         // First, update the database for all devices
         const dbUpdatePromises = devicesToUpdate.map(deviceId => 
-            fetch('update_device_state.php', {
+            fetch('api/update_device_state.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -442,7 +442,7 @@
                 value: value
             };
             
-            return fetch('send_command.php', {
+            return fetch('api/send_command.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -471,7 +471,7 @@
         try {
             // Revert database state
             const revertPromises = devicesToUpdate.map(deviceId =>
-                fetch('update_device_state.php', {
+                fetch('api/update_device_state.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -619,7 +619,7 @@
         async function loadInitialData() {
     try {
         // Just get initial device state from database without API updates
-        const response = await fetch('get_devices.php');
+        const response = await fetch('api/get_devices.php');
         const data = await response.json();
         
         if (!data.success) {
@@ -644,17 +644,17 @@ async function updateDevices() {
     try {
         // First update Govee devices
         console.log('Updating Govee devices...');
-        const goveeResponse = await fetch('update_govee_devices.php');
+        const goveeResponse = await fetch('api/update_govee_devices.php');
         const goveeData = await goveeResponse.json();
         
         // Then update Hue devices
         console.log('Updating Hue devices...');
-        const hueResponse = await fetch('update_hue_devices.php');
+        const hueResponse = await fetch('api/update_hue_devices.php');
         const hueData = await hueResponse.json();
         
         // Finally get the current state of all devices
         console.log('Getting current device states...');
-        const deviceResponse = await fetch('get_devices.php');
+        const deviceResponse = await fetch('api/get_devices.php');
         const deviceData = await deviceResponse.json();
         
         if (!deviceData.success) {
@@ -688,7 +688,7 @@ async function updateDevicesInRoom(roomId) {
     
     try {
         // For room updates, just get current device states
-        const response = await fetch(`get_devices.php?room=${roomId}`);
+        const response = await fetch(`api/get_devices.php?room=${roomId}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -711,7 +711,7 @@ async function updateBackgroundDevices() {
     
     try {
         // For background updates, just get current device states
-        const response = await fetch(`get_devices.php?exclude_room=${currentRoomId}`);
+        const response = await fetch(`api/get_devices.php?exclude_room=${currentRoomId}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -742,7 +742,7 @@ async function updateBackgroundDevices() {
         if (currentRoomId) {
             console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh for room ${currentRoomId}`);
             // Just get current states from database
-            fetch(`get_devices.php?room=${currentRoomId}`)
+            fetch(`api/get_devices.php?room=${currentRoomId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -773,7 +773,7 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
-        const response = await fetch('get_devices.php');
+        const response = await fetch('api/get_devices.php');
         const data = await response.json();
         
         if (!data.success) {
@@ -875,7 +875,7 @@ async function manualRefresh() {
 
     try {
         // Load device config
-        const configResponse = await fetch(`get_device_config.php?device=${deviceId}`);
+        const configResponse = await fetch(`api/get_device_config.php?device=${deviceId}`);
         const configData = await configResponse.json();
         
         // Store config values
@@ -912,7 +912,7 @@ async function manualRefresh() {
             regularConfigElements.style.display = 'none';
             
             // Get and display group members
-            const groupResponse = await fetch(`get_group_devices.php?groupId=${groupId}`);
+            const groupResponse = await fetch(`api/get_group_devices.php?groupId=${groupId}`);
             const groupData = await groupResponse.json();
             
             if (groupData.success && groupData.devices) {
@@ -1039,7 +1039,7 @@ async function manualRefresh() {
         };
 
         // Update device configuration
-        const configResponse = await fetch('update_device_config.php', {
+        const configResponse = await fetch('api/update_device_config.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -1077,7 +1077,7 @@ async function manualRefresh() {
 
             console.log('Sending group update with data:', groupData); // Debug log
 
-            const groupResponse = await fetch('update_device_group.php', {
+            const groupResponse = await fetch('api/update_device_group.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(groupData)
@@ -1112,7 +1112,7 @@ async function manualRefresh() {
         
         async function loadAvailableGroups(model) {
             try {
-                const response = await fetch(`get_available_groups.php?model=${model}`);
+                const response = await fetch(`api/get_available_groups.php?model=${model}`);
                 const data = await response.json();
                 
                 if (!data.success) {
@@ -1135,7 +1135,7 @@ async function manualRefresh() {
             }
             
             try {
-                const response = await fetch('delete_device_group.php', {
+                const response = await fetch('api/delete_device_group.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1158,7 +1158,7 @@ async function manualRefresh() {
         
         async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
             try {
-                const response = await fetch(`check_x10_code.php?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
+                const response = await fetch(`api/check_x10_code.php?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
                 const data = await response.json();
                 return data;
             } catch (error) {
