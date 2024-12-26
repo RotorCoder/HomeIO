@@ -9,6 +9,7 @@ config.php
 
 # Cache and logs
 /scripts/logs/*
+/scripts/temp/*
 /logs/*
 *.log
 *.cache
