@@ -648,7 +648,7 @@
     document.body.appendChild(popup);
 
     // Fetch and display default room devices
-    fetch('update_and_get_devices.php?room=1')
+    fetch('get_devices.php?room=1')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -681,7 +681,7 @@
     
     // Always do a quick refresh when switching tabs
     console.log(`[${new Date().toLocaleTimeString()}] Tab switch - performing quick refresh for room ${roomId}`);
-    fetch(`update_and_get_devices.php?room=${roomId}&quick=1`)
+    fetch(`get_devices.php?room=${roomId}&quick=1`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -1069,94 +1069,116 @@
         }
 
         async function loadInitialData() {
-            try {
-                const response = await fetch('update_and_get_devices.php?quick=1');
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load devices');
-                }
-
-                handleDevicesUpdate(data.devices);
-                updateLastRefreshTime(data.updated);
-                document.getElementById('error-message').style.display = 'none';
-                
-            } catch (error) {
-                showError(error.message);
-            }
+    try {
+        // Just get initial device state from database without API updates
+        const response = await fetch('get_devices.php');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load devices');
         }
 
-        async function updateDevices() {
-            if (isRefreshing) return;
-            
-            setRefreshing(true);
+        handleDevicesUpdate(data.devices);
+        updateLastRefreshTime(data.updated);
+        document.getElementById('error-message').style.display = 'none';
         
-            try {
-                const response = await fetch('update_and_get_devices.php');
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to update devices');
-                }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function updateDevices() {
+    if (isRefreshing) return;
+    
+    setRefreshing(true);
+    console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
+
+    try {
+        // First update Govee devices
+        console.log('Updating Govee devices...');
+        const goveeResponse = await fetch('update_govee_devices.php');
+        const goveeData = await goveeResponse.json();
         
-                handleDevicesUpdate(data.devices);
-                updateLastRefreshTime(data.updated);
-                if (!data.quick) {
-                    updateTimingInfo(data.timing, data.rateLimits);
-                }
-                document.getElementById('error-message').style.display = 'none';
-            } catch (error) {
-                showError(error.message);
-            } finally {
-                setRefreshing(false);
-            }
+        // Then update Hue devices
+        console.log('Updating Hue devices...');
+        const hueResponse = await fetch('update_hue_devices.php');
+        const hueData = await hueResponse.json();
+        
+        // Finally get the current state of all devices
+        console.log('Getting current device states...');
+        const deviceResponse = await fetch('get_devices.php');
+        const deviceData = await deviceResponse.json();
+        
+        if (!deviceData.success) {
+            throw new Error(deviceData.error || 'Failed to get device states');
         }
+
+        console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
+        handleDevicesUpdate(deviceData.devices);
+        updateLastRefreshTime(deviceData.updated);
+        
+        // Combine timing info from all updates
+        const timing = {
+            govee: goveeData.timing,
+            hue: hueData.timing,
+            database: deviceData.timing,
+            total: Date.now() - startTime
+        };
+        
+        updateTimingInfo(timing);
+        document.getElementById('error-message').style.display = 'none';
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
+        showError(error.message);
+    } finally {
+        setRefreshing(false);
+    }
+}
+
+async function updateDevicesInRoom(roomId) {
+    if (isRefreshing) return;
+    
+    try {
+        // For room updates, just get current device states
+        const response = await fetch(`get_devices.php?room=${roomId}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update devices');
+        }
+
+        handleDevicesUpdate(data.devices);
+        updateLastRefreshTime(data.updated);
+        document.getElementById('error-message').style.display = 'none';
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function updateBackgroundDevices() {
+    if (isRefreshing) return;
+    
+    const currentRoomId = getCurrentRoomId();
+    if (!currentRoomId) return;
+    
+    try {
+        // For background updates, just get current device states
+        const response = await fetch(`get_devices.php?exclude_room=${currentRoomId}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update background devices');
+        }
+
+        handleDevicesUpdate(data.devices);
+    } catch (error) {
+        console.error('Background update error:', error);
+    }
+}
 
         function getCurrentRoomId() {
             const activeTab = document.querySelector('.tab.active');
             return activeTab ? activeTab.dataset.room : null;
-        }
-        
-        async function updateDevicesInRoom(roomId) {
-            if (isRefreshing) return;
-            
-            try {
-                const response = await fetch(`update_and_get_devices.php?room=${roomId}`);
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to update devices');
-                }
-        
-                handleDevicesUpdate(data.devices);
-                updateLastRefreshTime(data.updated);
-                if (!data.quick) {
-                    updateTimingInfo(data.timing, data.rateLimits);
-                }
-                document.getElementById('error-message').style.display = 'none';
-            } catch (error) {
-                showError(error.message);
-            }
-        }
-        
-        async function updateBackgroundDevices() {
-            if (isRefreshing) return;
-            
-            const currentRoomId = getCurrentRoomId();
-            if (!currentRoomId) return;
-            
-            try {
-                const response = await fetch(`update_and_get_devices.php?exclude_room=${currentRoomId}`);
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to update background devices');
-                }
-        
-                handleDevicesUpdate(data.devices);
-            } catch (error) {
-                console.error('Background update error:', error);
-            }
         }
         
         function resetUpdateTimers() {
@@ -1166,13 +1188,13 @@
     if (visibleUpdateInterval) clearInterval(visibleUpdateInterval);
     if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
     
-    // Always set up quick refresh
+    // Always set up quick refresh of current room devices
     visibleUpdateInterval = setInterval(() => {
         const currentRoomId = getCurrentRoomId();
         if (currentRoomId) {
             console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh for room ${currentRoomId}`);
-            // Do a quick refresh
-            fetch(`update_and_get_devices.php?room=${currentRoomId}&quick=1`)
+            // Just get current states from database
+            fetch(`get_devices.php?room=${currentRoomId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -1187,12 +1209,11 @@
         }
     }, QUICK_UPDATE_INTERVAL);
     
-    // Only set up full refresh if auto-refresh is enabled
+    // Only set up full device updates if auto-refresh is enabled
     if (autoRefreshToggle.checked) {
-        // Set up full refresh interval
         backgroundUpdateInterval = setInterval(() => {
             console.log(`[${new Date().toLocaleTimeString()}] Starting scheduled full refresh`);
-            updateDevices();  // This does a full refresh
+            updateDevices();  // This does a full refresh including API calls
         }, VISIBLE_UPDATE_INTERVAL);
     }
 }
@@ -1204,7 +1225,7 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
-        const response = await fetch('update_and_get_devices.php');
+        const response = await fetch('get_devices.php');
         const data = await response.json();
         
         if (!data.success) {
