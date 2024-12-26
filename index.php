@@ -16,14 +16,14 @@
             padding: 0;
             box-sizing: border-box;
         }
-
+    
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #f3f4f6;
         }
-
+        
         .all-rooms-content {
-            padding-bottom: 60px; /* Add padding for the tab bar */
+            padding-bottom: 60px;
         }
         
         .room-section {
@@ -38,13 +38,11 @@
             border-bottom: 2px solid #e5e7eb;
         }
         
-        /* Adjust container padding */
         .container {
             padding: 1rem;
             padding-bottom: 4rem;
         }
-
-        /* Tabs styling */
+        
         .tabs {
             display: flex;
             position: fixed;
@@ -77,79 +75,44 @@
         .tab.active {
             background-color: #00a65a;
         }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-
+        
         .device-grid {
             display: grid;
             gap: .5rem;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         }
-
-
+        
         .device-info {
             display: flex;
             align-items: center;
             gap: 1rem;
+            height: 35%;
+            margin: 10px;
+            position: relative;
         }
-
-        .icon-wrapper {
-            width: 40px;
-            height: 40px;
-            border-radius: 0.375rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-        }
-
+        
         .device-details h3 {
             color: #111827;
             font-size: 1rem;
             font-weight: 500;
         }
-
+        
         .device-details p {
             color: #6b7280;
             font-size: 0.875rem;
-            transition: color 0.3s ease;
         }
-
+        
         .device-card {
             background: white;
             border-radius: 0.5rem;
-            
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
             display: flex;
             flex-direction: column;
             transition: transform 0.2s ease;
-            /* Add this to ensure card is split into two equal sections */
-            height: 120px; /* Or any fixed height you prefer */
-        }
-        
-        .device-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            /* Add this to make it take exactly half the card height */
-            height: 35%;
-            margin: 10px;
+            height: 120px;
         }
         
         .device-controls {
-            /* Replace existing styles with these */
             display: flex;
             height: 65%;
             margin: 0;
@@ -157,7 +120,6 @@
         }
         
         .device-controls .btn {
-            /* Modify button styles */
             flex: 1;
             margin: 0;
             padding: 0;
@@ -171,7 +133,6 @@
             justify-content: center;
         }
         
-        /* Remove border radius except for bottom corners of first and last button */
         .device-controls .btn:first-child {
             border-bottom-left-radius: 0.5rem;
         }
@@ -179,17 +140,17 @@
         .device-controls .btn:last-child {
             border-bottom-right-radius: 0.5rem;
         }
-
+        
         .device-controls .btn:hover {
             background-color: #f3f4f6;
         }
-
+        
         .device-controls .btn.active {
             background-color: #dcfce7;
             border-color: #16a34a;
             color: #16a34a;
         }
-
+        
         .error-message {
             background-color: #fee2e2;
             border: 1px solid #ef4444;
@@ -199,12 +160,7 @@
             margin-bottom: 1rem;
             display: none;
         }
-
-        .refresh-time {
-            font-size: 0.875rem;
-            color: #6b7280;
-        }
-
+        
         .refresh-button {
             background: none;
             border: none;
@@ -218,75 +174,15 @@
             font-size: 0.875rem;
             transition: all 0.2s ease;
         }
-
+        
         .refresh-button:hover {
             background-color: #f3f4f6;
             color: #374151;
         }
-
+        
         .refresh-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-        }
-
-        .timing-info {
-            font-size: 0.875rem;
-            color: #6b7280;
-            margin-top: 1rem;
-            display: none;
-        }
-
-        .timing-details {
-            background-color: #f9fafb;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 0.5rem;
-            display: none;
-        }
-
-        .timing-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        .timing-row:last-child {
-            border-bottom: none;
-        }
-
-        .show-timing {
-            background: none;
-            border: none;
-            color: #6b7280;
-            cursor: pointer;
-            padding: 0.5rem;
-            font-size: 0.875rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            width: 100%;
-            transition: color 0.2s ease;
-        }
-
-        .show-timing:hover {
-            color: #374151;
-        }
-
-        .timing-toggle-icon {
-            transition: transform 0.2s ease;
-        }
-
-        .timing-info.expanded .timing-toggle-icon {
-            transform: rotate(180deg);
-        }
-
-        .timing-info.expanded .timing-details {
-            display: block;
-        }
-
-        .status-change {
-            animation: highlight 1s ease;
         }
         
         .config-btn {
@@ -305,66 +201,62 @@
             color: #374151;
         }
         
-        .device-info {
-            position: relative;
+        .config-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            padding: 0;
+            z-index: 1001;
+            width: 100%;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
         
-        .config-popup {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: white;
-    padding: 0;
-    z-index: 1001;
-    width: 100%;
-    height: 100vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-}
-
-.config-popup .header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    padding: 20px;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 1002;
-}
-
-.config-popup .content {
-    padding: 20px;
-    margin-top: 70px;
-    flex-grow: 1;
-    overflow-y: auto;
-}
-
-.config-popup .buttons {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 15px 20px;
-    background: white;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    z-index: 1002;
-}
-
-.config-popup form {
-    max-width: 600px;
-    margin: 0 auto;
-    padding-bottom: 70px;
-}
+        .config-popup .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1002;
+        }
+        
+        .config-popup .content {
+            padding: 20px;
+            margin-top: 70px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        
+        .config-popup .buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            z-index: 1002;
+        }
+        
+        .config-popup form {
+            max-width: 600px;
+            margin: 0 auto;
+            padding-bottom: 70px;
+        }
         
         .popup-overlay {
             position: fixed;
@@ -375,7 +267,6 @@
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
-        
         
         .config-popup .form-group {
             margin-bottom: 15px;
@@ -394,8 +285,6 @@
             border: 1px solid #d1d5db;
             border-radius: 4px;
         }
-        
-        
         
         .config-popup button {
             padding: 8px 16px;
@@ -458,38 +347,27 @@
         .member-status {
             color: #6b7280;
         }
-                
-        .member-status {
-            color: #6b7280;
-        }
-                
+        
         .buttons {
             display: flex;
             justify-content: flex-end;
             gap: 10px;
             margin-top: 20px;
         }
-
-        @keyframes highlight {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-
-        .refresh-indicator {
-            display: inline-block;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
-        }
         
         @media (max-width: 640px) {
             .container {
                 padding: 0.5rem;
             }
-
+        }
+        
+        .refresh-indicator {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
