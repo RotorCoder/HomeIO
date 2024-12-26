@@ -1,4 +1,4 @@
-PHP smart home mobile webpage
+HomeIO - PHP smart home mobile webpage
 
 Controls Govee and Philips Hue devices
 
