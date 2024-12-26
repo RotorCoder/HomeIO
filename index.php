@@ -572,7 +572,7 @@
     
     // Add config tab
     tabsHtml += `
-        <button class="tab" data-room="config">
+        <button class="tab" onclick="showConfigOptions()">
             <i class="fas fa-cog"></i>
         </button>`;
     
@@ -587,35 +587,32 @@
                     <div class="device-grid" id="room-${room.id}-devices"></div>
                 </div>
             ` : '').join('')}
-            <div class="tab-content" data-room="config" style="display: none;">
-                <div class="p-4">
-                    <button onclick="showDefaultRoomDevices()" class="btn" style="
-                        background-color: #333;
-                        color: white;
-                        padding: 10px 20px;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        margin: 10px 0;
-                    ">
-                        Show Default Room Devices
+        </div>`;
+}
+
+function showConfigOptions() {
+    // Create and show popup
+    const popup = document.createElement('div');
+    popup.innerHTML = `
+        <div class="popup-overlay">
+            <div class="config-popup">
+                <div class="header">
+                    <h3>Configuration Options</h3>
+                    <button onclick="this.closest('.popup-overlay').remove()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                        <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div class="device-grid" id="room-config-devices"></div>
+                <div class="content">
+                    <button onclick="showDefaultRoomDevices()" class="config-button">
+                        <i class="fas fa-box-open"></i>
+                        Show Unassigned Devices
+                    </button>
+                    <!-- Add more config options here -->
+                </div>
             </div>
-        </div>`;
-
-    // Add click handlers for tabs
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            if (tab.dataset.room === 'config') {
-                showConfigView();
-            } else {
-                showAllRoomsView();
-                scrollToRoom(tab.dataset.room);
-            }
-        });
-    });
+        </div>
+    `;
+    document.body.appendChild(popup);
 }
 
 function scrollToRoom(roomId) {
