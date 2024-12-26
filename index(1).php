@@ -22,26 +22,9 @@
             background-color: #f3f4f6;
         }
 
-        .all-rooms-content {
-            padding-bottom: 60px; /* Add padding for the tab bar */
-        }
-        
-        .room-section {
-            margin-bottom: 2rem;
-        }
-        
-        .room-title {
-            font-size: 1.5rem;
-            color: #374151;
-            margin: 1rem 0;
-            padding: 0.5rem;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        
-        /* Adjust container padding */
         .container {
-            padding: 1rem;
-            padding-bottom: 4rem;
+            max-width: 1200px;
+            margin: 0 auto;
         }
 
         /* Tabs styling */
@@ -485,6 +468,10 @@
             100% { transform: rotate(360deg); }
         }
         
+        .container {
+            padding-bottom: 4rem;
+        }
+
         @media (max-width: 640px) {
             .container {
                 padding: 0.5rem;
@@ -559,89 +546,61 @@
     const tabContents = document.getElementById('tab-contents');
     
     let tabsHtml = '';
+    let contentsHtml = '';
     
-    // Add room tabs, excluding room 1 (default room)
+    // Get saved tab
+    const savedTab = localStorage.getItem('selectedTab');
+    
+    
+    
+    contentsHtml += `
+        <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
+            <div class="p-4">
+                <button onclick="showDefaultRoomDevices()" class="btn" style="
+                    background-color: #333;
+                    color: white;
+                    padding: 10px 20px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin: 10px 0;
+                ">
+                    Show Default Room Devices
+                </button>
+            </div>
+            <div class="device-grid" id="room-config-devices"></div>
+        </div>`;
+    
+    // Add other room tabs, excluding room 1
     rooms.forEach((room, index) => {
-        if (room.id !== 1) {
+        if (room.id !== 1) {  // Skip room 1 (default room)
             tabsHtml += `
-                <button class="tab" data-room="${room.id}" onclick="scrollToRoom(${room.id})">
+                <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     ${room.room_name}
                 </button>`;
+            contentsHtml += `
+                <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
+                    <div class="device-grid" id="room-${room.id}-devices"></div>
+                </div>`;
         }
     });
     
-    // Add config tab
     tabsHtml += `
-        <button class="tab" data-room="config">
+        <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
             <i class="fas fa-cog"></i>
         </button>`;
     
     tabsContainer.innerHTML = tabsHtml;
+    tabContents.innerHTML = contentsHtml;
     
-    // Create a single container for all rooms
-    tabContents.innerHTML = `
-        <div class="all-rooms-content">
-            ${rooms.map(room => room.id !== 1 ? `
-                <div class="room-section" id="room-${room.id}">
-                    <h2 class="room-title">${room.room_name}</h2>
-                    <div class="device-grid" id="room-${room.id}-devices"></div>
-                </div>
-            ` : '').join('')}
-            <div class="tab-content" data-room="config" style="display: none;">
-                <div class="p-4">
-                    <button onclick="showDefaultRoomDevices()" class="btn" style="
-                        background-color: #333;
-                        color: white;
-                        padding: 10px 20px;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        margin: 10px 0;
-                    ">
-                        Show Default Room Devices
-                    </button>
-                </div>
-                <div class="device-grid" id="room-config-devices"></div>
-            </div>
-        </div>`;
-
-    // Add click handlers for tabs
     document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            if (tab.dataset.room === 'config') {
-                showConfigView();
-            } else {
-                showAllRoomsView();
-                scrollToRoom(tab.dataset.room);
-            }
-        });
+        tab.addEventListener('click', () => switchTab(tab.dataset.room));
     });
-}
 
-function scrollToRoom(roomId) {
-    const roomElement = document.getElementById(`room-${roomId}`);
-    if (roomElement) {
-        roomElement.scrollIntoView({ behavior: 'smooth' });
-    }
-}
-
-function showConfigView() {
-    document.querySelectorAll('.room-section').forEach(section => {
-        section.style.display = 'none';
-    });
-    const configContent = document.querySelector('[data-room="config"]');
-    if (configContent) {
-        configContent.style.display = 'block';
-    }
-}
-
-function showAllRoomsView() {
-    document.querySelectorAll('.room-section').forEach(section => {
-        section.style.display = 'block';
-    });
-    const configContent = document.querySelector('[data-room="config"]');
-    if (configContent) {
-        configContent.style.display = 'none';
+    // If there's a saved tab, make sure we load its devices
+    if (savedTab) {
+        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
+        switchTab(savedTab);
     }
 }
 
