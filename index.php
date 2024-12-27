@@ -196,15 +196,21 @@
     document.body.appendChild(popup);
 
     // Fetch and display default room devices
-    fetch('api/devices?room=1')
+    fetch('api/devices?room=1')  // Specifically request devices in room 1
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
+            if (data.success && data.devices) {
                 const deviceGrid = document.getElementById('default-room-devices');
                 deviceGrid.innerHTML = '';
-                data.devices.forEach(device => {
+                // Only show devices that have room = 1 (unassigned)
+                const unassignedDevices = data.devices.filter(device => device.room === 1);
+                unassignedDevices.forEach(device => {
                     deviceGrid.insertAdjacentHTML('beforeend', createDeviceCard(device));
                 });
+                
+                if (unassignedDevices.length === 0) {
+                    deviceGrid.innerHTML = '<p style="text-align: center; padding: 20px;">No unassigned devices found.</p>';
+                }
             }
         })
         .catch(error => {
