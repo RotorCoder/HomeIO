@@ -249,7 +249,7 @@
         function getDeviceIcon(deviceName) {
             deviceName = deviceName.toLowerCase();
             if (deviceName.includes('fan')) {
-                return 'fa-solid fa-2x fa-fan';
+                return 'fa-solid fa-2x fa-fan fa-spin';  // Added fa-spin class
             } else if (deviceName.includes('tv')) {
                 return 'fa-solid fa-2x fa-tv';
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
