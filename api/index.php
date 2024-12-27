@@ -178,4 +178,61 @@ $app->get('/check-x10-code', function (Request $request, Response $response) use
     }
 });
 
+// Delete device group route
+$app->post('/delete-device-group', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        // Get raw input and decode JSON
+        $data = json_decode($request->getBody()->getContents(), true);
+        
+        if (!isset($data['groupId'])) {
+            throw new Exception('Group ID is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Begin transaction
+        $pdo->beginTransaction();
+        
+        try {
+            // First update all devices in the group to remove group association
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE deviceGroup = ?");
+            $stmt->execute([$data['groupId']]);
+            
+            // Then delete the group
+            $stmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
+            $stmt->execute([$data['groupId']]);
+            
+            // Commit transaction
+            $pdo->commit();
+            
+            $payload = json_encode([
+                'success' => true,
+                'message' => 'Group deleted successfully'
+            ]);
+            
+            $response->getBody()->write($payload);
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(200);
+                
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+        
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error deleting device group: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
 $app->run();

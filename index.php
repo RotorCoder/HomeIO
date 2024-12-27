@@ -1132,7 +1132,7 @@ async function manualRefresh() {
             }
             
             try {
-                const response = await fetch('api/delete_device_group.php', {
+                const response = await fetch('api/delete-device-group', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
