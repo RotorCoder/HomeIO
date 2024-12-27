@@ -133,67 +133,85 @@ class HueAPI {
     }
     
     public function sendCommand($device, $cmd) {
-        // Validate basic parameters
-        if (!$device) {
-            throw new Exception('Device ID is required');
-        }
-        
-        // Validate command structure
-        if (!is_array($cmd) || !isset($cmd['name'])) {
-            throw new Exception('Invalid command format');
-        }
-        
-        // Transform command based on type
-        $hueCmd = [];
-        
-        // Handle different command types
-        switch ($cmd['name']) {
-            case 'brightness':
-                if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
-                    throw new Exception('Brightness value must be a number');
-                }
-                // Hue uses 0-254 for brightness
-                $hueCmd['bri'] = (int)($cmd['value'] * 2.54);
-                break;
-                
-            case 'turn':
-                if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
-                    throw new Exception('Turn command must specify "on" or "off"');
-                }
-                $hueCmd['on'] = ($cmd['value'] === 'on');
-                break;
-                
-            default:
-                throw new Exception('Unsupported command type: ' . $cmd['name']);
-        }
-
-        // Send command to Hue Bridge
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => "http://{$this->bridgeIP}/api/{$this->apiKey}/lights/{$device}/state",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => 'PUT',
-            CURLOPT_POSTFIELDS => json_encode($hueCmd)
-        ));
-
-        $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
-        
-        if ($httpCode !== 200) {
-            throw new Exception('Failed to communicate with Hue bridge');
-        }
-        
-        $result = json_decode($response, true);
-        
-        // Check for Hue API errors
-        if (is_array($result) && isset($result[0]['error'])) {
-            throw new Exception($result[0]['error']['description']);
-        }
-        
-        return [
-            'success' => true,
-            'message' => 'Command sent successfully'
-        ];
+    // Validate basic parameters
+    if (!$device) {
+        throw new Exception('Device ID is required');
     }
+    
+    // Validate command structure
+    if (!is_array($cmd) || !isset($cmd['name'])) {
+        throw new Exception('Invalid command format');
+    }
+    
+    // Transform command based on type
+    $hueCmd = [];
+    
+    // Handle different command types
+    switch ($cmd['name']) {
+        case 'brightness':
+            if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
+                throw new Exception('Brightness value must be a number');
+            }
+            // When setting brightness, include both on state and brightness
+            $hueCmd = [
+                'on' => [
+                    'on' => true
+                ],
+                'dimming' => [
+                    'brightness' => (int)$cmd['value']
+                ]
+            ];
+            break;
+            
+        case 'turn':
+            if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
+                throw new Exception('Turn command must specify "on" or "off"');
+            }
+            // When turning off, only include on state
+            $hueCmd = [
+                'on' => [
+                    'on' => ($cmd['value'] === 'on')
+                ]
+            ];
+            break;
+            
+        default:
+            throw new Exception('Unsupported command type: ' . $cmd['name']);
+    }
+
+    // Send command to Hue Bridge
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light/{$device}",
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_SSL_VERIFYPEER => 0,
+        CURLOPT_HTTPHEADER => array(
+            'hue-application-key: ' . $this->apiKey,
+            'Content-Type: application/json'
+        ),
+        CURLOPT_POSTFIELDS => json_encode($hueCmd)
+    ));
+
+    $response = curl_exec($curl);
+    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    
+    if ($httpCode !== 200) {
+        throw new Exception("Failed to communicate with Hue bridge (HTTP $httpCode): $response");
+    }
+    
+    $result = json_decode($response, true);
+    
+    // Check for Hue API errors
+    if (is_array($result) && isset($result[0]['error'])) {
+        throw new Exception($result[0]['error']['description']);
+    }
+    
+    return [
+        'success' => true,
+        'message' => 'Command sent successfully'
+    ];
+}
 }
