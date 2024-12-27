@@ -15,30 +15,8 @@
 <body>
     <div class="container">
         
-            <div class="timing-info" id="timing-info" style="display: none;">
-                <button class="show-timing" onclick="toggleTimingDetails()">
-                    <i class="fas fa-chevron-down timing-toggle-icon"></i>
-                    <span>Refresh Timing Details</span>
-                </button>
-                <div class="timing-details" id="timing-details"></div>
-            </div>
-    
             <div class="error-message" id="error-message"></div>
     
-            <div class="header-controls" style="display: none;">
-                <div class="auto-refresh-control">
-                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
-                        <span>Auto-refresh</span>
-                    </label>
-                </div>
-                <button id="refresh-button" class="refresh-button" onclick="manualRefresh()">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
-                </button>
-                <p class="refresh-time" id="last-update"></p>
-            </div>
-        
         <div id="tabs" class="tabs">
             <!-- Tabs will be dynamically inserted here -->
         </div>
@@ -58,7 +36,6 @@
         const QUICK_UPDATE_INTERVAL = 2000;     // 2 seconds for quick refresh
         const VISIBLE_UPDATE_INTERVAL = 30000;  // 30 seconds for full refresh of tab devices
         const BACKGROUND_UPDATE_INTERVAL = 3000000;  // 300 seconds (5 minutes) for full refresh of all devices
-        const refreshButton = document.getElementById('refresh-button');
 
         async function fetchRooms() {
             try {
@@ -124,6 +101,24 @@
                 <i class="fas fa-chevron-down"></i>
             </h2>
             <div class="config-content" id="desktop-config-content">
+                <div class="auto-refresh-control" style="margin-bottom: 10px;">
+                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+                        <span>Auto-refresh</span>
+                    </label>
+                    <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
+                </div>
+                <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <div class="timing-info" id="timing-info" style="margin-bottom: 10px;">
+                    <button class="show-timing desktop-config-btn" onclick="toggleTimingDetails()">
+                        <i class="fas fa-chevron-down timing-toggle-icon"></i>
+                        <span>Refresh Timing Details</span>
+                    </button>
+                    <div class="timing-details" id="timing-details"></div>
+                </div>
                 <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
                     Show Unassigned Devices
                 </button>
@@ -608,6 +603,13 @@
 
         function setRefreshing(refreshing) {
             isRefreshing = refreshing;
+            const refreshButton = document.getElementById('refresh-button');
+            
+            if (!refreshButton) {
+                console.warn('Refresh button not found');
+                return;
+            }
+            
             refreshButton.disabled = refreshing;
             
             if (refreshing) {
@@ -642,44 +644,7 @@
     }
 }
 
-async function updateDevices() {
-    if (isRefreshing) return;
-    
-    setRefreshing(true);
-    console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
-    try {
-        const response = await fetch('api/get_devices.php');
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to update devices');
-        }
-
-        console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
-        
-        // Add null check for devices array
-        if (data.devices && Array.isArray(data.devices)) {
-            handleDevicesUpdate(data.devices);
-        } else {
-            console.warn('No devices data received or invalid format');
-            // Optionally show a user-friendly message
-            // showError('Unable to update device status');
-        }
-        
-        updateLastRefreshTime(data.updated);
-        if (!data.quick) {
-            updateTimingInfo(data.timing, data.rateLimits);
-        }
-        document.getElementById('error-message').style.display = 'none';
-        
-    } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
-        showError(error.message);
-    } finally {
-        setRefreshing(false);
-    }
-}
 
 async function updateDevicesInRoom(roomId) {
     if (isRefreshing) return;
@@ -728,41 +693,38 @@ async function updateBackgroundDevices() {
         }
         
         function resetUpdateTimers() {
-    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-    
-    // Clear any existing intervals
-    if (visibleUpdateInterval) clearInterval(visibleUpdateInterval);
-    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
-    
-    // Always set up quick refresh of current room devices
-    visibleUpdateInterval = setInterval(() => {
-        const currentRoomId = getCurrentRoomId();
-        
-            console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
-            // Just get current states from database
-            fetch(`api/get_devices.php`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log(`[${new Date().toLocaleTimeString()}] Quick refresh completed successfully`);
-                        handleDevicesUpdate(data.devices);
-                        updateLastRefreshTime(data.updated);
-                    }
-                })
-                .catch(error => {
-                    console.error(`[${new Date().toLocaleTimeString()}] Quick refresh error:`, error);
-                });
-        
-    }, QUICK_UPDATE_INTERVAL);
-    
-    // Only set up full device updates if auto-refresh is enabled
-    if (autoRefreshToggle.checked) {
-        backgroundUpdateInterval = setInterval(() => {
-            console.log(`[${new Date().toLocaleTimeString()}] Starting scheduled full refresh`);
-            updateDevices();  // This does a full refresh including API calls
-        }, VISIBLE_UPDATE_INTERVAL);
-    }
-}
+            const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+            
+            // Clear any existing intervals
+            if (visibleUpdateInterval) clearInterval(visibleUpdateInterval);
+            if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
+            
+            // Always set up quick refresh of current room devices
+            visibleUpdateInterval = setInterval(() => {
+                console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
+                // Just get current states from database
+                fetch(`api/get_devices.php`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log(`[${new Date().toLocaleTimeString()}] Quick refresh completed successfully`);
+                            handleDevicesUpdate(data.devices);
+                            updateLastRefreshTime(data.updated);
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`[${new Date().toLocaleTimeString()}] Quick refresh error:`, error);
+                    });
+            }, QUICK_UPDATE_INTERVAL);
+            
+            // Only set up full device updates if auto-refresh is enabled
+            if (autoRefreshToggle.checked) {
+                backgroundUpdateInterval = setInterval(() => {
+                    console.log(`[${new Date().toLocaleTimeString()}] Starting scheduled full refresh`);
+                    updateDevices();  // This does a full refresh including API calls
+                }, VISIBLE_UPDATE_INTERVAL);
+            }
+        }
 
 async function updateDevices() {
     if (isRefreshing) return;
@@ -779,12 +741,23 @@ async function updateDevices() {
         }
 
         console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
-        handleDevicesUpdate(data.devices);
+        
+        // Add null check for devices array
+        if (data.devices && Array.isArray(data.devices)) {
+            console.log('Updating devices:', data.devices.length);
+            handleDevicesUpdate(data.devices);
+            // Remove this line since the element no longer exists:
+            // document.querySelector('.header-controls').style.display = 'block';
+        } else {
+            console.warn('No devices data received or invalid format');
+        }
+        
         updateLastRefreshTime(data.updated);
         if (!data.quick) {
             updateTimingInfo(data.timing, data.rateLimits);
         }
         document.getElementById('error-message').style.display = 'none';
+        
     } catch (error) {
         console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
         showError(error.message);
@@ -811,10 +784,6 @@ async function manualRefresh() {
             
             // Always reset the quick refresh timer
             resetUpdateTimers();
-        }
-
-        function manualRefresh() {
-            updateDevices();
         }
 
         async function showConfigMenu(deviceId) {
