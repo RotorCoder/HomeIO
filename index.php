@@ -387,7 +387,7 @@
     try {
         // If this is a group command, get all devices in the group
         if (groupId) {
-            const response = await fetch(`api/get_group_devices.php?groupId=${groupId}`);
+            const response = await fetch(`api/group-devices?groupId=${groupId}`);
             const data = await response.json();
             if (data.success) {
                 devicesToUpdate = data.devices.map(d => d.device);
