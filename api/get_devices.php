@@ -163,19 +163,77 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
 }
 
 try {
+    $start = microtime(true);
+    $timing = array();
+    
     $single_device = isset($_GET['device']) ? $_GET['device'] : null;
     $room = isset($_GET['room']) ? $_GET['room'] : null;
     $exclude_room = isset($_GET['exclude_room']) ? $_GET['exclude_room'] : null;
-    $quick = isset($_GET['quick']) ? $_GET['quick'] : false;
+    $quick = isset($_GET['quick']) ? ($_GET['quick'] === 'true') : false;
 
     $pdo = getDatabaseConnection($config);
+
+    // Only update Govee devices during full refresh
+    if (!$quick) {
+        $log->logInfoMsg("Starting Govee devices update (quick = false)");
+        try {
+            $govee_start = microtime(true);
+            
+            // Get the current script's directory
+            $currentDir = dirname($_SERVER['SCRIPT_NAME']);
+            $baseUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http") . "://$_SERVER[HTTP_HOST]$currentDir";
+            
+            // Make HTTP request to Govee update endpoint
+            $curl = curl_init();
+            $goveeUrl = $baseUrl . '/update_govee_devices.php';
+            $log->logInfoMsg("Calling Govee update URL: " . $goveeUrl);
+            
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => $goveeUrl,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            ));
+            
+            $response = curl_exec($curl);
+            $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            
+            if (curl_errno($curl)) {
+                throw new Exception('Curl error: ' . curl_error($curl));
+            }
+            
+            curl_close($curl);
+            
+            $log->logInfoMsg("Govee update response status: " . $statusCode);
+            
+            if ($statusCode !== 200) {
+                throw new Exception('Failed to update Govee devices: HTTP ' . $statusCode);
+            }
+            
+            $goveeData = json_decode($response, true);
+            if (!$goveeData['success']) {
+                throw new Exception($goveeData['error'] ?? 'Unknown error updating Govee devices');
+            }
+            
+            $log->logInfoMsg("Govee update completed successfully");
+            $timing['govee'] = array('duration' => round((microtime(true) - $govee_start) * 1000));
+            
+        } catch (Exception $e) {
+            $log->logErrorMsg("Govee update error: " . $e->getMessage());
+            // Continue even if Govee update fails
+        }
+    }
+    
     $devices = getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
 
     echo json_encode([
         'success' => true,
         'devices' => $devices,
-        'updated' => date('c')
+        'updated' => date('c'),
+        'timing' => $timing
     ]);
+
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([

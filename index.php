@@ -548,53 +548,53 @@
         }
 
         function updateTimingInfo(timing, rateLimits) {
-    const timingInfo = document.getElementById('timing-info');
-    const timingDetails = document.getElementById('timing-details');
-    
-    if (!timingInfo || !timingDetails) {
-        console.warn('Timing elements not found');
-        return;
-    }
-    
-    // Set default values if timing or its properties are undefined
-    const safeTimingData = {
-        devices: timing?.devices || { duration: 0 },
-        states: timing?.states || { duration: 0 },
-        database: timing?.database || { duration: 0 },
-        total: timing?.total || 0
-    };
-    
-    //timingInfo.style.display = 'block';
-    
-    timingDetails.innerHTML = `
-        ${rateLimits ? `
-            <div class="timing-row">
-                <span>API Rate Limit Remaining:</span>
-                <span>${rateLimits.apiRemaining !== null ? rateLimits.apiRemaining + ' requests' : 'N/A'}</span>
-            </div>
-            <div class="timing-row">
-                <span>Overall Rate Limit Remaining:</span>
-                <span>${rateLimits.xRemaining !== null ? rateLimits.xRemaining + ' requests' : 'N/A'}</span>
-            </div>
-        ` : ''}
-        <div class="timing-row">
-            <span>Get Devices:</span>
-            <span>${safeTimingData.devices.duration || 0}ms</span>
-        </div>
-        <div class="timing-row">
-            <span>Get States:</span>
-            <span>${safeTimingData.states.duration || 0}ms</span>
-        </div>
-        <div class="timing-row">
-            <span>Database Query:</span>
-            <span>${safeTimingData.database.duration || 0}ms</span>
-        </div>
-        <div class="timing-row">
-            <span>Total Time:</span>
-            <span>${safeTimingData.total}ms</span>
-        </div>
-    `;
-}
+            const timingInfo = document.getElementById('timing-info');
+            const timingDetails = document.getElementById('timing-details');
+            
+            if (!timingInfo || !timingDetails) {
+                console.warn('Timing elements not found');
+                return;
+            }
+            
+            // Set default values if timing or its properties are undefined
+            const safeTimingData = {
+                devices: timing?.devices || { duration: 0 },
+                states: timing?.states || { duration: 0 },
+                database: timing?.database || { duration: 0 },
+                total: timing?.total || 0
+            };
+            
+            //timingInfo.style.display = 'block';
+            
+            timingDetails.innerHTML = `
+                ${rateLimits ? `
+                    <div class="timing-row">
+                        <span>API Rate Limit Remaining:</span>
+                        <span>${rateLimits.apiRemaining !== null ? rateLimits.apiRemaining + ' requests' : 'N/A'}</span>
+                    </div>
+                    <div class="timing-row">
+                        <span>Overall Rate Limit Remaining:</span>
+                        <span>${rateLimits.xRemaining !== null ? rateLimits.xRemaining + ' requests' : 'N/A'}</span>
+                    </div>
+                ` : ''}
+                <div class="timing-row">
+                    <span>Get Devices:</span>
+                    <span>${safeTimingData.devices.duration || 0}ms</span>
+                </div>
+                <div class="timing-row">
+                    <span>Get States:</span>
+                    <span>${safeTimingData.states.duration || 0}ms</span>
+                </div>
+                <div class="timing-row">
+                    <span>Database Query:</span>
+                    <span>${safeTimingData.database.duration || 0}ms</span>
+                </div>
+                <div class="timing-row">
+                    <span>Total Time:</span>
+                    <span>${safeTimingData.total}ms</span>
+                </div>
+            `;
+        }
 
         function toggleTimingDetails() {
             const timingInfo = document.getElementById('timing-info');
@@ -628,7 +628,7 @@
         async function loadInitialData() {
     try {
         // Just get initial device state from database without API updates
-        const response = await fetch('api/get_devices.php');
+        const response = await fetch('api/get_devices.php?quick=true');
         const data = await response.json();
         
         if (!data.success) {
@@ -703,7 +703,7 @@ async function updateBackgroundDevices() {
             visibleUpdateInterval = setInterval(() => {
                 console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
                 // Just get current states from database
-                fetch(`api/get_devices.php`)
+                fetch(`api/get_devices.php?quick=true`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
@@ -733,7 +733,7 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
-        const response = await fetch('api/get_devices.php');
+        const response = await fetch('api/get_devices.php?quick=false');
         const data = await response.json();
         
         if (!data.success) {
