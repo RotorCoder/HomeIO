@@ -568,7 +568,7 @@
         total: timing?.total || 0
     };
     
-    timingInfo.style.display = 'block';
+    //timingInfo.style.display = 'block';
     
     timingDetails.innerHTML = `
         ${rateLimits ? `
@@ -817,183 +817,181 @@ async function manualRefresh() {
         }
 
         async function showConfigMenu(deviceId) {
-    const deviceElement = document.getElementById(`device-${deviceId}`);
-    const popup = document.getElementById('config-popup');
-    
-    if (!deviceElement || !popup) {
-        console.error('Required elements not found');
-        return;
-    }
-    
-    // Set the device name in the header
-    const deviceName = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-    document.getElementById('config-device-title').textContent = deviceName;
-
-    const model = deviceElement.dataset.model;
-    const groupId = deviceElement.dataset.groupId;
-    
-    console.log('Device Group ID:', groupId);
-    
-    // Populate the basic form fields
-    document.getElementById('config-device-id').value = deviceId;
-    document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-    document.getElementById('config-model').value = model;
-    
-    // Reset group-related fields
-    const groupActionSelect = document.getElementById('config-group-action');
-    const groupNameInput = document.getElementById('config-group-name');
-    if (groupActionSelect) {
-        groupActionSelect.value = 'none';
-    }
-    if (groupNameInput) {
-        groupNameInput.value = '';
-    }
-
-    // Reset group containers visibility
-    const groupNameContainer = document.getElementById('group-name-container');
-    const existingGroupsContainer = document.getElementById('existing-groups-container');
-    if (groupNameContainer) {
-        groupNameContainer.style.display = 'none';
-    }
-    if (existingGroupsContainer) {
-        existingGroupsContainer.style.display = 'none';
-    }
-    
-    // Populate rooms dropdown
-    const roomSelect = document.getElementById('config-room');
-    roomSelect.innerHTML = rooms.map(room => 
-        `<option value="${room.id}">${room.room_name}</option>`
-    ).join('');
-
-    // Initialize X10 dropdowns and set up validation
-    initializeX10Dropdowns();
-    const validateX10 = setupX10CodeValidation();
-    popup.dataset.validateX10 = 'true';
-
-    try {
-        // Load device config
-        const configResponse = await fetch(`api/get_device_config.php?device=${deviceId}`);
-        const configData = await configResponse.json();
-        
-        // Store config values
-        const configValues = {
-            room: configData.success ? configData.room : '',
-            low: configData.success ? configData.low : '',
-            medium: configData.success ? configData.medium : '',
-            high: configData.success ? configData.high : '',
-            preferredColorTem: configData.success ? configData.preferredColorTem : '',
-            x10Code: configData.success ? configData.x10Code : ''
-        };
-
-        // Set room value
-        document.getElementById('config-room').value = configValues.room;
-
-        if (configValues.x10Code && configValues.x10Code.trim()) {
-            const letter = configValues.x10Code.charAt(0).toLowerCase();
-            const number = configValues.x10Code.substring(1);
-            document.getElementById('config-x10-letter').value = letter;
-            document.getElementById('config-x10-number').value = number;
-        } else {
-            // Set to blank options if x10Code is null or empty
-            document.getElementById('config-x10-letter').value = '';
-            document.getElementById('config-x10-number').value = '';
-        }
-
-        // Handle group vs regular device display
-        const groupConfigElements = document.getElementById('group-config-elements');
-        const regularConfigElements = document.getElementById('regular-config-elements');
-        
-        if (groupId) {
-            console.log('Showing group members for group:', groupId);
-            groupConfigElements.style.display = 'block';
-            regularConfigElements.style.display = 'none';
+            const deviceElement = document.getElementById(`device-${deviceId}`);
+            const popup = document.getElementById('config-popup');
             
-            // Get and display group members
-            const groupResponse = await fetch(`api/get_group_devices.php?groupId=${groupId}`);
-            const groupData = await groupResponse.json();
-            
-            if (groupData.success && groupData.devices) {
-                const membersHtml = groupData.devices.map(member => {
-                    const memberName = member.device_name || member.device;
-                    const displayName = memberName.includes('-') ? 
-                        memberName.split('-')[1].trim() : 
-                        memberName;
-                        
-                    return `
-                        <div class="group-member" data-full-name="${memberName}">
-                            <span class="member-name">${displayName}</span>
-                            <span class="member-status">
-                                ${member.powerState === 'on' ? 'On' : 'Off'} 
-                                (${member.online ? 'Online' : 'Offline'})
-                            </span>
-                        </div>
-                    `;
-                }).join('');
-                
-                // Add group settings
-                const settingsHtml = `
-                    <div class="form-group">
-                        <label>Low Brightness (%):</label>
-                        <input type="number" id="config-low" min="1" max="100" value="${configValues.low}">
-                    </div>
-                    <div class="form-group">
-                        <label>Medium Brightness (%):</label>
-                        <input type="number" id="config-medium" min="1" max="100" value="${configValues.medium}">
-                    </div>
-                    <div class="form-group">
-                        <label>High Brightness (%):</label>
-                        <input type="number" id="config-high" min="1" max="100" value="${configValues.high}">
-                    </div>
-                    <div class="form-group">
-                        <label>Preferred Color Temperature:</label>
-                        <input type="number" id="config-color-temp" min="2000" max="9000" value="${configValues.preferredColorTem}">
-                    </div>
-                    <div class="group-members">
-                        <h4>Group Members:</h4>
-                        ${membersHtml}
-                    </div>`;
-                
-                groupConfigElements.innerHTML = settingsHtml;
-
-                // Update buttons for group devices
-                document.querySelector('.buttons').innerHTML = `
-                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})" 
-                            style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: auto;">
-                        Delete Group
-                    </button>
-                    <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
-                    <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
-                `;
+            if (!deviceElement || !popup) {
+                console.error('Required elements not found');
+                return;
             }
-        } else {
-            console.log('Showing regular config - no group ID');
-            groupConfigElements.style.display = 'none';
-            regularConfigElements.style.display = 'block';
             
-            // Set values for regular device
-            document.getElementById('config-low').value = configValues.low;
-            document.getElementById('config-medium').value = configValues.medium;
-            document.getElementById('config-high').value = configValues.high;
-            document.getElementById('config-color-temp').value = configValues.preferredColorTem;
-            
-            // Regular device buttons
-            document.querySelector('.buttons').innerHTML = `
-                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
-                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
-            `;
-            
-            // Load available groups for this model
-            loadAvailableGroups(model);
-        }
-
-        // Show the popup
-        popup.style.display = 'block';
+            // Set the device name in the header
+            const deviceName = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+            document.getElementById('config-device-title').textContent = deviceName;
         
-    } catch (error) {
-        console.error('Configuration error:', error);
-        showError('Failed to load device configuration: ' + error.message);
-    }
-}
+            const model = deviceElement.dataset.model;
+            const groupId = deviceElement.dataset.groupId;
+            
+            // Populate the basic form fields
+            document.getElementById('config-device-id').value = deviceId;
+            document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+            // Add brand field population
+            document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
+            document.getElementById('config-model').value = model;
+            
+            // Reset group-related fields
+            const groupActionSelect = document.getElementById('config-group-action');
+            const groupNameInput = document.getElementById('config-group-name');
+            if (groupActionSelect) {
+                groupActionSelect.value = 'none';
+            }
+            if (groupNameInput) {
+                groupNameInput.value = '';
+            }
+        
+            // Reset group containers visibility
+            const groupNameContainer = document.getElementById('group-name-container');
+            const existingGroupsContainer = document.getElementById('existing-groups-container');
+            if (groupNameContainer) {
+                groupNameContainer.style.display = 'none';
+            }
+            if (existingGroupsContainer) {
+                existingGroupsContainer.style.display = 'none';
+            }
+            
+            // Populate rooms dropdown
+            const roomSelect = document.getElementById('config-room');
+            roomSelect.innerHTML = rooms.map(room => 
+                `<option value="${room.id}">${room.room_name}</option>`
+            ).join('');
+        
+            // Initialize X10 dropdowns and set up validation
+            initializeX10Dropdowns();
+            const validateX10 = setupX10CodeValidation();
+            popup.dataset.validateX10 = 'true';
+        
+            try {
+                // Load device config
+                const configResponse = await fetch(`api/get_device_config.php?device=${deviceId}`);
+                const configData = await configResponse.json();
+                
+                // Store config values
+                const configValues = {
+                    room: configData.success ? configData.room : '',
+                    low: configData.success ? configData.low : '',
+                    medium: configData.success ? configData.medium : '',
+                    high: configData.success ? configData.high : '',
+                    preferredColorTem: configData.success ? configData.preferredColorTem : '',
+                    x10Code: configData.success ? configData.x10Code : ''
+                };
+        
+                // Set room value
+                document.getElementById('config-room').value = configValues.room;
+        
+                if (configValues.x10Code && configValues.x10Code.trim()) {
+                    const letter = configValues.x10Code.charAt(0).toLowerCase();
+                    const number = configValues.x10Code.substring(1);
+                    document.getElementById('config-x10-letter').value = letter;
+                    document.getElementById('config-x10-number').value = number;
+                } else {
+                    // Set to blank options if x10Code is null or empty
+                    document.getElementById('config-x10-letter').value = '';
+                    document.getElementById('config-x10-number').value = '';
+                }
+        
+                // Handle group vs regular device display
+                const groupConfigElements = document.getElementById('group-config-elements');
+                const regularConfigElements = document.getElementById('regular-config-elements');
+                
+                if (groupId) {
+                    console.log('Showing group members for group:', groupId);
+                    groupConfigElements.style.display = 'block';
+                    regularConfigElements.style.display = 'none';
+                    
+                    // Get and display group members
+                    const groupResponse = await fetch(`api/group-devices?groupId=${groupId}`);
+                    const groupData = await groupResponse.json();
+                    
+                    if (groupData.success && groupData.devices) {
+                        const membersHtml = groupData.devices.map(member => {
+                            const memberName = member.device_name || member.device;
+                            const displayName = memberName;
+                                
+                            return `
+                                <div class="group-member" data-full-name="${memberName}">
+                                    <span class="member-name">${displayName}</span>
+                                    <span class="member-status">
+                                        ${member.powerState === 'on' ? 'On' : 'Off'} 
+                                        (${member.online ? 'Online' : 'Offline'})
+                                    </span>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        // Add group settings
+                        const settingsHtml = `
+                            <div class="form-group">
+                                <label>Low Brightness (%):</label>
+                                <input type="number" id="config-low" min="1" max="100" value="${configValues.low}">
+                            </div>
+                            <div class="form-group">
+                                <label>Medium Brightness (%):</label>
+                                <input type="number" id="config-medium" min="1" max="100" value="${configValues.medium}">
+                            </div>
+                            <div class="form-group">
+                                <label>High Brightness (%):</label>
+                                <input type="number" id="config-high" min="1" max="100" value="${configValues.high}">
+                            </div>
+                            <div class="form-group">
+                                <label>Preferred Color Temperature:</label>
+                                <input type="number" id="config-color-temp" min="2000" max="9000" value="${configValues.preferredColorTem}">
+                            </div>
+                            <div class="group-members">
+                                <h4>Group Members:</h4>
+                                ${membersHtml}
+                            </div>`;
+                        
+                        groupConfigElements.innerHTML = settingsHtml;
+        
+                        // Update buttons for group devices
+                        document.querySelector('.buttons').innerHTML = `
+                            <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})" 
+                                    style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: auto;">
+                                Delete Group
+                            </button>
+                            <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                            <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+                        `;
+                    }
+                } else {
+                    console.log('Showing regular config - no group ID');
+                    groupConfigElements.style.display = 'none';
+                    regularConfigElements.style.display = 'block';
+                    
+                    // Set values for regular device
+                    document.getElementById('config-low').value = configValues.low;
+                    document.getElementById('config-medium').value = configValues.medium;
+                    document.getElementById('config-high').value = configValues.high;
+                    document.getElementById('config-color-temp').value = configValues.preferredColorTem;
+                    
+                    // Regular device buttons
+                    document.querySelector('.buttons').innerHTML = `
+                        <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                        <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+                    `;
+                    
+                    // Load available groups for this model
+                    loadAvailableGroups(model);
+                }
+        
+                // Show the popup
+                popup.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Configuration error:', error);
+                showError('Failed to load device configuration: ' + error.message);
+            }
+        }
 
         function hideConfigMenu() {
             const popup = document.getElementById('config-popup');
@@ -1109,7 +1107,7 @@ async function manualRefresh() {
         
         async function loadAvailableGroups(model) {
             try {
-                const response = await fetch(`api/get_available_groups.php?model=${model}`);
+                const response = await fetch(`api/available-groups?model=${model}`);
                 const data = await response.json();
                 
                 if (!data.success) {
@@ -1277,10 +1275,16 @@ async function manualRefresh() {
                 <!-- Hidden inputs -->
                 <input type="hidden" id="config-device-id">
                 <input type="hidden" id="config-device-name">
-
-                <div class="form-group">
-                    <label>Model:</label>
-                    <input type="text" id="config-model" readonly>
+                
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <div style="flex: 1;">
+                        <label>Brand:</label>
+                        <input type="text" id="config-brand" readonly style="width: 100%;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Model:</label>
+                        <input type="text" id="config-model" readonly style="width: 100%;">
+                    </div>
                 </div>
 
                 <div class="form-group" style="display: flex; gap: 10px;">

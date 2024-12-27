@@ -235,4 +235,86 @@ $app->post('/delete-device-group', function (Request $request, Response $respons
     }
 });
 
+// Get available device groups route
+$app->get('/available-groups', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $queryParams = $request->getQueryParams();
+        
+        if (!isset($queryParams['model'])) {
+            throw new Exception('Model parameter is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Get existing groups for this model
+        $stmt = $pdo->prepare("SELECT id, name FROM device_groups WHERE model = ?");
+        $stmt->execute([$queryParams['model']]);
+        $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $payload = json_encode([
+            'success' => true,
+            'groups' => $groups
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+            
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error getting available groups: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+// Get group devices route
+$app->get('/group-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $queryParams = $request->getQueryParams();
+        
+        if (!isset($queryParams['groupId'])) {
+            throw new Exception('Group ID is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Get all devices in the group, including device_name
+        $stmt = $pdo->prepare("SELECT device, device_name, powerState, online FROM devices WHERE deviceGroup = ?");
+        $stmt->execute([$queryParams['groupId']]);
+        $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $payload = json_encode([
+            'success' => true,
+            'devices' => $devices
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+            
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error getting group devices: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
 $app->run();
