@@ -246,10 +246,11 @@
             document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
         }
 
-        function getDeviceIcon(deviceName) {
+        function getDeviceIcon(deviceName, powerState = 'off') {
             deviceName = deviceName.toLowerCase();
             if (deviceName.includes('fan')) {
-                return 'fa-solid fa-2x fa-fan fa-spin';  // Added fa-spin class
+                // Only add fa-spin class if the fan is powered on
+                return `fa-solid fa-2x fa-fan${powerState === 'on' ? ' fa-spin' : ''}`;
             } else if (deviceName.includes('tv')) {
                 return 'fa-solid fa-2x fa-tv';
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
@@ -263,7 +264,7 @@
         function createDeviceCard(device) {
     const isOnline = device.online ?? false;
     const deviceClass = isOnline ? 'device-online' : 'device-offline';
-    const icon = getDeviceIcon(device.device_name);
+    const icon = getDeviceIcon(device.device_name, device.powerState);
     const powerState = device.powerState || 'off';
     const supportedCmds = JSON.parse(device.supportCmds || '[]');
     
