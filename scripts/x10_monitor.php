@@ -52,12 +52,13 @@ function getX10DeviceMapping($x10Code) {
         if ($device) {
             $result = [
                 'device' => $device['device'],
-                'model' => $device['model']
+                'model' => $device['model'],
+                'brand' => $device['brand']
             ];
             
             if ($device['group_id']) {
                 $groupStmt = $pdo->prepare("
-                    SELECT device, model 
+                    SELECT device, model, brand  -- Added brand to the group members query
                     FROM devices 
                     WHERE deviceGroup = ?
                 ");
@@ -94,14 +95,14 @@ function getNextBrightnessLevel($currentBrightness, $config, $command) {
     return $current;
 }
 
-function queueGoveeCommand($x10Code, $command) {
+function queueDeviceCommand($x10Code, $command) {
     global $config, $log;
     
     $log->logInfoMsg("Queueing command for X10 code: $x10Code, command: $command");
     
     $deviceMapping = getX10DeviceMapping($x10Code);
     if (!$deviceMapping) {
-        $log->logInfoMsg("ERROR: No Govee device mapping found for X10 code: $x10Code");
+        $log->logInfoMsg("ERROR: No device mapping found for X10 code: $x10Code");
         return;
     }
 
@@ -111,8 +112,6 @@ function queueGoveeCommand($x10Code, $command) {
     } else {
         $devices = [$deviceMapping];
     }
-
-    $goveeAPI = new GoveeAPI($config['govee_api_key'], $config['db_config']);
 
     foreach ($devices as $device) {
         $deviceConfig = getDeviceConfig($device['device']);
@@ -142,9 +141,39 @@ function queueGoveeCommand($x10Code, $command) {
         }
         
         try {
-            $result = $goveeAPI->queueCommand($device['device'], $device['model'], $cmd);
-            $log->logInfoMsg("Command queued successfully for device " . $device['device']);
-            $log->logInfoMsg("Queue result: " . json_encode($result));
+            // Prepare the command data
+            $commandData = [
+                'device' => $device['device'],
+                'model' => $device['model'],
+                'cmd' => $cmd,
+                'brand' => $device['brand']
+            ];
+
+            // Use relative path
+            $ch = curl_init('https://rotorcoder.com/homeio/api/send_command.php');
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+
+            $result = curl_exec($ch);
+            if ($result === false) {
+                throw new Exception("CURL error: " . curl_error($ch));
+            }
+
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200) {
+                $response = json_decode($result, true);
+                if ($response && isset($response['success']) && $response['success']) {
+                    $log->logInfoMsg("Command queued successfully for device " . $device['device']);
+                } else {
+                    throw new Exception("API returned success=false: " . ($response['error'] ?? 'Unknown error'));
+                }
+            } else {
+                throw new Exception("HTTP error code: " . $httpCode . ", Response: " . $result);
+            }
         } catch (Exception $e) {
             $log->logInfoMsg("ERROR queueing command for " . $device['device'] . ": " . $e->getMessage());
         }
@@ -266,7 +295,7 @@ try {
                         
                         if (!isDuplicate($x10Code, $command, $timestamp)) {
                             $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
-                            queueGoveeCommand($x10Code, $command);
+                            queueDeviceCommand($x10Code, $command);
                         }
                     }
                 }
