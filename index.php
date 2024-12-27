@@ -55,7 +55,7 @@
         let rooms = [];
         let visibleUpdateInterval;
         let backgroundUpdateInterval;
-        const QUICK_UPDATE_INTERVAL = 1000;     // 3 seconds for quick refresh
+        const QUICK_UPDATE_INTERVAL = 2000;     // 2 seconds for quick refresh
         const VISIBLE_UPDATE_INTERVAL = 30000;  // 30 seconds for full refresh of tab devices
         const BACKGROUND_UPDATE_INTERVAL = 3000000;  // 300 seconds (5 minutes) for full refresh of all devices
         const refreshButton = document.getElementById('refresh-button');
@@ -220,40 +220,25 @@
 }
 
         function switchTab(roomId) {
-    console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
-    if (roomId !== 'config') {
-        console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
-        localStorage.setItem('selectedTab', roomId);
-    }
-    
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.room === roomId);
-    });
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.dataset.room === roomId);
-    });
-    
-    // Always do a quick refresh when switching tabs
-    console.log(`[${new Date().toLocaleTimeString()}] Tab switch - performing quick refresh for room ${roomId}`);
-    fetch(`api/devices?room=${roomId}&quick=1`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log(`[${new Date().toLocaleTimeString()}] Tab switch quick refresh completed successfully`);
-                handleDevicesUpdate(data.devices);
-                updateLastRefreshTime(data.updated);
+            console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+            if (roomId !== 'config') {
+                console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+                localStorage.setItem('selectedTab', roomId);
             }
-        })
-        .catch(error => {
-            console.error(`[${new Date().toLocaleTimeString()}] Tab switch quick refresh error:`, error);
-        });
-
-    // Reset the timers if auto-refresh is enabled
-    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-    if (autoRefreshToggle.checked) {
-        resetUpdateTimers();
-    }
-}
+            
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.room === roomId);
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.toggle('active', content.dataset.room === roomId);
+            });
+        
+            // Reset the timers if auto-refresh is enabled
+            const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+            if (autoRefreshToggle.checked) {
+                resetUpdateTimers();
+            }
+        }
 
         function updateLastRefreshTime(timestamp) {
             const date = timestamp ? new Date(timestamp) : new Date();
@@ -751,10 +736,10 @@ async function updateBackgroundDevices() {
     // Always set up quick refresh of current room devices
     visibleUpdateInterval = setInterval(() => {
         const currentRoomId = getCurrentRoomId();
-        if (currentRoomId) {
-            console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh for room ${currentRoomId}`);
+        
+            console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
             // Just get current states from database
-            fetch(`api/devices?room=${currentRoomId}`)
+            fetch(`api/get_devices.php`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -766,7 +751,7 @@ async function updateBackgroundDevices() {
                 .catch(error => {
                     console.error(`[${new Date().toLocaleTimeString()}] Quick refresh error:`, error);
                 });
-        }
+        
     }, QUICK_UPDATE_INTERVAL);
     
     // Only set up full device updates if auto-refresh is enabled

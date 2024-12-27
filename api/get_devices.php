@@ -14,9 +14,83 @@ function getDatabaseConnection($config) {
     );
 }
 
-function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
+function getHueDevices($config) {
     global $log;
+    $log->logInfoMsg("Getting all devices from Hue Bridge");
+    $curl = curl_init();
+    
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://{$config['hue_bridge_ip']}/clip/v2/resource/light",
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_ENCODING => '',
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => 'GET',
+        CURLOPT_SSL_VERIFYHOST => 0,
+        CURLOPT_SSL_VERIFYPEER => 0,
+        CURLOPT_HTTPHEADER => array(
+            'hue-application-key: ' . $config['hue_api_key']
+        )
+    ));
+    
+    $response = curl_exec($curl);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    
+    if ($response === false) {
+        throw new Exception('Failed to connect to Hue Bridge');
+    }
+    
+    return [
+        'body' => $response,
+        'statusCode' => $statusCode
+    ];
+}
+
+function updateHueDeviceDatabase($pdo, $device) {
+    global $log;
+    
+    try {
+        $stmt = $pdo->prepare("UPDATE devices SET 
+            powerState = ?, 
+            brightness = ?, 
+            colorTemp = ?,
+            online = 1
+            WHERE device = ? AND brand = 'hue'");
+            
+        $stmt->execute([
+            $device['on']['on'] ? 'on' : 'off',
+            isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
+            isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null,
+            $device['id']
+        ]);
+        
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error updating Hue device {$device['id']}: " . $e->getMessage());
+    }
+}
+
+function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
+    global $log, $config;
     $log->logInfoMsg("Getting devices from the database.");
+    
+    // Quick update of Hue devices first
+    try {
+        $hueResponse = getHueDevices($config);
+        if ($hueResponse['statusCode'] === 200) {
+            $devices = json_decode($hueResponse['body'], true);
+            if ($devices && isset($devices['data'])) {
+                foreach ($devices['data'] as $device) {
+                    updateHueDeviceDatabase($pdo, $device);
+                }
+            }
+        }
+    } catch (Exception $e) {
+        $log->logErrorMsg("Hue update error: " . $e->getMessage());
+        // Continue even if Hue update fails
+    }
     
     try {
         $baseQuery = "SELECT devices.*, rooms.room_name,
@@ -92,6 +166,7 @@ try {
     $single_device = isset($_GET['device']) ? $_GET['device'] : null;
     $room = isset($_GET['room']) ? $_GET['room'] : null;
     $exclude_room = isset($_GET['exclude_room']) ? $_GET['exclude_room'] : null;
+    $quick = isset($_GET['quick']) ? $_GET['quick'] : false;
 
     $pdo = getDatabaseConnection($config);
     $devices = getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
