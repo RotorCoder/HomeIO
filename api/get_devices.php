@@ -172,6 +172,8 @@ try {
     $quick = isset($_GET['quick']) ? ($_GET['quick'] === 'true') : false;
 
     $pdo = getDatabaseConnection($config);
+    
+    $devices_start = microtime(true);
 
     // Only update Govee devices during full refresh
     if (!$quick) {
@@ -226,12 +228,20 @@ try {
     }
     
     $devices = getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
+    $timing['devices'] = array('duration' => round((microtime(true) - $devices_start) * 1000));
+    
+    // Calculate database timing
+    $timing['database'] = array('duration' => round((microtime(true) - $devices_start) * 1000));
+    
+    // Calculate total timing
+    $timing['total'] = round((microtime(true) - $start) * 1000);
 
     echo json_encode([
         'success' => true,
         'devices' => $devices,
         'updated' => date('c'),
-        'timing' => $timing
+        'timing' => $timing,
+        'quick' => $quick // Include this so frontend knows if it was a quick update
     ]);
 
 } catch (Exception $e) {

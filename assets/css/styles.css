@@ -202,6 +202,10 @@ body {
     display: none;
 }
 
+.timing-info.expanded {
+    display: block;
+}
+
 .timing-details {
     background-color: #f9fafb;
     border-radius: 0.5rem;

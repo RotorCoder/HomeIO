@@ -112,13 +112,7 @@
                     <i class="fas fa-sync-alt"></i>
                     <span>Refresh</span>
                 </button>
-                <div class="timing-info" id="timing-info" style="margin-bottom: 10px;">
-                    <button class="show-timing desktop-config-btn" onclick="toggleTimingDetails()">
-                        <i class="fas fa-chevron-down timing-toggle-icon"></i>
-                        <span>Refresh Timing Details</span>
-                    </button>
-                    <div class="timing-details" id="timing-details"></div>
-                </div>
+                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
                 <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
                     Show Unassigned Devices
                 </button>
@@ -140,12 +134,18 @@
 }
 
     function toggleConfigContent() {
-    const configContent = document.querySelector('.config-content');
-    const chevron = document.querySelector('.config-header .fa-chevron-down');
-    
-    configContent.classList.toggle('show');
-    chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
-}
+        const configContent = document.getElementById('desktop-config-content');
+        const timingInfo = document.getElementById('timing-info');
+        const chevron = document.querySelector('.config-header .fa-chevron-down');
+        
+        configContent.classList.toggle('show');
+        // Make sure desktop-config-content is visible when timing info is expanded
+        if (timingInfo.classList.contains('expanded')) {
+            configContent.classList.add('show');
+        }
+        
+        chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
+    }
 
     function showDefaultRoomDevices() {
     // Create and show popup
@@ -547,59 +547,77 @@
             errorElement.style.display = 'block';
         }
 
-        function updateTimingInfo(timing, rateLimits) {
-            const timingInfo = document.getElementById('timing-info');
-            const timingDetails = document.getElementById('timing-details');
-            
-            if (!timingInfo || !timingDetails) {
-                console.warn('Timing elements not found');
-                return;
-            }
-            
-            // Set default values if timing or its properties are undefined
-            const safeTimingData = {
-                devices: timing?.devices || { duration: 0 },
-                states: timing?.states || { duration: 0 },
-                database: timing?.database || { duration: 0 },
-                total: timing?.total || 0
-            };
-            
-            //timingInfo.style.display = 'block';
-            
-            timingDetails.innerHTML = `
-                ${rateLimits ? `
+        function updateTimingInfo(timing) {
+    const timingInfo = document.getElementById('timing-info');
+    const configContent = document.getElementById('desktop-config-content');
+    
+    if (!timingInfo || !configContent) {
+        console.warn('Timing elements not found');
+        return;
+    }
+    
+    // Set default values if timing or its properties are undefined
+    const safeTimingData = {
+        devices: timing?.devices || { duration: 0 },
+        states: timing?.states || { duration: 0 },
+        govee: timing?.govee || { duration: 0 },
+        database: timing?.database || { duration: 0 },
+        total: timing?.total || 0
+    };
+    
+    // Make sure container is visible
+    configContent.classList.add('show');
+    
+    // Create the timing card using device-card styling
+    timingInfo.innerHTML = `
+        <div class="device-card">
+            <div class="device-info">
+                <div class="device-icon">
+                    <i class="fas fa-2x fa-clock" style="color: #6b7280;"></i>
+                </div>
+                <div class="device-details">
+                    <h3>Refresh Timing</h3>
+                    <p class="device-status">Total: ${safeTimingData.total}ms</p>
+                </div>
+                <button onclick="toggleTimingDetails()" class="config-btn">
+                    <i class="fas fa-xl fa-chevron-down"></i>
+                </button>
+            </div>
+            <div class="device-controls" style="display: none; height: auto; flex-direction: column;">
+                <div style="padding: 10px;">
                     <div class="timing-row">
-                        <span>API Rate Limit Remaining:</span>
-                        <span>${rateLimits.apiRemaining !== null ? rateLimits.apiRemaining + ' requests' : 'N/A'}</span>
+                        <span>Get Devices:</span>
+                        <span>${safeTimingData.devices.duration}ms</span>
                     </div>
                     <div class="timing-row">
-                        <span>Overall Rate Limit Remaining:</span>
-                        <span>${rateLimits.xRemaining !== null ? rateLimits.xRemaining + ' requests' : 'N/A'}</span>
+                        <span>Get States:</span>
+                        <span>${safeTimingData.states.duration}ms</span>
                     </div>
-                ` : ''}
-                <div class="timing-row">
-                    <span>Get Devices:</span>
-                    <span>${safeTimingData.devices.duration || 0}ms</span>
+                    <div class="timing-row">
+                        <span>Govee Update:</span>
+                        <span>${safeTimingData.govee.duration}ms</span>
+                    </div>
+                    <div class="timing-row">
+                        <span>Database Query:</span>
+                        <span>${safeTimingData.database.duration}ms</span>
+                    </div>
                 </div>
-                <div class="timing-row">
-                    <span>Get States:</span>
-                    <span>${safeTimingData.states.duration || 0}ms</span>
-                </div>
-                <div class="timing-row">
-                    <span>Database Query:</span>
-                    <span>${safeTimingData.database.duration || 0}ms</span>
-                </div>
-                <div class="timing-row">
-                    <span>Total Time:</span>
-                    <span>${safeTimingData.total}ms</span>
-                </div>
-            `;
-        }
+            </div>
+        </div>
+    `;
+}
 
-        function toggleTimingDetails() {
-            const timingInfo = document.getElementById('timing-info');
-            timingInfo.classList.toggle('expanded');
-        }
+        function toggleTimingDetails(button) {
+    const card = button.closest('.device-card');
+    const content = card.querySelector('.timing-content');
+    const icon = button.querySelector('i');
+    
+    if (content) {
+        const isHidden = content.style.display === 'none';
+        content.style.display = isHidden ? 'flex' : 'none';
+        icon.className = isHidden ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
+    }
+}
 
         function setRefreshing(refreshing) {
             isRefreshing = refreshing;
@@ -646,25 +664,7 @@
 
 
 
-async function updateDevicesInRoom(roomId) {
-    if (isRefreshing) return;
-    
-    try {
-        // For room updates, just get current device states
-        const response = await fetch(`api/devices?room=${roomId}`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to update devices');
-        }
 
-        handleDevicesUpdate(data.devices);
-        updateLastRefreshTime(data.updated);
-        document.getElementById('error-message').style.display = 'none';
-    } catch (error) {
-        showError(error.message);
-    }
-}
 
 async function updateBackgroundDevices() {
     if (isRefreshing) return;
@@ -742,20 +742,63 @@ async function updateDevices() {
 
         console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
         
-        // Add null check for devices array
         if (data.devices && Array.isArray(data.devices)) {
             console.log('Updating devices:', data.devices.length);
             handleDevicesUpdate(data.devices);
-            // Remove this line since the element no longer exists:
-            // document.querySelector('.header-controls').style.display = 'block';
         } else {
             console.warn('No devices data received or invalid format');
         }
         
         updateLastRefreshTime(data.updated);
-        if (!data.quick) {
-            updateTimingInfo(data.timing, data.rateLimits);
+        
+        // Update timing info if available
+        if (!data.quick && data.timing) {
+        const timingInfo = document.getElementById('timing-info');
+        
+        if (!data.quick && data.timing) {
+        const timingInfo = document.getElementById('timing-info');
+        
+        if (timingInfo) {
+            timingInfo.innerHTML = `
+                <div class="device-card" style="height: auto; min-height: 120px;">
+                    <div class="device-info">
+                        <div class="device-icon">
+                            <i class="fas fa-2x fa-clock" style="color: #6b7280;"></i>
+                        </div>
+                        <div class="device-details">
+                            <h3>Refresh Timing</h3>
+                            <p class="device-status">Total: ${data.timing.total}ms</p>
+                        </div>
+                        <button class="config-btn" onclick="toggleTimingDetails(this)">
+                            <i class="fas fa-chevron-up"></i>
+                        </button>
+                    </div>
+                    <div class="device-controls timing-content" style="display: none; height: auto; flex-direction: column; padding: 10px;">
+                        <div class="timing-data">
+                            <div class="timing-row">
+                                <span style="font-weight: 500;">Get Devices:</span>
+                                <span>${data.timing.devices?.duration || 0}ms</span>
+                            </div>
+                            <div class="timing-row">
+                                <span style="font-weight: 500;">Get States:</span>
+                                <span>${data.timing.states?.duration || 0}ms</span>
+                            </div>
+                            <div class="timing-row">
+                                <span style="font-weight: 500;">Govee Update:</span>
+                                <span>${data.timing.govee?.duration || 0}ms</span>
+                            </div>
+                            <div class="timing-row">
+                                <span style="font-weight: 500;">Database Query:</span>
+                                <span>${data.timing.database?.duration || 0}ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
+    }
+    }
+        
         document.getElementById('error-message').style.display = 'none';
         
     } catch (error) {
