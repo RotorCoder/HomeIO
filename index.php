@@ -255,7 +255,7 @@
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
                 return 'fa-solid fa-2x fa-lightbulb';
             } else if (deviceName.includes('heater')) {
-                return 'fa-solid fa-2x fa-temperature-high';
+                return 'fa-solid fa-2x fa-temperature-arrow-up';
             } 
             return 'fa-solid fa-2x fa-plug';
         }
