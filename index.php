@@ -561,40 +561,53 @@
         }
 
         function updateTimingInfo(timing, rateLimits) {
-            const timingInfo = document.getElementById('timing-info');
-            const timingDetails = document.getElementById('timing-details');
-            
-            timingInfo.style.display = 'block';
-            
-            timingDetails.innerHTML = `
-                ${rateLimits ? `
-                    <div class="timing-row">
-                        <span>API Rate Limit Remaining:</span>
-                        <span>${rateLimits.apiRemaining !== null ? rateLimits.apiRemaining + ' requests' : 'N/A'}</span>
-                    </div>
-                    <div class="timing-row">
-                        <span>Overall Rate Limit Remaining:</span>
-                        <span>${rateLimits.xRemaining !== null ? rateLimits.xRemaining + ' requests' : 'N/A'}</span>
-                    </div>
-                ` : ''}
-                <div class="timing-row">
-                    <span>Get Devices:</span>
-                    <span>${timing.devices?.duration || 0}ms</span>
-                </div>
-                <div class="timing-row">
-                    <span>Get States:</span>
-                    <span>${timing.states?.duration || 0}ms</span>
-                </div>
-                <div class="timing-row">
-                    <span>Database Query:</span>
-                    <span>${timing.database?.duration || 0}ms</span>
-                </div>
-                <div class="timing-row">
-                    <span>Total Time:</span>
-                    <span>${timing.total}ms</span>
-                </div>
-            `;
-        }
+    const timingInfo = document.getElementById('timing-info');
+    const timingDetails = document.getElementById('timing-details');
+    
+    if (!timingInfo || !timingDetails) {
+        console.warn('Timing elements not found');
+        return;
+    }
+    
+    // Set default values if timing or its properties are undefined
+    const safeTimingData = {
+        devices: timing?.devices || { duration: 0 },
+        states: timing?.states || { duration: 0 },
+        database: timing?.database || { duration: 0 },
+        total: timing?.total || 0
+    };
+    
+    timingInfo.style.display = 'block';
+    
+    timingDetails.innerHTML = `
+        ${rateLimits ? `
+            <div class="timing-row">
+                <span>API Rate Limit Remaining:</span>
+                <span>${rateLimits.apiRemaining !== null ? rateLimits.apiRemaining + ' requests' : 'N/A'}</span>
+            </div>
+            <div class="timing-row">
+                <span>Overall Rate Limit Remaining:</span>
+                <span>${rateLimits.xRemaining !== null ? rateLimits.xRemaining + ' requests' : 'N/A'}</span>
+            </div>
+        ` : ''}
+        <div class="timing-row">
+            <span>Get Devices:</span>
+            <span>${safeTimingData.devices.duration || 0}ms</span>
+        </div>
+        <div class="timing-row">
+            <span>Get States:</span>
+            <span>${safeTimingData.states.duration || 0}ms</span>
+        </div>
+        <div class="timing-row">
+            <span>Database Query:</span>
+            <span>${safeTimingData.database.duration || 0}ms</span>
+        </div>
+        <div class="timing-row">
+            <span>Total Time:</span>
+            <span>${safeTimingData.total}ms</span>
+        </div>
+    `;
+}
 
         function toggleTimingDetails() {
             const timingInfo = document.getElementById('timing-info');
@@ -644,39 +657,30 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
-        // First update Govee devices
-        console.log('Updating Govee devices...');
-        const goveeResponse = await fetch('api/update_govee_devices.php');
-        const goveeData = await goveeResponse.json();
+        const response = await fetch('api/get_devices.php');
+        const data = await response.json();
         
-        // Then update Hue devices
-        console.log('Updating Hue devices...');
-        const hueResponse = await fetch('api/update_hue_devices.php');
-        const hueData = await hueResponse.json();
-        
-        // Finally get the current state of all devices
-        console.log('Getting current device states...');
-        const deviceResponse = await fetch('api/get_devices.php');
-        const deviceData = await deviceResponse.json();
-        
-        if (!deviceData.success) {
-            throw new Error(deviceData.error || 'Failed to get device states');
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update devices');
         }
 
         console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
-        handleDevicesUpdate(deviceData.devices);
-        updateLastRefreshTime(deviceData.updated);
         
-        // Combine timing info from all updates
-        const timing = {
-            govee: goveeData.timing,
-            hue: hueData.timing,
-            database: deviceData.timing,
-            total: Date.now() - startTime
-        };
+        // Add null check for devices array
+        if (data.devices && Array.isArray(data.devices)) {
+            handleDevicesUpdate(data.devices);
+        } else {
+            console.warn('No devices data received or invalid format');
+            // Optionally show a user-friendly message
+            // showError('Unable to update device status');
+        }
         
-        updateTimingInfo(timing);
+        updateLastRefreshTime(data.updated);
+        if (!data.quick) {
+            updateTimingInfo(data.timing, data.rateLimits);
+        }
         document.getElementById('error-message').style.display = 'none';
+        
     } catch (error) {
         console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
         showError(error.message);
