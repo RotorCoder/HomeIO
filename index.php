@@ -1155,7 +1155,7 @@ async function manualRefresh() {
         
         async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
             try {
-                const response = await fetch(`api/check_x10_code.php?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
+                const response = await fetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
                 const data = await response.json();
                 return data;
             } catch (error) {

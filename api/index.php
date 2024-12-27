@@ -131,4 +131,51 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
     }
 });
 
+// X10 code check route
+$app->get('/check-x10-code', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $queryParams = $request->getQueryParams();
+        
+        if (!isset($queryParams['x10Code'])) {
+            throw new Exception('X10 code is required');
+        }
+        
+        $x10Code = $queryParams['x10Code'];
+        $currentDevice = $queryParams['currentDevice'] ?? null;
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Check if X10 code exists for any other device
+        $sql = "SELECT device, device_name FROM devices WHERE x10Code = ? AND device != ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$x10Code, $currentDevice]);
+        $existingDevice = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $payload = json_encode([
+            'success' => true,
+            'isDuplicate' => (bool)$existingDevice,
+            'deviceName' => $existingDevice ? $existingDevice['device_name'] : null,
+            'device' => $existingDevice ? $existingDevice['device'] : null
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+            
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error checking X10 code: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
 $app->run();
