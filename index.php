@@ -196,7 +196,7 @@
     document.body.appendChild(popup);
 
     // Fetch and display default room devices
-    fetch('api/get_devices.php?room=1')
+    fetch('api/devices?room=1')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -229,7 +229,7 @@
     
     // Always do a quick refresh when switching tabs
     console.log(`[${new Date().toLocaleTimeString()}] Tab switch - performing quick refresh for room ${roomId}`);
-    fetch(`api/get_devices.php?room=${roomId}&quick=1`)
+    fetch(`api/devices?room=${roomId}&quick=1`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -381,7 +381,8 @@
                 deviceStates.set(device.device, {
                     online: device.online ?? false,
                     powerState: device.powerState,
-                    brightness: device.brightness
+                    brightness: device.brightness,
+                    brand: device.brand
                 });
             });
         }
@@ -437,6 +438,7 @@
 
         // Now send commands to the devices
         const commandPromises = devicesToUpdate.map(deviceId => {
+            const deviceElem = document.getElementById(`device-${deviceId}`);
             const cmd = {
                 name: command,
                 value: value
@@ -451,7 +453,7 @@
                     device: deviceId,
                     model: model,
                     cmd: cmd,
-                    brand: 'govee' // Default to govee if not specified
+                    brand: deviceStates.get(deviceId)?.brand || 'unknown'  // Get brand from device state
                 })
             }).then(async response => {
                 const data = await response.json();
@@ -688,7 +690,7 @@ async function updateDevicesInRoom(roomId) {
     
     try {
         // For room updates, just get current device states
-        const response = await fetch(`api/get_devices.php?room=${roomId}`);
+        const response = await fetch(`api/devices?room=${roomId}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -711,7 +713,7 @@ async function updateBackgroundDevices() {
     
     try {
         // For background updates, just get current device states
-        const response = await fetch(`api/get_devices.php?exclude_room=${currentRoomId}`);
+        const response = await fetch(`api/devices?exclude_room=${currentRoomId}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -742,7 +744,7 @@ async function updateBackgroundDevices() {
         if (currentRoomId) {
             console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh for room ${currentRoomId}`);
             // Just get current states from database
-            fetch(`api/get_devices.php?room=${currentRoomId}`)
+            fetch(`api/devices?room=${currentRoomId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {

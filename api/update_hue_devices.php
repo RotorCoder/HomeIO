@@ -56,12 +56,12 @@ function updateDeviceDatabase($pdo, $device) {
     global $log;
     
     $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
-    $stmt->execute([$device['owner']['rid']]);
+    $stmt->execute([$device['id']]);
     $current = $stmt->fetch(PDO::FETCH_ASSOC);
     
     $new_values = [
-        'device' => $device['owner']['rid'],
-        'model' => null,  // Model ID not available in light endpoint
+        'device' => $device['id'],
+        'model' => $device['type'],  // Model ID not available in light endpoint
         'device_name' => $device['metadata']['name'],
         'controllable' => 1,
         'retrievable' => 1,
@@ -70,11 +70,11 @@ function updateDeviceDatabase($pdo, $device) {
         'online' => true,
         'powerState' => $device['on']['on'] ? 'on' : 'off',
         'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
-        'colorTemInKelvin' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
+        'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
     ];
     
     if (!$current) {
-        $log->logInfoMsg("New Hue device detected: {$device['owner']['rid']}");
+        $log->logInfoMsg("New Hue device detected: {$device['id']}");
         $updates = [];
         $params = [];
         foreach ($new_values as $key => $value) {
@@ -94,7 +94,7 @@ function updateDeviceDatabase($pdo, $device) {
     
     $changes = [];
     $updates = [];
-    $params = [':device' => $device['owner']['rid']];
+    $params = [':device' => $device['id']];
     
     foreach ($new_values as $key => $value) {
         if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
@@ -120,7 +120,7 @@ function updateDeviceDatabase($pdo, $device) {
         $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        $log->logInfoMsg("Updated Hue device {$device['owner']['rid']}: " . implode(", ", $changes));
+        $log->logInfoMsg("Updated Hue device {$device['id']}: " . implode(", ", $changes));
     }
     
     return $new_values;

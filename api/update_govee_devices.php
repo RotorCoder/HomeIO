@@ -84,8 +84,8 @@ function updateDeviceDatabase($pdo, $device) {
         'controllable' => $device['controllable'] ? 1 : 0,
         'retrievable' => $device['retrievable'] ? 1 : 0,
         'supportCmds' => json_encode($device['supportCmds']),
-        'colorTem_rangeMin' => null,
-        'colorTem_rangeMax' => null
+        'colorTemp_rangeMin' => null,
+        'colorTemp_rangeMax' => null
     ];
     
     if (in_array('colorTem', $device['supportCmds']) && 
@@ -93,8 +93,8 @@ function updateDeviceDatabase($pdo, $device) {
         isset($device['properties']['colorTem']) && 
         isset($device['properties']['colorTem']['range'])) {
         
-        $new_values['colorTem_rangeMin'] = $device['properties']['colorTem']['range']['min'];
-        $new_values['colorTem_rangeMax'] = $device['properties']['colorTem']['range']['max'];
+        $new_values['colorTemp_rangeMin'] = $device['properties']['colorTem']['range']['min'];
+        $new_values['colorTemp_rangeMax'] = $device['properties']['colorTem']['range']['max'];
     }
     
     if (!$current) {
@@ -171,8 +171,7 @@ function updateDeviceStateInDatabase($pdo, $device, $device_states, $govee_devic
         'model' => $govee_device ? $govee_device['model'] : $device['model'],
         'powerState' => null,
         'brightness' => null,
-        'colorTemInKelvin' => null,
-        'colorTem' => null
+        'colorTemp' => null
     ];
     
     if (isset($device_states[$device['device']])) {

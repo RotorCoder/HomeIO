@@ -64,7 +64,7 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
                 $groupStmt = $pdo->prepare(
                     "SELECT devices.device, devices.device_name, 
                             devices.powerState, devices.online, 
-                            devices.brightness
+                            devices.brightness, devices.brand
                      FROM devices 
                      WHERE devices.deviceGroup = ? AND devices.device != ?
                      ORDER BY devices.device_name"
