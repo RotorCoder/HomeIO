@@ -454,6 +454,17 @@ body {
     margin: 10px 0;
 }
 
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.room-temp-info {
+    font-size: 1rem;
+    color: #6b7280;
+}
+
 @media (min-width: 1024px) {
     .tabs {
         display: none;
@@ -524,10 +535,26 @@ body {
     .mobile-config-btn {
         display: block;
     }
+    .tab-content .room-header {
+        font-size: 1.25rem;
+        margin: 1rem 0 .75rem 0;
+        padding: 0 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
     
     .room-header {
-        font-size: 1.25rem;  /* Slightly smaller on mobile */
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1.25rem;  /* Matches your existing mobile size */
         margin: 1rem 0 .75rem 0;
-        padding: 0 0.5rem;   /* Add some horizontal padding */
+        padding: 0 0.5rem;
+    }
+    
+    .room-temp-info {
+        font-size: 1rem;
+        color: #6b7280;
     }
 }

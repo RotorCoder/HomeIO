@@ -50,7 +50,7 @@
             }
         }
 
-        function createTabs() {
+        async function createTabs() {
     const tabsContainer = document.getElementById('tabs');
     const tabContents = document.getElementById('tab-contents');
     
@@ -61,19 +61,34 @@
     const savedTab = localStorage.getItem('selectedTab');
     
     // Add room tabs and content, excluding room 1
-    rooms.forEach((room, index) => {
+    for (const room of rooms) {
         if (room.id !== 1) {  // Skip room 1 (default room)
+            // Fetch temperature data for this room
+            let tempInfo = '';
+            try {
+                const response = await fetch(`api/room-temperature.php?room=${room.id}`);
+                const data = await response.json();
+                if (data.success && data.temperature) {
+                    tempInfo = `${data.temperature}°F ${data.humidity}%`;
+                }
+            } catch (error) {
+                console.error('Error fetching temperature:', error);
+            }
+
             tabsHtml += `
                 <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     ${room.room_name}
                 </button>`;
             contentsHtml += `
                 <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    <h2 class="room-header">${room.room_name}</h2>
+                    <h2 class="room-header">
+                        <span>${room.room_name}</span>
+                        ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
+                    </h2>
                     <div class="device-grid" id="room-${room.id}-devices"></div>
                 </div>`;
         }
-    });
+    }
     
     // Add configuration tab for mobile
     tabsHtml += `
@@ -1260,6 +1275,7 @@ async function manualRefresh() {
 
         async function initialize() {
             await fetchRooms();
+            await createTabs();
             await loadInitialData();
             
             const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
