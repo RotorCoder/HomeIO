@@ -4,7 +4,7 @@ Controls Govee and Philips Hue devices
 
 Listens to x10 remote input through x10 Commander log
 
-Reads Govee H5075 Thermometers and updated db 
+Reads Govee H5075 Thermometers and updates db 
 
 -Repository files sit in /var/www/html/homeio
 
