@@ -261,13 +261,19 @@
             if (deviceName.includes('fan')) {
                 // Only add fa-spin class if the fan is powered on
                 return `fa-solid fa-2x fa-fan${powerState === 'on' ? ' fa-spin' : ''}`;
-            } else if (deviceName.includes('tv')) {
+            } else if (deviceName.includes('tv') || deviceName.includes('glow')) {
                 return 'fa-solid fa-2x fa-tv';
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
                 return 'fa-solid fa-2x fa-lightbulb';
             } else if (deviceName.includes('heater')) {
                 return 'fa-solid fa-2x fa-temperature-arrow-up';
-            } 
+            } else if (deviceName.includes('filter')) {
+                return 'fa-solid fa-2x fa-head-side-mask';
+            } else if (deviceName.includes('dehumidifier')) {
+                return 'fa-solid fa-2x fa-droplet-slash';
+            } else if (deviceName.includes('humidifier')) {
+                return 'fa-solid fa-2x fa-droplet';
+            }
             return 'fa-solid fa-2x fa-plug';
         }
 
