@@ -273,7 +273,7 @@
             if (deviceName.includes('fan')) {
                 // Only add fa-spin class if the fan is powered on
                 return `fa-solid fa-2x fa-fan${powerState === 'on' ? ' fa-spin' : ''}`;
-            } else if (deviceName.includes('tv') || deviceName.includes('lamp')) {
+            } else if (deviceName.includes('tv') || deviceName.includes('glow')) {
                 return 'fa-solid fa-2x fa-tv';
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
                 return 'fa-solid fa-2x fa-lightbulb';

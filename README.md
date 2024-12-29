@@ -11,8 +11,8 @@ Reads Govee H5075 Thermometers and displays on assigned room (Script reads data 
 -Shared folder is copied from /var/www/html/shared
 
 <div align="center">
-    <img src="/../master/assets/images/HomeIO-mobile.png" width="300px"</img> 
+    <img src="/../master/assets/images/HomeIO-mobile3.png" width="300px"</img> 
 </div>
 <div align="center">
-    <img src="/../master/assets/images/HomeIO-full2.png" width="800px"</img> 
+    <img src="/../master/assets/images/HomeIO-full3.png" width="800px"</img> 
 </div>
