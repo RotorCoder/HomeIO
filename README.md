@@ -14,5 +14,5 @@ Reads Govee H5075 Thermometers and displays on assigned room (Script reads data 
     <img src="/../master/assets/images/HomeIO-mobile.png" width="300px"</img> 
 </div>
 <div align="center">
-    <img src="/../master/assets/images/HomeIO-full.png" width="800px"</img> 
+    <img src="/../master/assets/images/HomeIO-full2.png" width="800px"</img> 
 </div>
