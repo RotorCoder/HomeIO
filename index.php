@@ -74,10 +74,22 @@
             } catch (error) {
                 console.error('Error fetching temperature:', error);
             }
+            
+            let room_icon; // Declare the variable first
+
+            if (room.room_name.includes('Office')) {
+                room_icon = '<i class="fa-solid fa-computer"></i>';
+            } else if (room.room_name.includes('Bed')) {
+                room_icon = '<i class="fa-solid fa-bed"></i>';
+            } else if (room.room_name.includes('Living')) {
+                room_icon = '<i class="fa-solid fa-couch"></i>';
+            }else {
+                room_icon = '<i class="fa-solid fa-house"></i>';
+            }
 
             tabsHtml += `
                 <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    ${room.room_name}
+                    ${room_icon}
                 </button>`;
             contentsHtml += `
                 <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
@@ -261,7 +273,7 @@
             if (deviceName.includes('fan')) {
                 // Only add fa-spin class if the fan is powered on
                 return `fa-solid fa-2x fa-fan${powerState === 'on' ? ' fa-spin' : ''}`;
-            } else if (deviceName.includes('tv') || deviceName.includes('glow')) {
+            } else if (deviceName.includes('tv') || deviceName.includes('lamp')) {
                 return 'fa-solid fa-2x fa-tv';
             } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
                 return 'fa-solid fa-2x fa-lightbulb';
