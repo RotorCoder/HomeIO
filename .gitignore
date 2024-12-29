@@ -6,6 +6,7 @@ config.php
 # Dependency directories
 /vendor/
 /node_modules/
+/sql_backup/
 
 # Cache and logs
 /scripts/logs/*
