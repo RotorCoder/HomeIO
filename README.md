@@ -4,7 +4,7 @@ Controls Govee and Philips Hue devices (Govee's public API has very restrictive 
 
 Listens to x10 remote input through x10 Commander log (Using CM15a on Windows PC)
 
-Reads Govee H5075 Thermometers and displays on assigned room (Script reads data directly from BLE advertisements. Can't read thermometer data from Govee API.)
+Reads Govee H5075 Thermometers and displays on assigned room (Script reads data directly from BLE advertisements. Also runs on the Windows PC due to no Hyper-v host bluetooth/USB access)
 
 -Repository files sit in /var/www/html/homeio
 
