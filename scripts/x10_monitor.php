@@ -1,4 +1,7 @@
 <?php
+
+// http://192.168.99.221:8086/?x10command=DEVICE~sendplc~%22A1%20OFF%22&time=1735508950088
+
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/govee_lib.php';
 require $config['sharedpath'].'/logger.php';
@@ -150,7 +153,7 @@ function queueDeviceCommand($x10Code, $command) {
             ];
 
             // Use relative path
-            $ch = curl_init('https://rotorcoder.com/homeio/api/send_command.php');
+            $ch = curl_init('https://mittencoder.com/homeio/api/send_command.php');
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
