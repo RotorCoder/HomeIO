@@ -39,7 +39,7 @@
 
         async function fetchRooms() {
             try {
-                const response = await fetch('api/get_rooms.php');
+                const response = await fetch('api/rooms');
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Failed to fetch rooms');
                 rooms = data.rooms;
@@ -66,7 +66,7 @@
             // Fetch temperature data for this room
             let tempInfo = '';
             try {
-                const response = await fetch(`api/room-temperature.php?room=${room.id}`);
+                const response = await fetch(`api/room-temperature?room=${room.id}`);
                 const data = await response.json();
                 if (data.success && data.temperature) {
                     tempInfo = `${data.temperature}°F ${data.humidity}%`;
@@ -464,7 +464,7 @@
                 value: value
             };
             
-            return fetch('api/send_command.php', {
+            return fetch('api/send-command', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

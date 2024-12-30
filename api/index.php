@@ -436,4 +436,143 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
     }
 });
 
+$app->get('/rooms', function (Request $request, Response $response) use ($config) {
+    try {
+        // Connect to database
+        $pdo = getDatabaseConnection($config);
+        
+        // Get rooms
+        $stmt = $pdo->query("SELECT id, room_name FROM rooms ORDER BY tab_order");
+        $rooms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $payload = json_encode([
+            'success' => true,
+            'rooms' => $rooms
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (PDOException $e) {
+        $payload = json_encode([
+            'success' => false,
+            'error' => 'Database error: ' . $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    } catch (Exception $e) {
+        $payload = json_encode([
+            'success' => false, 
+            'error' => 'Server error: ' . $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->get('/room-temperature', function (Request $request, Response $response) use ($config) {
+    try {
+        $queryParams = $request->getQueryParams();
+        if (!isset($queryParams['room'])) {
+            throw new Exception('Room ID is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $stmt = $pdo->prepare("SELECT temp, humidity FROM thermometers WHERE room = ? ORDER BY updated DESC LIMIT 1");
+        $stmt->execute([$queryParams['room']]);
+        
+        $tempData = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($tempData) {
+            $payload = json_encode([
+                'success' => true,
+                'temperature' => $tempData['temp'],
+                'humidity' => $tempData['humidity']
+            ]);
+        } else {
+            throw new Exception('No temperature data found for this room');
+        }
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (Exception $e) {
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->post('/send-command', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        // Get the request body
+        $data = json_decode($request->getBody()->getContents(), true);
+        
+        if (!isset($data['device']) || !isset($data['model']) || !isset($data['cmd']) || !isset($data['brand'])) {
+            throw new Exception('Missing required parameters: device, model, cmd, or brand');
+        }
+
+        // Connect to database
+        $pdo = getDatabaseConnection($config);
+
+        // Insert into unified command queue
+        $stmt = $pdo->prepare("
+            INSERT INTO command_queue 
+            (device, model, command, brand) 
+            VALUES 
+            (:device, :model, :command, :brand)
+        ");
+
+        $stmt->execute([
+            'device' => $data['device'],
+            'model' => $data['model'],
+            'command' => json_encode($data['cmd']),
+            'brand' => $data['brand']
+        ]);
+
+        $commandId = $pdo->lastInsertId();
+        
+        $payload = json_encode([
+            'success' => true,
+            'message' => 'Command queued successfully',
+            'command_id' => $commandId
+        ]);
+
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+
+    } catch (Exception $e) {
+        $log->logInfoMsg("Error in send_command: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
 $app->run();
