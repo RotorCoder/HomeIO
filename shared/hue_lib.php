@@ -13,6 +13,30 @@ class HueCommandQueue {
         );
     }
     
+    public function getDevices() {
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_HTTPHEADER => array(
+                'hue-application-key: ' . $this->apiKey,
+                'Content-Type: application/json'
+            )
+        ));
+    
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        
+        return [
+            'body' => $response,
+            'statusCode' => $httpCode
+        ];
+    }
+
     public function getNextBatch($limit = 5) {
         $this->pdo->beginTransaction();
         try {

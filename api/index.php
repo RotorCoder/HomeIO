@@ -6,6 +6,8 @@ use Slim\Factory\AppFactory;
 require __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
+require $config['sharedpath'].'/govee_lib.php';
+require $config['sharedpath'].'/hue_lib.php';
 
 // Add your existing functions
 function getDatabaseConnection($config) {
@@ -15,62 +17,6 @@ function getDatabaseConnection($config) {
         $config['db_config']['password'],
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
-}
-
-function getGoveeDevices($config) {
-    global $log;
-    $log->logInfoMsg("Getting all devices from Govee API.");
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => 'https://developer-api.govee.com/v1/devices',
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER => true,
-        CURLOPT_HTTPHEADER => array(
-            'Govee-API-Key: ' . $config['govee_api_key'],
-            'Content-Type: application/json'
-        )
-    ));
-    
-    $response = curl_exec($curl);
-    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-    $headers = substr($response, 0, $header_size);
-    $body = substr($response, $header_size);
-    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    curl_close($curl);
-    
-    return [
-        'headers' => $headers,
-        'body' => $body,
-        'statusCode' => $statusCode
-    ];
-}
-
-function getDeviceState($device, $config) {
-    global $log;
-    $log->logInfoMsg("Getting device state for ".$device['device']." from Govee API");
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => "https://developer-api.govee.com/v1/devices/state?device=" . $device['device'] . "&model=" . $device['model'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HEADER => true,
-        CURLOPT_HTTPHEADER => array(
-            'Govee-API-Key: ' . $config['govee_api_key'],
-            'Content-Type: application/json'
-        )
-    ));
-    
-    $response = curl_exec($curl);
-    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-    $headers = substr($response, 0, $header_size);
-    $body = substr($response, $header_size);
-    $state_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    curl_close($curl);
-    
-    return [
-        'headers' => $headers,
-        'body' => $body,
-        'statusCode' => $state_status
-    ];
 }
 
 function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
@@ -139,160 +85,6 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
         $log->logErrorMsg("Error in getDevicesFromDatabase: " . $e->getMessage());
         throw $e;
     }
-}
-
-function updateDeviceDatabase($pdo, $device) {
-    global $log;
-    
-    $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
-    $stmt->execute([$device['device']]);
-    $current = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $new_values = [
-        'device' => $device['device'],
-        'model' => $device['model'],
-        'device_name' => $device['deviceName'],
-        'controllable' => $device['controllable'] ? 1 : 0,
-        'retrievable' => $device['retrievable'] ? 1 : 0,
-        'supportCmds' => json_encode($device['supportCmds']),
-        'colorTemp_rangeMin' => null,
-        'colorTemp_rangeMax' => null
-    ];
-    
-    if (in_array('colorTem', $device['supportCmds']) && 
-        isset($device['properties']) && 
-        isset($device['properties']['colorTem']) && 
-        isset($device['properties']['colorTem']['range'])) {
-        
-        $new_values['colorTemp_rangeMin'] = $device['properties']['colorTem']['range']['min'];
-        $new_values['colorTemp_rangeMax'] = $device['properties']['colorTem']['range']['max'];
-    }
-    
-    if (!$current) {
-        $log->logInfoMsg("New device detected: {$device['device']}");
-        $updates = [];
-        $params = [];
-        foreach ($new_values as $key => $value) {
-            if ($value !== null) {
-                $updates[] = "$key = :$key";
-                $params[":$key"] = $value;
-            }
-        }
-        
-        if (!empty($updates)) {
-            $sql = "INSERT INTO devices SET " . implode(", ", $updates);
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-        }
-        return true;
-    }
-    
-    $changes = [];
-    $updates = [];
-    $params = [':device' => $device['device']];
-    
-    foreach ($new_values as $key => $value) {
-        if ($value === null || !isset($current[$key])) {
-            continue;
-        }
-        
-        if ($key === 'supportCmds') {
-            $current_value = json_decode($current[$key], true);
-            $new_value = json_decode($value, true);
-            if ($current_value === null) $current_value = [];
-            if ($new_value === null) $new_value = [];
-            
-            if (count($current_value) !== count($new_value) || 
-                count(array_diff($current_value, $new_value)) > 0 ||
-                count(array_diff($new_value, $current_value)) > 0) {
-                $changes[] = "$key changed";
-                $updates[] = "$key = :$key";
-                $params[":$key"] = $value;
-            }
-            continue;
-        }
-        
-        $current_value = $current[$key];
-        if ($current_value != $value) {
-            $changes[] = "$key changed from $current_value to $value";
-            $updates[] = "$key = :$key";
-            $params[":$key"] = $value;
-        }
-    }
-    
-    if (!empty($updates)) {
-        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $log->logInfoMsg("Updated device {$device['device']}: " . implode(", ", $changes));
-    }
-    
-    return false;
-}
-
-function updateDeviceStateInDatabase($pdo, $device, $device_states, $govee_device) {
-    global $log;
-    
-    $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
-    $stmt->execute([$device['device']]);
-    $current = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $new_values = [
-        'online' => $govee_device ? ($govee_device['deviceName'] === $device['device_name']) : false,
-        'model' => $govee_device ? $govee_device['model'] : $device['model'],
-        'powerState' => null,
-        'brightness' => null,
-        'colorTemp' => null
-    ];
-    
-    if (isset($device_states[$device['device']])) {
-        foreach ($device_states[$device['device']] as $property) {
-            foreach ($new_values as $key => $value) {
-                if (isset($property[$key])) {
-                    $new_values[$key] = $property[$key];
-                }
-            }
-        }
-    }
-    
-    $changes = [];
-    $updates = [];
-    $params = [':device' => $device['device']];
-    
-    foreach ($new_values as $key => $value) {
-        if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
-            continue;
-        }
-        
-        if ($key === 'online') {
-            $current_value = (bool)$current[$key];
-            $new_value = (bool)$value;
-        } else {
-            $current_value = $current[$key];
-            $new_value = $value;
-        }
-        
-        if ($current_value !== $new_value) {
-            $changes[] = "$key changed";
-            $updates[] = "$key = :$key";
-            $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
-        }
-    }
-    
-    if (!empty($updates)) {
-        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $log->logInfoMsg("Updated device state {$device['device']}: " . implode(", ", $changes));
-    }
-    
-    foreach ($new_values as $key => $value) {
-        if ($value !== null) {
-            $device[$key] = $value;
-        }
-    }
-    
-    return $device;
 }
 
 // Create Slim app
@@ -562,35 +354,14 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
             try {
                 $govee_start = microtime(true);
                 
-                // Make HTTP request to Govee update endpoint
-                $curl = curl_init();
-                $goveeUrl = "/api/update-govee-devices"; // Updated URL to use new Slim route
-                $log->logInfoMsg("Calling Govee update URL: " . $goveeUrl);
+                $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
+                $goveeDevices = $goveeApi->getDevices();
                 
-                curl_setopt_array($curl, array(
-                    CURLOPT_URL => $goveeUrl,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT => 30,
-                    CURLOPT_SSL_VERIFYPEER => false,
-                    CURLOPT_SSL_VERIFYHOST => false
-                ));
-                
-                $goveeResponse = curl_exec($curl);
-                $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-                
-                if (curl_errno($curl)) {
-                    throw new Exception('Curl error: ' . curl_error($curl));
+                if ($goveeDevices['statusCode'] !== 200) {
+                    throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
                 }
                 
-                curl_close($curl);
-                
-                $log->logInfoMsg("Govee update response status: " . $statusCode);
-                
-                if ($statusCode !== 200) {
-                    throw new Exception('Failed to update Govee devices: HTTP ' . $statusCode);
-                }
-                
-                $goveeData = json_decode($goveeResponse, true);
+                $goveeData = json_decode($goveeDevices['body'], true);
                 if (!$goveeData['success']) {
                     throw new Exception($goveeData['error'] ?? 'Unknown error updating Govee devices');
                 }
@@ -942,12 +713,12 @@ $app->get('/update-govee-devices', function (Request $request, Response $respons
         $start = microtime(true);
         $timing = array();
         
-        // Get database connection
-        $pdo = getDatabaseConnection($config);
+        // Create GoveeAPI instance
+        $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
         
         // Get devices from Govee API
         $api_start = microtime(true);
-        $goveeResponse = getGoveeDevices($config);
+        $goveeResponse = $goveeApi->getDevices();
         
         if ($goveeResponse['statusCode'] !== 200) {
             throw new Exception('Failed to get devices from Govee API');
@@ -969,15 +740,15 @@ $app->get('/update-govee-devices', function (Request $request, Response $respons
         
         foreach ($govee_devices as $device) {
             // Update device basic info
-            $is_new = updateDeviceDatabase($pdo, $device);
+            $is_new = $goveeApi->updateDeviceDatabase($device);
             
             // Get and update device state
-            $stateResponse = getDeviceState($device, $config);
+            $stateResponse = $goveeApi->getDeviceState($device);
             if ($stateResponse['statusCode'] === 200) {
                 $state_result = json_decode($stateResponse['body'], true);
                 if ($state_result['code'] === 200) {
                     $device_states[$device['device']] = $state_result['data']['properties'];
-                    $updated_device = updateDeviceStateInDatabase($pdo, $device, $device_states, $device);
+                    $updated_device = $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
                     $updated_devices[] = $updated_device;
                 }
             }
@@ -997,7 +768,7 @@ $app->get('/update-govee-devices', function (Request $request, Response $respons
         return $response
             ->withHeader('Content-Type', 'application/json')
             ->withStatus(200);
-        
+            
     } catch (Exception $e) {
         $log->logErrorMsg("Error updating Govee devices: " . $e->getMessage());
         $payload = json_encode([
