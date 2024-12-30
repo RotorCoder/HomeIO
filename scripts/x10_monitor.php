@@ -86,12 +86,14 @@ function getNextBrightnessLevel($currentBrightness, $config, $command) {
     $high = (int)$config['high'];
     
     if ($command === 'Bright') {
-        if ($current <= $low) return $medium;
-        if ($current <= $medium) return $high;
+        if ($current < $low) return $low;
+        if ($current >= $low && $current < $medium) return $medium;
+        if ($current >= $medium && $current < $high) return $high;
         return $current;
     } else if ($command === 'Dim') {
-        if ($current >= $high) return $medium;
-        if ($current >= $medium) return $low;
+        if ($current > $high) return $high;
+        if ($current <= $high && $current > $medium) return $medium;
+        if ($current <= $medium && $current > $low) return $low;
         return $current;
     }
     
