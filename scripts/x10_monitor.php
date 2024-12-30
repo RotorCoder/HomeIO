@@ -152,12 +152,15 @@ function queueDeviceCommand($x10Code, $command) {
                 'brand' => $device['brand']
             ];
 
-            // Use relative path
-            $ch = curl_init('https://mittencoder.com/homeio/api/send_command.php');
+            // Use the API endpoint with proper headers
+            $ch = curl_init('https://mittencoder.com/homeio/api/send-command');
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'X-API-Key: ' . $config['homeio_api_key']  // Add the API key header
+            ]);
 
             $result = curl_exec($ch);
             if ($result === false) {
