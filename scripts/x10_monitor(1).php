@@ -16,9 +16,6 @@ $lastCommand = [
 
 function getDeviceConfig($device) {
     global $config, $log;
-    
-    $log->logInfoMsg("Getting Device: " . $device);
-    
     try {
         $pdo = new PDO(
             "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
@@ -28,13 +25,8 @@ function getDeviceConfig($device) {
         );
         
         $stmt = $pdo->prepare("SELECT powerState, brightness, low, medium, high FROM devices WHERE device = ?");
-        $stmt->execute([$device]);
-        $founddevice = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $log->logInfoMsg("Device Found: " . $founddevice);
-        //var_dump($founddevice);
-        return($founddevice);
-        
+        $stmt->execute(array($device));
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $log->logInfoMsg("Database error: " . $e->getMessage());
         return null;
@@ -67,8 +59,6 @@ function getX10DeviceMapping($x10Code) {
                 'brand' => $device['brand']
             ];
             
-            //$log->logInfoMsg("Low: ".$device['device']." - ".$device['model']." - ".$device['brand']);
-            
             if ($device['group_id']) {
                 $groupStmt = $pdo->prepare("
                     SELECT device, model, brand  -- Added brand to the group members query
@@ -89,38 +79,24 @@ function getX10DeviceMapping($x10Code) {
     }
 }
 
-function getNextBrightnessLevel($currentBrightness, $deviceConfig, $command) {
-    global $config, $log;
-    
+function getNextBrightnessLevel($currentBrightness, $config, $command) {
     $current = (int)$currentBrightness;
-    $low = (int)$deviceConfig['low'];
-    $medium = (int)$deviceConfig['medium'];
-    $high = (int)$deviceConfig['high'];
-    
-    //$log->logInfoMsg("Low: ".$current." - ".$low." - ".$medium." - ".$high);
+    $low = (int)$config['low'];
+    $medium = (int)$config['medium'];
+    $high = (int)$config['high'];
     
     if ($command === 'Bright') {
-        if ($current < $low) {
-            return $low;
-        } elseif ($current < $medium) {
-            return $medium;
-        } elseif ($current < $high) {
-            return $high;
-        } else {
-            return $current;
-        }
+        if ($current < $low) return $low;
+        if ($current >= $low && $current < $medium) return $medium;
+        if ($current >= $medium && $current < $high) return $high;
+        return $current;
     } else if ($command === 'Dim') {
-        if ($current > $high) {
-            return $high;
-        } elseif ($current > $medium) {
-            return $medium;
-        } elseif ($current > $low) {
-            return $low;
-        } else {
-            return $current;
-        }
+        if ($current > $high) return $high;
+        if ($current <= $high && $current > $medium) return $medium;
+        if ($current <= $medium && $current > $low) return $low;
+        return $current;
     }
-
+    
     return $current;
 }
 
@@ -148,7 +124,7 @@ function queueDeviceCommand($x10Code, $command) {
             $log->logInfoMsg("ERROR: Could not get device configuration for " . $device['device']);
             continue;
         }
-        
+
         if ($command === 'Bright' || $command === 'Dim') {
             $nextBrightness = getNextBrightnessLevel($deviceConfig['brightness'], $deviceConfig, $command);
             
@@ -199,7 +175,7 @@ function queueDeviceCommand($x10Code, $command) {
             if ($httpCode === 200) {
                 $response = json_decode($result, true);
                 if ($response && isset($response['success']) && $response['success']) {
-                    $log->logInfoMsg("Command queued successfully for device " . $device['device'] . " - " . $commandData['cmd']['name'] . " - " . $commandData['cmd']['value']);
+                    $log->logInfoMsg("Command queued successfully for device " . $device['device']);
                 } else {
                     throw new Exception("API returned success=false: " . ($response['error'] ?? 'Unknown error'));
                 }
@@ -320,30 +296,14 @@ try {
                 $newPosition = ftell($handle);
                 
                 if (strpos(strtolower($line), 'bszaction:"recvrf"') !== false) {
-                    if (strpos(strtolower($line), 'bszparm3:0') !== false && strpos(strtolower($line), 'dim') === false && strpos(strtolower($line), 'bright') === false) {
-                        if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
-                            $x10Code = strtolower($matches[1]);
-                            $command = $matches[2];
-                            $timestamp = substr($line, 0, 19);
-                            
-                            if (!isDuplicate($x10Code, $command, $timestamp)) {
-                                $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
-                                queueDeviceCommand($x10Code, $command);
-                            }
-                        }
-                    }
-                }
-                if (strpos(strtolower($line), 'bszaction:"recvplc"') !== false) {
-                    if (strpos(strtolower($line), 'dim') !== false || strpos(strtolower($line), 'bright') !== false) {
-                        if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
-                            $x10Code = strtolower($matches[1]);
-                            $command = $matches[2];
-                            $timestamp = substr($line, 0, 19);
-                            
-                            if (!isDuplicate($x10Code, $command, $timestamp)) {
-                                $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
-                                queueDeviceCommand($x10Code, $command);
-                            }
+                    if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
+                        $x10Code = strtolower($matches[1]);
+                        $command = $matches[2];
+                        $timestamp = substr($line, 0, 19);
+                        
+                        if (!isDuplicate($x10Code, $command, $timestamp)) {
+                            $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
+                            queueDeviceCommand($x10Code, $command);
                         }
                     }
                 }
