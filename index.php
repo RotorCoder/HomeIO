@@ -162,14 +162,10 @@
 
     function toggleConfigContent() {
         const configContent = document.getElementById('desktop-config-content');
-        const timingInfo = document.getElementById('timing-info');
+        
         const chevron = document.querySelector('.config-header .fa-chevron-down');
         
         configContent.classList.toggle('show');
-        // Make sure desktop-config-content is visible when timing info is expanded
-        if (timingInfo.classList.contains('expanded')) {
-            configContent.classList.add('show');
-        }
         
         chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
     }
@@ -427,7 +423,7 @@
 
         // First, update the database for all devices
         const dbUpdatePromises = devicesToUpdate.map(deviceId => 
-            fetch('api/update_device_state.php', {
+            fetch('api/update-device-state', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -493,7 +489,7 @@
         try {
             // Revert database state
             const revertPromises = devicesToUpdate.map(deviceId =>
-                fetch('api/update_device_state.php', {
+                fetch('api/update-device-state', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -579,78 +575,6 @@
             errorElement.textContent = `Error: ${message}`;
             errorElement.style.display = 'block';
         }
-
-        function updateTimingInfo(timing) {
-    const timingInfo = document.getElementById('timing-info');
-    const configContent = document.getElementById('desktop-config-content');
-    
-    if (!timingInfo || !configContent) {
-        console.warn('Timing elements not found');
-        return;
-    }
-    
-    // Set default values if timing or its properties are undefined
-    const safeTimingData = {
-        devices: timing?.devices || { duration: 0 },
-        states: timing?.states || { duration: 0 },
-        govee: timing?.govee || { duration: 0 },
-        database: timing?.database || { duration: 0 },
-        total: timing?.total || 0
-    };
-    
-    // Make sure container is visible
-    configContent.classList.add('show');
-    
-    // Create the timing card using device-card styling
-    timingInfo.innerHTML = `
-        <div class="device-card">
-            <div class="device-info">
-                <div class="device-icon">
-                    <i class="fas fa-2x fa-clock" style="color: #6b7280;"></i>
-                </div>
-                <div class="device-details">
-                    <h3>Refresh Timing</h3>
-                    <p class="device-status">Total: ${safeTimingData.total}ms</p>
-                </div>
-                <button onclick="toggleTimingDetails()" class="config-btn">
-                    <i class="fas fa-xl fa-chevron-down"></i>
-                </button>
-            </div>
-            <div class="device-controls" style="display: none; height: auto; flex-direction: column;">
-                <div style="padding: 10px;">
-                    <div class="timing-row">
-                        <span>Get Devices:</span>
-                        <span>${safeTimingData.devices.duration}ms</span>
-                    </div>
-                    <div class="timing-row">
-                        <span>Get States:</span>
-                        <span>${safeTimingData.states.duration}ms</span>
-                    </div>
-                    <div class="timing-row">
-                        <span>Govee Update:</span>
-                        <span>${safeTimingData.govee.duration}ms</span>
-                    </div>
-                    <div class="timing-row">
-                        <span>Database Query:</span>
-                        <span>${safeTimingData.database.duration}ms</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-        function toggleTimingDetails(button) {
-    const card = button.closest('.device-card');
-    const content = card.querySelector('.timing-content');
-    const icon = button.querySelector('i');
-    
-    if (content) {
-        const isHidden = content.style.display === 'none';
-        content.style.display = isHidden ? 'flex' : 'none';
-        icon.className = isHidden ? 'fas fa-chevron-down' : 'fas fa-chevron-up';
-    }
-}
 
         function setRefreshing(refreshing) {
             isRefreshing = refreshing;
@@ -766,6 +690,15 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
+        // First explicitly update Govee devices
+        const goveeResponse = await fetch('api/update-govee-devices');
+        const goveeData = await goveeResponse.json();
+        
+        if (!goveeData.success) {
+            throw new Error('Failed to update Govee devices: ' + goveeData.error);
+        }
+
+        // Then get all updated devices
         const response = await fetch('api/devices?quick=false');
         const data = await response.json();
         
@@ -778,59 +711,10 @@ async function updateDevices() {
         if (data.devices && Array.isArray(data.devices)) {
             console.log('Updating devices:', data.devices.length);
             handleDevicesUpdate(data.devices);
-        } else {
-            console.warn('No devices data received or invalid format');
         }
         
         updateLastRefreshTime(data.updated);
         
-        // Update timing info if available
-        if (!data.quick && data.timing) {
-        const timingInfo = document.getElementById('timing-info');
-        
-        if (!data.quick && data.timing) {
-        const timingInfo = document.getElementById('timing-info');
-        
-        if (timingInfo) {
-            timingInfo.innerHTML = `
-                <div class="device-card" style="height: auto; min-height: 120px;">
-                    <div class="device-info">
-                        <div class="device-icon">
-                            <i class="fas fa-2x fa-clock" style="color: #6b7280;"></i>
-                        </div>
-                        <div class="device-details">
-                            <h3>Refresh Timing</h3>
-                            <p class="device-status">Total: ${data.timing.total}ms</p>
-                        </div>
-                        <button class="config-btn" onclick="toggleTimingDetails(this)">
-                            <i class="fas fa-chevron-up"></i>
-                        </button>
-                    </div>
-                    <div class="device-controls timing-content" style="display: none; height: auto; flex-direction: column; padding: 10px;">
-                        <div class="timing-data">
-                            <div class="timing-row">
-                                <span style="font-weight: 500;">Get Devices:</span>
-                                <span>${data.timing.devices?.duration || 0}ms</span>
-                            </div>
-                            <div class="timing-row">
-                                <span style="font-weight: 500;">Get States:</span>
-                                <span>${data.timing.states?.duration || 0}ms</span>
-                            </div>
-                            <div class="timing-row">
-                                <span style="font-weight: 500;">Govee Update:</span>
-                                <span>${data.timing.govee?.duration || 0}ms</span>
-                            </div>
-                            <div class="timing-row">
-                                <span style="font-weight: 500;">Database Query:</span>
-                                <span>${data.timing.database?.duration || 0}ms</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    }
         
         document.getElementById('error-message').style.display = 'none';
         
@@ -1080,7 +964,7 @@ async function manualRefresh() {
         };
 
         // Update device configuration
-        const configResponse = await fetch('api/update_device_config.php', {
+        const configResponse = await fetch('api/update-device-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -1118,7 +1002,7 @@ async function manualRefresh() {
 
             console.log('Sending group update with data:', groupData); // Debug log
 
-            const groupResponse = await fetch('api/update_device_group.php', {
+            const groupResponse = await fetch('api/update-device-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(groupData)

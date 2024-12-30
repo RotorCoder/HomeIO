@@ -17,6 +17,62 @@ function getDatabaseConnection($config) {
     );
 }
 
+function getGoveeDevices($config) {
+    global $log;
+    $log->logInfoMsg("Getting all devices from Govee API.");
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => 'https://developer-api.govee.com/v1/devices',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => array(
+            'Govee-API-Key: ' . $config['govee_api_key'],
+            'Content-Type: application/json'
+        )
+    ));
+    
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    
+    return [
+        'headers' => $headers,
+        'body' => $body,
+        'statusCode' => $statusCode
+    ];
+}
+
+function getDeviceState($device, $config) {
+    global $log;
+    $log->logInfoMsg("Getting device state for ".$device['device']." from Govee API");
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://developer-api.govee.com/v1/devices/state?device=" . $device['device'] . "&model=" . $device['model'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => array(
+            'Govee-API-Key: ' . $config['govee_api_key'],
+            'Content-Type: application/json'
+        )
+    ));
+    
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $state_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    curl_close($curl);
+    
+    return [
+        'headers' => $headers,
+        'body' => $body,
+        'statusCode' => $state_status
+    ];
+}
+
 function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
     global $log;
     $log->logInfoMsg("Getting devices from the database.");
@@ -83,6 +139,160 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
         $log->logErrorMsg("Error in getDevicesFromDatabase: " . $e->getMessage());
         throw $e;
     }
+}
+
+function updateDeviceDatabase($pdo, $device) {
+    global $log;
+    
+    $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+    $stmt->execute([$device['device']]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $new_values = [
+        'device' => $device['device'],
+        'model' => $device['model'],
+        'device_name' => $device['deviceName'],
+        'controllable' => $device['controllable'] ? 1 : 0,
+        'retrievable' => $device['retrievable'] ? 1 : 0,
+        'supportCmds' => json_encode($device['supportCmds']),
+        'colorTemp_rangeMin' => null,
+        'colorTemp_rangeMax' => null
+    ];
+    
+    if (in_array('colorTem', $device['supportCmds']) && 
+        isset($device['properties']) && 
+        isset($device['properties']['colorTem']) && 
+        isset($device['properties']['colorTem']['range'])) {
+        
+        $new_values['colorTemp_rangeMin'] = $device['properties']['colorTem']['range']['min'];
+        $new_values['colorTemp_rangeMax'] = $device['properties']['colorTem']['range']['max'];
+    }
+    
+    if (!$current) {
+        $log->logInfoMsg("New device detected: {$device['device']}");
+        $updates = [];
+        $params = [];
+        foreach ($new_values as $key => $value) {
+            if ($value !== null) {
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $value;
+            }
+        }
+        
+        if (!empty($updates)) {
+            $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+        return true;
+    }
+    
+    $changes = [];
+    $updates = [];
+    $params = [':device' => $device['device']];
+    
+    foreach ($new_values as $key => $value) {
+        if ($value === null || !isset($current[$key])) {
+            continue;
+        }
+        
+        if ($key === 'supportCmds') {
+            $current_value = json_decode($current[$key], true);
+            $new_value = json_decode($value, true);
+            if ($current_value === null) $current_value = [];
+            if ($new_value === null) $new_value = [];
+            
+            if (count($current_value) !== count($new_value) || 
+                count(array_diff($current_value, $new_value)) > 0 ||
+                count(array_diff($new_value, $current_value)) > 0) {
+                $changes[] = "$key changed";
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $value;
+            }
+            continue;
+        }
+        
+        $current_value = $current[$key];
+        if ($current_value != $value) {
+            $changes[] = "$key changed from $current_value to $value";
+            $updates[] = "$key = :$key";
+            $params[":$key"] = $value;
+        }
+    }
+    
+    if (!empty($updates)) {
+        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $log->logInfoMsg("Updated device {$device['device']}: " . implode(", ", $changes));
+    }
+    
+    return false;
+}
+
+function updateDeviceStateInDatabase($pdo, $device, $device_states, $govee_device) {
+    global $log;
+    
+    $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+    $stmt->execute([$device['device']]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $new_values = [
+        'online' => $govee_device ? ($govee_device['deviceName'] === $device['device_name']) : false,
+        'model' => $govee_device ? $govee_device['model'] : $device['model'],
+        'powerState' => null,
+        'brightness' => null,
+        'colorTemp' => null
+    ];
+    
+    if (isset($device_states[$device['device']])) {
+        foreach ($device_states[$device['device']] as $property) {
+            foreach ($new_values as $key => $value) {
+                if (isset($property[$key])) {
+                    $new_values[$key] = $property[$key];
+                }
+            }
+        }
+    }
+    
+    $changes = [];
+    $updates = [];
+    $params = [':device' => $device['device']];
+    
+    foreach ($new_values as $key => $value) {
+        if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
+            continue;
+        }
+        
+        if ($key === 'online') {
+            $current_value = (bool)$current[$key];
+            $new_value = (bool)$value;
+        } else {
+            $current_value = $current[$key];
+            $new_value = $value;
+        }
+        
+        if ($current_value !== $new_value) {
+            $changes[] = "$key changed";
+            $updates[] = "$key = :$key";
+            $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
+        }
+    }
+    
+    if (!empty($updates)) {
+        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $log->logInfoMsg("Updated device state {$device['device']}: " . implode(", ", $changes));
+    }
+    
+    foreach ($new_values as $key => $value) {
+        if ($value !== null) {
+            $device[$key] = $value;
+        }
+    }
+    
+    return $device;
 }
 
 // Create Slim app
@@ -352,14 +562,9 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
             try {
                 $govee_start = microtime(true);
                 
-                // Get the current script's directory
-                $currentDir = dirname($_SERVER['SCRIPT_NAME']);
-                $baseUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http") 
-                    . "://$_SERVER[HTTP_HOST]$currentDir";
-                
                 // Make HTTP request to Govee update endpoint
                 $curl = curl_init();
-                $goveeUrl = $baseUrl . '/update_govee_devices.php';
+                $goveeUrl = "/api/update-govee-devices"; // Updated URL to use new Slim route
                 $log->logInfoMsg("Calling Govee update URL: " . $goveeUrl);
                 
                 curl_setopt_array($curl, array(
@@ -563,6 +768,299 @@ $app->post('/send-command', function (Request $request, Response $response) use 
     } catch (Exception $e) {
         $log->logInfoMsg("Error in send_command: " . $e->getMessage());
         
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        
+        if (!isset($data['device'])) {
+            throw new Exception('Device ID is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Convert empty x10Code to NULL
+        $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+        
+        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ? WHERE device = ?");
+        $stmt->execute([
+            $data['room'],
+            $data['low'],
+            $data['medium'],
+            $data['high'],
+            $data['preferredColorTem'],
+            $x10Code,  // This will now be NULL if empty
+            $data['device']
+        ]);
+        
+        $payload = json_encode([
+            'success' => true,
+            'message' => 'Device configuration updated successfully'
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (Exception $e) {
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->post('/update-device-group', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        
+        if (!isset($data['device']) || !isset($data['action'])) {
+            throw new Exception('Missing required parameters');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        if ($data['action'] === 'create') {
+            if (!isset($data['groupName']) || !isset($data['model'])) {
+                throw new Exception('Group name and model required for new group');
+            }
+            
+            // Create new group
+            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, reference_device) VALUES (?, ?, ?)");
+            $stmt->execute([$data['groupName'], $data['model'], $data['device']]);
+            $groupId = $pdo->lastInsertId();
+            
+            // Add device to group
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 0 WHERE device = ?");
+            $stmt->execute([$groupId, $data['device']]);
+            
+        } else if ($data['action'] === 'join') {
+            if (!isset($data['groupId'])) {
+                throw new Exception('Group ID required to join existing group');
+            }
+            
+            // Add device to existing group
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 1 WHERE device = ?");
+            $stmt->execute([$data['groupId'], $data['device']]);
+            
+        } else if ($data['action'] === 'leave') {
+            // Remove device from group
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE device = ?");
+            $stmt->execute([$data['device']]);
+        }
+        
+        $payload = json_encode([
+            'success' => true,
+            'message' => 'Device group updated successfully'
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (Exception $e) {
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->post('/update-device-state', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        
+        if (!isset($data['device']) || !isset($data['command']) || !isset($data['value'])) {
+            throw new Exception('Missing required parameters');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Update the device state based on command type
+        switch($data['command']) {
+            case 'turn':
+                $stmt = $pdo->prepare("UPDATE devices SET powerState = ? WHERE device = ?");
+                $stmt->execute([$data['value'], $data['device']]);
+                break;
+                
+            case 'brightness':
+                $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on' WHERE device = ?");
+                $stmt->execute([(int)$data['value'], $data['device']]);
+                break;
+        }
+        
+        $payload = json_encode([
+            'success' => true,
+            'message' => 'Device state updated successfully'
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+
+    } catch (Exception $e) {
+        $log->logInfoMsg("Error in update_device_state: " . $e->getMessage());
+        
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->get('/update-govee-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $start = microtime(true);
+        $timing = array();
+        
+        // Get database connection
+        $pdo = getDatabaseConnection($config);
+        
+        // Get devices from Govee API
+        $api_start = microtime(true);
+        $goveeResponse = getGoveeDevices($config);
+        
+        if ($goveeResponse['statusCode'] !== 200) {
+            throw new Exception('Failed to get devices from Govee API');
+        }
+        
+        $result = json_decode($goveeResponse['body'], true);
+        
+        if ($result['code'] !== 200) {
+            throw new Exception($result['message']);
+        }
+        
+        $timing['devices'] = array('duration' => round((microtime(true) - $api_start) * 1000));
+        
+        // Update devices and their states
+        $states_start = microtime(true);
+        $govee_devices = $result['data']['devices'];
+        $device_states = array();
+        $updated_devices = array();
+        
+        foreach ($govee_devices as $device) {
+            // Update device basic info
+            $is_new = updateDeviceDatabase($pdo, $device);
+            
+            // Get and update device state
+            $stateResponse = getDeviceState($device, $config);
+            if ($stateResponse['statusCode'] === 200) {
+                $state_result = json_decode($stateResponse['body'], true);
+                if ($state_result['code'] === 200) {
+                    $device_states[$device['device']] = $state_result['data']['properties'];
+                    $updated_device = updateDeviceStateInDatabase($pdo, $device, $device_states, $device);
+                    $updated_devices[] = $updated_device;
+                }
+            }
+        }
+        
+        $timing['states'] = array('duration' => round((microtime(true) - $states_start) * 1000));
+        $timing['total'] = round((microtime(true) - $start) * 1000);
+        
+        $payload = json_encode([
+            'success' => true,
+            'devices' => $updated_devices,
+            'updated' => date('c'),
+            'timing' => $timing
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error updating Govee devices: " . $e->getMessage());
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->get('/update-hue-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $start = microtime(true);
+        $timing = array();
+        
+        // Get database connection
+        $pdo = getDatabaseConnection($config);
+        
+        // Get devices from Hue Bridge
+        $api_start = microtime(true);
+        $hueResponse = getHueDevices($config);
+        
+        if ($hueResponse['statusCode'] !== 200) {
+            throw new Exception('Failed to get devices from Hue Bridge');
+        }
+        
+        $devices = json_decode($hueResponse['body'], true);
+        if (!$devices || !isset($devices['data'])) {
+            throw new Exception('Failed to parse Hue Bridge response');
+        }
+        
+        $timing['devices'] = array('duration' => round((microtime(true) - $api_start) * 1000));
+        
+        // Update devices and their states
+        $states_start = microtime(true);
+        $updated_devices = array();
+        
+        foreach ($devices['data'] as $device) {
+            $updated_device = updateDeviceDatabase($pdo, $device);
+            $updated_devices[] = $updated_device;
+        }
+        
+        $timing['states'] = array('duration' => round((microtime(true) - $states_start) * 1000));
+        $timing['total'] = round((microtime(true) - $start) * 1000);
+        
+        $payload = json_encode([
+            'success' => true,
+            'devices' => $updated_devices,
+            'updated' => date('c'),
+            'timing' => $timing
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+        
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error updating Hue devices: " . $e->getMessage());
         $payload = json_encode([
             'success' => false,
             'error' => $e->getMessage()
