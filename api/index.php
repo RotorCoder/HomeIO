@@ -97,7 +97,8 @@ function hasDevicePendingCommand($pdo, $device) {
         SELECT COUNT(*) as count 
         FROM command_queue 
         WHERE device = ? 
-        AND status IN ('pending', 'processing')
+        
+        AND status IN ('xpending', 'xprocessing')
     ");
     $stmt->execute([$device]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
