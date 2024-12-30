@@ -13,30 +13,6 @@ class HueCommandQueue {
         );
     }
     
-    public function getDevices() {
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => 'GET',
-            CURLOPT_SSL_VERIFYHOST => 0,
-            CURLOPT_SSL_VERIFYPEER => 0,
-            CURLOPT_HTTPHEADER => array(
-                'hue-application-key: ' . $this->apiKey,
-                'Content-Type: application/json'
-            )
-        ));
-    
-        $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        curl_close($curl);
-        
-        return [
-            'body' => $response,
-            'statusCode' => $httpCode
-        ];
-    }
-
     public function getNextBatch($limit = 5) {
         $this->pdo->beginTransaction();
         try {
@@ -107,13 +83,60 @@ class HueAPI {
     private $bridgeIP;
     private $apiKey;
     private $commandQueue;
+    private $dbConfig;
+    private $pdo;
     
     public function __construct($bridgeIP, $apiKey, $dbConfig = null) {
         $this->bridgeIP = $bridgeIP;
         $this->apiKey = $apiKey;
+        $this->dbConfig = $dbConfig;
         if ($dbConfig) {
             $this->commandQueue = new HueCommandQueue($dbConfig);
+            $this->pdo = new PDO(
+                "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+                $dbConfig['user'],
+                $dbConfig['password'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
         }
+    }
+
+    public function getDevices() {
+        global $log;
+        $log->logInfoMsg("Getting all devices from Hue Bridge");
+        $curl = curl_init();
+        
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_HTTPHEADER => array(
+                'hue-application-key: ' . $this->apiKey
+            )
+        ));
+        
+        $response = curl_exec($curl);
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        if ($response === false) {
+            $error = curl_error($curl);
+            curl_close($curl);
+            throw new Exception('Failed to connect to Hue Bridge: ' . $error);
+        }
+        
+        curl_close($curl);
+        
+        return [
+            'body' => $response,
+            'statusCode' => $statusCode
+        ];
     }
     
     public function processBatch($maxCommands = 5) {
@@ -157,85 +180,159 @@ class HueAPI {
     }
     
     public function sendCommand($device, $cmd) {
-    // Validate basic parameters
-    if (!$device) {
-        throw new Exception('Device ID is required');
-    }
-    
-    // Validate command structure
-    if (!is_array($cmd) || !isset($cmd['name'])) {
-        throw new Exception('Invalid command format');
-    }
-    
-    // Transform command based on type
-    $hueCmd = [];
-    
-    // Handle different command types
-    switch ($cmd['name']) {
-        case 'brightness':
-            if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
-                throw new Exception('Brightness value must be a number');
-            }
-            // When setting brightness, include both on state and brightness
-            $hueCmd = [
-                'on' => [
-                    'on' => true
-                ],
-                'dimming' => [
-                    'brightness' => (int)$cmd['value']
-                ]
-            ];
-            break;
-            
-        case 'turn':
-            if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
-                throw new Exception('Turn command must specify "on" or "off"');
-            }
-            // When turning off, only include on state
-            $hueCmd = [
-                'on' => [
-                    'on' => ($cmd['value'] === 'on')
-                ]
-            ];
-            break;
-            
-        default:
-            throw new Exception('Unsupported command type: ' . $cmd['name']);
+        // Validate basic parameters
+        if (!$device) {
+            throw new Exception('Device ID is required');
+        }
+        
+        // Validate command structure
+        if (!is_array($cmd) || !isset($cmd['name'])) {
+            throw new Exception('Invalid command format');
+        }
+        
+        // Transform command based on type
+        $hueCmd = [];
+        
+        // Handle different command types
+        switch ($cmd['name']) {
+            case 'brightness':
+                if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
+                    throw new Exception('Brightness value must be a number');
+                }
+                // When setting brightness, include both on state and brightness
+                $hueCmd = [
+                    'on' => [
+                        'on' => true
+                    ],
+                    'dimming' => [
+                        'brightness' => (int)$cmd['value']
+                    ]
+                ];
+                break;
+                
+            case 'turn':
+                if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
+                    throw new Exception('Turn command must specify "on" or "off"');
+                }
+                // When turning off, only include on state
+                $hueCmd = [
+                    'on' => [
+                        'on' => ($cmd['value'] === 'on')
+                    ]
+                ];
+                break;
+                
+            default:
+                throw new Exception('Unsupported command type: ' . $cmd['name']);
+        }
+
+        // Send command to Hue Bridge
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light/{$device}",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_HTTPHEADER => array(
+                'hue-application-key: ' . $this->apiKey,
+                'Content-Type: application/json'
+            ),
+            CURLOPT_POSTFIELDS => json_encode($hueCmd)
+        ));
+
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        
+        if ($httpCode !== 200) {
+            throw new Exception("Failed to communicate with Hue bridge (HTTP $httpCode): $response");
+        }
+        
+        $result = json_decode($response, true);
+        
+        // Check for Hue API errors
+        if (is_array($result) && isset($result[0]['error'])) {
+            throw new Exception($result[0]['error']['description']);
+        }
+        
+        return [
+            'success' => true,
+            'message' => 'Command sent successfully'
+        ];
     }
 
-    // Send command to Hue Bridge
-    $curl = curl_init();
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light/{$device}",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CUSTOMREQUEST => 'PUT',
-        CURLOPT_SSL_VERIFYHOST => 0,
-        CURLOPT_SSL_VERIFYPEER => 0,
-        CURLOPT_HTTPHEADER => array(
-            'hue-application-key: ' . $this->apiKey,
-            'Content-Type: application/json'
-        ),
-        CURLOPT_POSTFIELDS => json_encode($hueCmd)
-    ));
-
-    $response = curl_exec($curl);
-    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    curl_close($curl);
-    
-    if ($httpCode !== 200) {
-        throw new Exception("Failed to communicate with Hue bridge (HTTP $httpCode): $response");
+    public function updateDeviceDatabase($device) {
+        global $log;
+        
+        $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
+        $stmt->execute([$device['id']]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $new_values = [
+            'device' => $device['id'],
+            'model' => $device['type'],  // Model ID not available in light endpoint
+            'device_name' => $device['metadata']['name'],
+            'controllable' => 1,
+            'retrievable' => 1,
+            'supportCmds' => json_encode(['brightness', 'colorTem', 'color']),
+            'brand' => 'hue',
+            'online' => true,
+            'powerState' => $device['on']['on'] ? 'on' : 'off',
+            'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
+            'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
+        ];
+        
+        if (!$current) {
+            $log->logInfoMsg("New Hue device detected: {$device['id']}");
+            $updates = [];
+            $params = [];
+            foreach ($new_values as $key => $value) {
+                if ($value !== null) {
+                    $updates[] = "$key = :$key";
+                    $params[":$key"] = $value;
+                }
+            }
+            
+            if (!empty($updates)) {
+                $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute($params);
+            }
+            return $new_values;
+        }
+        
+        $changes = [];
+        $updates = [];
+        $params = [':device' => $device['id']];
+        
+        foreach ($new_values as $key => $value) {
+            if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
+                continue;
+            }
+            
+            if ($key === 'online') {
+                $current_value = (bool)$current[$key];
+                $new_value = (bool)$value;
+            } else {
+                $current_value = $current[$key];
+                $new_value = $value;
+            }
+            
+            if ($current_value !== $new_value) {
+                $changes[] = "$key changed from $current_value to $new_value";
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
+            }
+        }
+        
+        if (!empty($updates)) {
+            $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            $log->logInfoMsg("Updated Hue device {$device['id']}: " . implode(", ", $changes));
+        }
+        
+        return $new_values;
     }
-    
-    $result = json_decode($response, true);
-    
-    // Check for Hue API errors
-    if (is_array($result) && isset($result[0]['error'])) {
-        throw new Exception($result[0]['error']['description']);
-    }
-    
-    return [
-        'success' => true,
-        'message' => 'Command sent successfully'
-    ];
-}
 }

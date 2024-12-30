@@ -1201,12 +1201,24 @@ async function manualRefresh() {
             await loadInitialData();
             
             const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-            autoRefreshToggle.checked = false;  // Ensure it starts unchecked
+            // Get stored preference, default to true if not set
+            const storedAutoRefresh = localStorage.getItem('autoRefreshEnabled');
+            autoRefreshToggle.checked = storedAutoRefresh === null ? true : storedAutoRefresh === 'true';
+            
             autoRefreshToggle.addEventListener('change', (e) => {
+                // Store the new preference
+                localStorage.setItem('autoRefreshEnabled', e.target.checked);
                 toggleAutoRefresh(e.target.checked);
             });
             
-            resetUpdateTimers();
+            // Initialize with stored preference
+            toggleAutoRefresh(autoRefreshToggle.checked);
+            
+            // If auto-refresh is enabled, do an immediate full refresh
+            if (autoRefreshToggle.checked) {
+                updateDevices();  // This performs a full refresh
+            }
+    
         }
 
         initialize();

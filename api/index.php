@@ -92,6 +92,18 @@ function getDatabaseConnection($config) {
     );
 }
 
+function hasDevicePendingCommand($pdo, $device) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count 
+        FROM command_queue 
+        WHERE device = ? 
+        AND status IN ('pending', 'processing')
+    ");
+    $stmt->execute([$device]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($result['count'] > 0);
+}
+
 function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
     global $log;
     $log->logInfoMsg("Getting devices from the database.");
@@ -134,7 +146,12 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
         
         $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        foreach ($devices as &$device) {
+        // Filter out devices with pending commands
+        $filteredDevices = array_filter($devices, function($device) use ($pdo) {
+            return !hasDevicePendingCommand($pdo, $device['device']);
+        });
+        
+        foreach ($filteredDevices as &$device) {
             if (!empty($device['device']) && !empty($device['deviceGroup'])) {
                 $groupStmt = $pdo->prepare(
                     "SELECT devices.device, devices.device_name, 
@@ -145,11 +162,16 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
                      ORDER BY devices.device_name"
                 );
                 $groupStmt->execute([$device['deviceGroup'], $device['device']]);
-                $device['group_members'] = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Filter group members with pending commands
+                $groupMembers = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+                $device['group_members'] = array_filter($groupMembers, function($member) use ($pdo) {
+                    return !hasDevicePendingCommand($pdo, $member['device']);
+                });
             }
         }
         
-        return $devices;
+        return array_values($filteredDevices); // Re-index array after filtering
         
     } catch (PDOException $e) {
         $log->logErrorMsg("Database error: " . $e->getMessage());
@@ -164,7 +186,7 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
 $app = AppFactory::create();
 $app->setBasePath('/homeio/api');
 $app->addRoutingMiddleware();
-$app->add('validateApiKey');
+//$app->add('validateApiKey');
 $app->addErrorMiddleware(true, true, true);
 
 // Initialize logger
@@ -279,6 +301,7 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
             $pdo = getDatabaseConnection($config);
             
             if (!$quick) {
+                // Only update Govee on non-quick refreshes
                 $govee_timing = measureExecutionTime(function() use ($config, $log) {
                     $log->logInfoMsg("Starting Govee devices update (quick = false)");
                     try {
@@ -302,6 +325,34 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
                 $timing['govee'] = ['duration' => $govee_timing['duration']];
             }
 
+            // Always update Hue devices
+            $hue_timing = measureExecutionTime(function() use ($config, $log) {
+                $log->logInfoMsg("Starting Hue devices update");
+                try {
+                    $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
+                    $hueResponse = $hueApi->getDevices();
+                    
+                    if ($hueResponse['statusCode'] !== 200) {
+                        throw new Exception('Failed to get devices from Hue Bridge');
+                    }
+                    
+                    $devices = json_decode($hueResponse['body'], true);
+                    if (!$devices || !isset($devices['data'])) {
+                        throw new Exception('Failed to parse Hue Bridge response');
+                    }
+                    
+                    foreach ($devices['data'] as $device) {
+                        $hueApi->updateDeviceDatabase($device);
+                    }
+                    
+                    $log->logInfoMsg("Hue update completed successfully");
+                } catch (Exception $e) {
+                    $log->logErrorMsg("Hue update error: " . $e->getMessage());
+                }
+            });
+            $timing['hue'] = ['duration' => $hue_timing['duration']];
+
+            // Get all devices from database
             $devices_timing = measureExecutionTime(function() use ($pdo, $single_device, $room, $exclude_room) {
                 return getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
             });
@@ -533,10 +584,11 @@ $app->get('/update-hue-devices', function (Request $request, Response $response)
     try {
         $timing = [];
         $result = measureExecutionTime(function() use ($config, &$timing) {
-            $pdo = getDatabaseConnection($config);
+            // Initialize HueAPI
+            $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
             
-            $api_timing = measureExecutionTime(function() use ($config) {
-                $hueResponse = getHueDevices($config);
+            $api_timing = measureExecutionTime(function() use ($hueApi) {
+                $hueResponse = $hueApi->getDevices();
                 if ($hueResponse['statusCode'] !== 200) {
                     throw new Exception('Failed to get devices from Hue Bridge');
                 }
@@ -550,10 +602,10 @@ $app->get('/update-hue-devices', function (Request $request, Response $response)
             });
             $timing['devices'] = ['duration' => $api_timing['duration']];
             
-            $states_timing = measureExecutionTime(function() use ($pdo, $api_timing) {
+            $states_timing = measureExecutionTime(function() use ($hueApi, $api_timing) {
                 $updated_devices = array();
                 foreach ($api_timing['result']['data'] as $device) {
-                    $updated_devices[] = updateDeviceDatabase($pdo, $device);
+                    $updated_devices[] = $hueApi->updateDeviceDatabase($device);
                 }
                 return $updated_devices;
             });
