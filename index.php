@@ -36,10 +36,11 @@
         const QUICK_UPDATE_INTERVAL = 2000;     // 2 seconds for quick refresh
         const VISIBLE_UPDATE_INTERVAL = 30000;  // 30 seconds for full refresh of tab devices
         const BACKGROUND_UPDATE_INTERVAL = 3000000;  // 300 seconds (5 minutes) for full refresh of all devices
+        const API_KEY = '<?php echo $config['homeio_api_key']; ?>';
 
         async function fetchRooms() {
             try {
-                const response = await fetch('api/rooms');
+                const response = await apiFetch('api/rooms');
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Failed to fetch rooms');
                 rooms = data.rooms;
@@ -49,116 +50,135 @@
                 showError('Failed to load rooms: ' + error.message);
             }
         }
+        
+        async function apiFetch(url, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'X-API-Key': API_KEY
+                }
+            };
+            
+            const mergedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
+            
+            return fetch(url, mergedOptions);
+        }
 
         async function createTabs() {
-    const tabsContainer = document.getElementById('tabs');
-    const tabContents = document.getElementById('tab-contents');
-    
-    let tabsHtml = '';
-    let contentsHtml = '';
-    
-    // Get saved tab
-    const savedTab = localStorage.getItem('selectedTab');
-    
-    // Add room tabs and content, excluding room 1
-    for (const room of rooms) {
-        if (room.id !== 1) {  // Skip room 1 (default room)
-            // Fetch temperature data for this room
-            let tempInfo = '';
-            try {
-                const response = await fetch(`api/room-temperature?room=${room.id}`);
-                const data = await response.json();
-                if (data.success && data.temperature) {
-                    tempInfo = `${data.temperature}°F ${data.humidity}%`;
+        const tabsContainer = document.getElementById('tabs');
+        const tabContents = document.getElementById('tab-contents');
+        
+        let tabsHtml = '';
+        let contentsHtml = '';
+        
+        // Get saved tab
+        const savedTab = localStorage.getItem('selectedTab');
+        
+        // Add room tabs and content, excluding room 1
+        for (const room of rooms) {
+            if (room.id !== 1) {  // Skip room 1 (default room)
+                // Fetch temperature data for this room
+                let tempInfo = '';
+                try {
+                    const response = await apiFetch(`api/room-temperature?room=${room.id}`);
+                    const data = await response.json();
+                    if (data.success && data.temperature) {
+                        tempInfo = `${data.temperature}°F ${data.humidity}%`;
+                    }
+                } catch (error) {
+                    console.error('Error fetching temperature:', error);
                 }
-            } catch (error) {
-                console.error('Error fetching temperature:', error);
+                
+                let room_icon; // Declare the variable first
+    
+                if (room.room_name.includes('Office')) {
+                    room_icon = '<i class="fa-solid fa-computer"></i>';
+                } else if (room.room_name.includes('Bed')) {
+                    room_icon = '<i class="fa-solid fa-bed"></i>';
+                } else if (room.room_name.includes('Living')) {
+                    room_icon = '<i class="fa-solid fa-couch"></i>';
+                }else {
+                    room_icon = '<i class="fa-solid fa-house"></i>';
+                }
+    
+                tabsHtml += `
+                    <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
+                        ${room_icon}
+                    </button>`;
+                contentsHtml += `
+                    <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
+                        <h2 class="room-header">
+                            <span>${room.room_name}</span>
+                            ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
+                        </h2>
+                        <div class="device-grid" id="room-${room.id}-devices"></div>
+                    </div>`;
             }
-            
-            let room_icon; // Declare the variable first
-
-            if (room.room_name.includes('Office')) {
-                room_icon = '<i class="fa-solid fa-computer"></i>';
-            } else if (room.room_name.includes('Bed')) {
-                room_icon = '<i class="fa-solid fa-bed"></i>';
-            } else if (room.room_name.includes('Living')) {
-                room_icon = '<i class="fa-solid fa-couch"></i>';
-            }else {
-                room_icon = '<i class="fa-solid fa-house"></i>';
-            }
-
-            tabsHtml += `
-                <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    ${room_icon}
-                </button>`;
-            contentsHtml += `
-                <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    <h2 class="room-header">
-                        <span>${room.room_name}</span>
-                        ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
-                    </h2>
-                    <div class="device-grid" id="room-${room.id}-devices"></div>
-                </div>`;
+        }
+        
+        // Add configuration tab for mobile
+        tabsHtml += `
+            <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
+                <i class="fas fa-cog"></i>
+            </button>`;
+    
+        // Add configuration content (visible in both mobile and desktop)
+        contentsHtml += `
+            <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
+                <div>
+                    <button onclick="showDefaultRoomDevices()" class="mobile-config-btn">
+                        Show Unassigned Devices
+                    </button>
+                </div>
+                <div class="device-grid" id="room-config-devices"></div>
+            </div>`;
+    
+        // Add configuration section for desktop only
+        contentsHtml += `
+            <div class="config-section">
+                <h2 class="config-header" onclick="toggleConfigContent()">
+                    <i class="fas fa-cog"></i>
+                    Configuration
+                    <i class="fas fa-chevron-down"></i>
+                </h2>
+                <div class="config-content" id="desktop-config-content">
+                    <div class="auto-refresh-control" style="margin-bottom: 10px;">
+                        <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+                            <span>Auto-refresh</span>
+                        </label>
+                        <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
+                    </div>
+                    <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
+                    <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
+                        Show Unassigned Devices
+                    </button>
+                </div>
+            </div>`;
+        
+        tabsContainer.innerHTML = tabsHtml;
+        tabContents.innerHTML = contentsHtml;
+        
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.room));
+        });
+    
+        // If there's a saved tab, make sure we load its devices
+        if (savedTab) {
+            console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
+            switchTab(savedTab);
         }
     }
-    
-    // Add configuration tab for mobile
-    tabsHtml += `
-        <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
-            <i class="fas fa-cog"></i>
-        </button>`;
-
-    // Add configuration content (visible in both mobile and desktop)
-    contentsHtml += `
-        <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            <div>
-                <button onclick="showDefaultRoomDevices()" class="mobile-config-btn">
-                    Show Unassigned Devices
-                </button>
-            </div>
-            <div class="device-grid" id="room-config-devices"></div>
-        </div>`;
-
-    // Add configuration section for desktop only
-    contentsHtml += `
-        <div class="config-section">
-            <h2 class="config-header" onclick="toggleConfigContent()">
-                <i class="fas fa-cog"></i>
-                Configuration
-                <i class="fas fa-chevron-down"></i>
-            </h2>
-            <div class="config-content" id="desktop-config-content">
-                <div class="auto-refresh-control" style="margin-bottom: 10px;">
-                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
-                        <span>Auto-refresh</span>
-                    </label>
-                    <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
-                </div>
-                <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
-                </button>
-                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
-                <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
-                    Show Unassigned Devices
-                </button>
-            </div>
-        </div>`;
-    
-    tabsContainer.innerHTML = tabsHtml;
-    tabContents.innerHTML = contentsHtml;
-    
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.room));
-    });
-
-    // If there's a saved tab, make sure we load its devices
-    if (savedTab) {
-        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
-        switchTab(savedTab);
-    }
-}
 
     function toggleConfigContent() {
         const configContent = document.getElementById('desktop-config-content');
@@ -214,7 +234,7 @@
     document.body.appendChild(popup);
 
     // Fetch and display default room devices - now using quick=true parameter
-    fetch('api/devices?room=1&quick=true')  // Added quick=true to make it faster
+    apiFetch('api/devices?room=1&quick=true')  // Added quick=true to make it faster
         .then(response => response.json())
         .then(data => {
             if (data.success && data.devices) {
@@ -412,7 +432,7 @@
     try {
         // If this is a group command, get all devices in the group
         if (groupId) {
-            const response = await fetch(`api/group-devices?groupId=${groupId}`);
+            const response = await apiFetch(`api/group-devices?groupId=${groupId}`);
             const data = await response.json();
             if (data.success) {
                 devicesToUpdate = data.devices.map(d => d.device);
@@ -423,7 +443,7 @@
 
         // First, update the database for all devices
         const dbUpdatePromises = devicesToUpdate.map(deviceId => 
-            fetch('api/update-device-state', {
+            apiFetch('api/update-device-state', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -460,7 +480,7 @@
                 value: value
             };
             
-            return fetch('api/send-command', {
+            return apiFetch('api/send-command', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -489,7 +509,7 @@
         try {
             // Revert database state
             const revertPromises = devicesToUpdate.map(deviceId =>
-                fetch('api/update-device-state', {
+                apiFetch('api/update-device-state', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -603,7 +623,7 @@
         async function loadInitialData() {
     try {
         // Just get initial device state from database without API updates
-        const response = await fetch('api/devices?quick=true');
+        const response = await apiFetch('api/devices?quick=true');
         const data = await response.json();
         
         if (!data.success) {
@@ -631,7 +651,7 @@ async function updateBackgroundDevices() {
     
     try {
         // For background updates, just get current device states
-        const response = await fetch(`api/devices?exclude_room=${currentRoomId}`);
+        const response = await apiFetch(`api/devices?exclude_room=${currentRoomId}`);
         const data = await response.json();
         
         if (!data.success) {
@@ -660,7 +680,7 @@ async function updateBackgroundDevices() {
             visibleUpdateInterval = setInterval(() => {
                 console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
                 // Just get current states from database
-                fetch(`api/devices?quick=true`)
+                apiFetch(`api/devices?quick=true`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
@@ -691,7 +711,7 @@ async function updateDevices() {
 
     try {
         // First explicitly update Govee devices
-        const goveeResponse = await fetch('api/update-govee-devices');
+        const goveeResponse = await apiFetch('api/update-govee-devices');
         const goveeData = await goveeResponse.json();
         
         if (!goveeData.success) {
@@ -699,7 +719,7 @@ async function updateDevices() {
         }
 
         // Then get all updated devices
-        const response = await fetch('api/devices?quick=false');
+        const response = await apiFetch('api/devices?quick=false');
         const data = await response.json();
         
         if (!data.success) {
@@ -802,7 +822,7 @@ async function manualRefresh() {
         
             try {
                 // Load device config
-                const configResponse = await fetch(`api/device-config?device=${deviceId}`);
+                const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
                 const configData = await configResponse.json();
                 
                 // Store config values
@@ -839,7 +859,7 @@ async function manualRefresh() {
                     regularConfigElements.style.display = 'none';
                     
                     // Get and display group members
-                    const groupResponse = await fetch(`api/group-devices?groupId=${groupId}`);
+                    const groupResponse = await apiFetch(`api/group-devices?groupId=${groupId}`);
                     const groupData = await groupResponse.json();
                     
                     if (groupData.success && groupData.devices) {
@@ -964,7 +984,7 @@ async function manualRefresh() {
         };
 
         // Update device configuration
-        const configResponse = await fetch('api/update-device-config', {
+        const configResponse = await apiFetch('api/update-device-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)
@@ -1002,7 +1022,7 @@ async function manualRefresh() {
 
             console.log('Sending group update with data:', groupData); // Debug log
 
-            const groupResponse = await fetch('api/update-device-group', {
+            const groupResponse = await apiFetch('api/update-device-group', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(groupData)
@@ -1037,7 +1057,7 @@ async function manualRefresh() {
         
         async function loadAvailableGroups(model) {
             try {
-                const response = await fetch(`api/available-groups?model=${model}`);
+                const response = await apiFetch(`api/available-groups?model=${model}`);
                 const data = await response.json();
                 
                 if (!data.success) {
@@ -1060,7 +1080,7 @@ async function manualRefresh() {
             }
             
             try {
-                const response = await fetch('api/delete-device-group', {
+                const response = await apiFetch('api/delete-device-group', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1083,7 +1103,7 @@ async function manualRefresh() {
         
         async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
             try {
-                const response = await fetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
+                const response = await apiFetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
                 const data = await response.json();
                 return data;
             } catch (error) {

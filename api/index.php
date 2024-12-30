@@ -9,6 +9,28 @@ require $config['sharedpath'].'/logger.php';
 require $config['sharedpath'].'/govee_lib.php';
 require $config['sharedpath'].'/hue_lib.php';
 
+function validateApiKey($request, $handler) {
+    global $config;
+    
+    // Get API key from header
+    $apiKey = $request->getHeaderLine('X-API-Key');
+    
+    // Check if API key exists and is valid
+    if (empty($apiKey) || !in_array($apiKey, $config['api_keys'])) {
+        $response = new \Slim\Psr7\Response();
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid or missing API key'
+        ]));
+        
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(401);
+    }
+    
+    return $handler->handle($request);
+}
+
 // Helper Functions
 function sendErrorResponse($response, $error, $log = null) {
     if ($log) {
@@ -142,6 +164,7 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
 $app = AppFactory::create();
 $app->setBasePath('/homeio/api');
 $app->addRoutingMiddleware();
+$app->add('validateApiKey');
 $app->addErrorMiddleware(true, true, true);
 
 // Initialize logger
