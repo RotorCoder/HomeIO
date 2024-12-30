@@ -217,8 +217,8 @@
     `;
     document.body.appendChild(popup);
 
-    // Fetch and display default room devices
-    fetch('api/devices?room=1')  // Specifically request devices in room 1
+    // Fetch and display default room devices - now using quick=true parameter
+    fetch('api/devices?room=1&quick=true')  // Added quick=true to make it faster
         .then(response => response.json())
         .then(data => {
             if (data.success && data.devices) {
@@ -679,7 +679,7 @@
         async function loadInitialData() {
     try {
         // Just get initial device state from database without API updates
-        const response = await fetch('api/get_devices.php?quick=true');
+        const response = await fetch('api/devices?quick=true');
         const data = await response.json();
         
         if (!data.success) {
@@ -736,7 +736,7 @@ async function updateBackgroundDevices() {
             visibleUpdateInterval = setInterval(() => {
                 console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
                 // Just get current states from database
-                fetch(`api/get_devices.php?quick=true`)
+                fetch(`api/devices?quick=true`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
@@ -766,7 +766,7 @@ async function updateDevices() {
     console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
 
     try {
-        const response = await fetch('api/get_devices.php?quick=false');
+        const response = await fetch('api/devices?quick=false');
         const data = await response.json();
         
         if (!data.success) {
@@ -918,7 +918,7 @@ async function manualRefresh() {
         
             try {
                 // Load device config
-                const configResponse = await fetch(`api/get_device_config.php?device=${deviceId}`);
+                const configResponse = await fetch(`api/device-config?device=${deviceId}`);
                 const configData = await configResponse.json();
                 
                 // Store config values

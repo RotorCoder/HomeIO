@@ -100,37 +100,6 @@ $app->addErrorMiddleware(true, true, true);
 // Initialize logger
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
-// Devices route
-$app->get('/devices', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        $pdo = getDatabaseConnection($config);
-        $devices = getDevicesFromDatabase($pdo);
-        
-        $payload = json_encode([
-            'success' => true,
-            'devices' => $devices,
-            'updated' => date('c')
-        ]);
-        
-        $response->getBody()->write($payload);
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withStatus(200);
-            
-    } catch (Exception $e) {
-        $log->logErrorMsg("Error getting devices: " . $e->getMessage());
-        $payload = json_encode([
-            'success' => false,
-            'error' => $e->getMessage()
-        ]);
-        
-        $response->getBody()->write($payload);
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withStatus(500);
-    }
-});
-
 // X10 code check route
 $app->get('/check-x10-code', function (Request $request, Response $response) use ($config, $log) {
     try {
@@ -305,6 +274,156 @@ $app->get('/group-devices', function (Request $request, Response $response) use 
     } catch (Exception $e) {
         $log->logErrorMsg("Error getting group devices: " . $e->getMessage());
         
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->get('/device-config', function (Request $request, Response $response) use ($config) {
+    try {
+        $queryParams = $request->getQueryParams();
+        if (!isset($queryParams['device'])) {
+            throw new Exception('Device ID is required');
+        }
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code FROM devices WHERE device = ?");
+        $stmt->execute([$queryParams['device']]);
+        
+        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$config) {
+            throw new Exception('Device not found');
+        }
+        
+        $payload = json_encode([
+            'success' => true,
+            'room' => $config['room'],
+            'low' => $config['low'],
+            'medium' => $config['medium'],
+            'high' => $config['high'],
+            'preferredColorTem' => $config['preferredColorTem'],
+            'x10Code' => $config['x10Code']
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+            
+    } catch (Exception $e) {
+        $payload = json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(500);
+    }
+});
+
+$app->get('/devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $start = microtime(true);
+        $timing = array();
+        
+        $single_device = $request->getQueryParams()['device'] ?? null;
+        $room = $request->getQueryParams()['room'] ?? null;
+        $exclude_room = $request->getQueryParams()['exclude_room'] ?? null;
+        $quick = isset($request->getQueryParams()['quick']) ? 
+            ($request->getQueryParams()['quick'] === 'true') : false;
+
+        $pdo = getDatabaseConnection($config);
+        $devices_start = microtime(true);
+
+        // Only update Govee devices during full refresh
+        if (!$quick) {
+            $log->logInfoMsg("Starting Govee devices update (quick = false)");
+            try {
+                $govee_start = microtime(true);
+                
+                // Get the current script's directory
+                $currentDir = dirname($_SERVER['SCRIPT_NAME']);
+                $baseUrl = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http") 
+                    . "://$_SERVER[HTTP_HOST]$currentDir";
+                
+                // Make HTTP request to Govee update endpoint
+                $curl = curl_init();
+                $goveeUrl = $baseUrl . '/update_govee_devices.php';
+                $log->logInfoMsg("Calling Govee update URL: " . $goveeUrl);
+                
+                curl_setopt_array($curl, array(
+                    CURLOPT_URL => $goveeUrl,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => false
+                ));
+                
+                $goveeResponse = curl_exec($curl);
+                $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                
+                if (curl_errno($curl)) {
+                    throw new Exception('Curl error: ' . curl_error($curl));
+                }
+                
+                curl_close($curl);
+                
+                $log->logInfoMsg("Govee update response status: " . $statusCode);
+                
+                if ($statusCode !== 200) {
+                    throw new Exception('Failed to update Govee devices: HTTP ' . $statusCode);
+                }
+                
+                $goveeData = json_decode($goveeResponse, true);
+                if (!$goveeData['success']) {
+                    throw new Exception($goveeData['error'] ?? 'Unknown error updating Govee devices');
+                }
+                
+                $log->logInfoMsg("Govee update completed successfully");
+                $timing['govee'] = array('duration' => round((microtime(true) - $govee_start) * 1000));
+                
+            } catch (Exception $e) {
+                $log->logErrorMsg("Govee update error: " . $e->getMessage());
+                // Continue even if Govee update fails
+            }
+        }
+
+        // Get devices from the database
+        $devices = getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
+        $timing['devices'] = array('duration' => round((microtime(true) - $devices_start) * 1000));
+        
+        // Calculate database timing
+        $timing['database'] = array('duration' => round((microtime(true) - $devices_start) * 1000));
+        
+        // Calculate total timing
+        $timing['total'] = round((microtime(true) - $start) * 1000);
+
+        $payload = json_encode([
+            'success' => true,
+            'devices' => $devices,
+            'updated' => date('c'),
+            'timing' => $timing,
+            'quick' => $quick
+        ]);
+        
+        $response->getBody()->write($payload);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(200);
+            
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error getting devices: " . $e->getMessage());
         $payload = json_encode([
             'success' => false,
             'error' => $e->getMessage()
