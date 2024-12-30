@@ -14,6 +14,9 @@ class GoveeAPIRateLimiter {
     }
     
     public function logAPICall($headers) {
+        // Debug log the raw headers
+        error_log("Raw Headers received: " . print_r($headers, true));
+        
         // Parse all known rate limit headers
         $values = [
             'API-RateLimit-Remaining' => null,
@@ -24,42 +27,62 @@ class GoveeAPIRateLimiter {
             'X-RateLimit-Reset' => null,
             'X-Response-Time' => null
         ];
-        
-        // Parse headers string
-        foreach (explode("\n", $headers) as $line) {
-            if (empty(trim($line))) continue;
+    
+        // If headers is a string, split it into lines
+        if (is_string($headers)) {
+            $headerLines = array_filter(explode("\r\n", $headers));
+        } else {
+            $headerLines = $headers;
+        }
+    
+        error_log("Processed header lines: " . print_r($headerLines, true));
+    
+        foreach ($headerLines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
             
-            $parts = explode(':', $line, 2);
-            if (count($parts) !== 2) continue;
+            // Skip the HTTP/1.1 status line
+            if (strpos($line, 'HTTP/') === 0) continue;
             
-            $name = trim($parts[0]);
-            $value = trim($parts[1]);
+            if (strpos($line, ':') === false) continue;
+            
+            list($name, $value) = array_map('trim', explode(':', $line, 2));
+            error_log("Processing header - Name: $name, Value: $value");
             
             switch ($name) {
                 case 'API-RateLimit-Remaining':
+                case 'api-ratelimit-remaining':
                     $values['API-RateLimit-Remaining'] = (int)$value;
                     break;
                 case 'API-RateLimit-Reset':
+                case 'api-ratelimit-reset':
                     $values['API-RateLimit-Reset'] = date('Y-m-d H:i:s', (int)$value);
                     break;
                 case 'API-RateLimit-Limit':
+                case 'api-ratelimit-limit':
                     $values['API-RateLimit-Limit'] = (int)$value;
                     break;
                 case 'X-RateLimit-Limit':
+                case 'x-ratelimit-limit':
                     $values['X-RateLimit-Limit'] = (int)$value;
                     break;
                 case 'X-RateLimit-Remaining':
+                case 'x-ratelimit-remaining':
                     $values['X-RateLimit-Remaining'] = (int)$value;
                     break;
                 case 'X-RateLimit-Reset':
+                case 'x-ratelimit-reset':
                     $values['X-RateLimit-Reset'] = date('Y-m-d H:i:s', (int)$value);
                     break;
                 case 'X-Response-Time':
-                    $values['X-Response-Time'] = (int)str_replace('ms', '', $value);
+                case 'x-response-time':
+                    $values['X-Response-Time'] = (int)str_replace(['ms', ' '], '', $value);
                     break;
             }
         }
-        
+    
+        error_log("Final parsed values: " . print_r($values, true));
+    
         // Insert into database
         $sql = "INSERT INTO govee_api_calls (
             `API-RateLimit-Remaining`,
@@ -273,6 +296,9 @@ class GoveeAPI {
         $headers = substr($response, 0, $header_size);
         $body = substr($response, $header_size);
         $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        $this->rateLimiter->logAPICall($headers);
+        
         curl_close($curl);
         
         return [
@@ -299,7 +325,10 @@ class GoveeAPI {
         $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
         $headers = substr($response, 0, $header_size);
         $body = substr($response, $header_size);
-        $state_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        $this->rateLimiter->logAPICall($headers);
+        
         curl_close($curl);
         
         return [
@@ -395,7 +424,7 @@ class GoveeAPI {
             default:
                 throw new Exception('Unsupported command type: ' . $cmd['name']);
         }
-
+    
         // Rate limit check
         if (!$this->rateLimiter->canMakeRequest()) {
             $waitTime = $this->rateLimiter->getWaitTime();
@@ -403,7 +432,7 @@ class GoveeAPI {
                 sleep($waitTime);
             }
         }
-
+    
         // Send command to Govee API
         $curl = curl_init();
         curl_setopt_array($curl, array(
@@ -426,15 +455,16 @@ class GoveeAPI {
                 'Govee-API-Key: ' . $this->apiKey
             ),
         ));
-
+    
         $response = curl_exec($curl);
-        $headerSize = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-        $headers = substr($response, 0, $headerSize);
-        $body = substr($response, $headerSize);
-        curl_close($curl);
+        $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+        $headers = substr($response, 0, $header_size);
+        $body = substr($response, $header_size);
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         
-        // Log rate limit headers
         $this->rateLimiter->logAPICall($headers);
+        
+        curl_close($curl);
         
         $result = json_decode($body, true);
         
