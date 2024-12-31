@@ -1,5 +1,3 @@
-<!-- /../shared/hue_lib.php -->
-
 <?php
 
 class HueCommandQueue {
