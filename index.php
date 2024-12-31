@@ -1261,10 +1261,16 @@ async function manualRefresh() {
                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
             `;
             
-            // Update rows
-            tbody.innerHTML = historyData.map(record => {
+            // Update rows - reverse the data array before mapping
+            tbody.innerHTML = [...historyData].reverse().map(record => {
                 const date = new Date(record.timestamp);
-                const formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                let formattedDate;
+                
+                if (hours === '24') {
+                    formattedDate = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                } else {
+                    formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                }
                 
                 return `
                     <tr>
@@ -1286,7 +1292,11 @@ async function manualRefresh() {
 
         const labels = chartData.map(record => {
             const date = new Date(record.timestamp);
-            return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            if (hours === '24') {
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            } else {
+                return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            }
         });
 
         const canvas = document.getElementById('temp-history-chart');
@@ -1358,6 +1368,9 @@ async function manualRefresh() {
                         title: {
                             display: true,
                             text: 'Temperature (°F)'
+                        },
+                        ticks: {
+                            stepSize: 1
                         }
                     },
                     humidity: {
@@ -1370,6 +1383,9 @@ async function manualRefresh() {
                         },
                         grid: {
                             drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
                         }
                     },
                     battery: {
@@ -1384,6 +1400,9 @@ async function manualRefresh() {
                         max: 100,
                         grid: {
                             drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 10
                         }
                     },
                     rssi: {
@@ -1396,6 +1415,9 @@ async function manualRefresh() {
                         },
                         grid: {
                             drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
                         }
                     }
                 },
@@ -1596,8 +1618,8 @@ async function manualRefresh() {
                 <div class="history-controls">
                     <select id="history-range" onchange="loadTempHistory()">
                         <option value="24">Last 24 Hours</option>
-                        <option value="48">Last 48 Hours</option>
-                        <option value="168">Last Week</option>
+                        <option value="168">Last 7 Days</option>
+                        <option value="720">Last 30 Days</option>
                     </select>
                 </div>
                 <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
