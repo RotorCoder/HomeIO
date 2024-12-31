@@ -24,6 +24,7 @@
     
     <?php include 'templates/config-popup.php'; ?>
     <?php include 'templates/history-popup.php'; ?>
+    
     <script>
         const API_KEY = '<?php echo $config['homeio_api_key']; ?>';
     </script>
