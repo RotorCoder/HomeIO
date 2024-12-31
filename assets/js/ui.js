@@ -62,23 +62,23 @@ async function createTabs() {
             
             let room_icon;
             if (room.room_name.includes('Office')) {
-                room_icon = '<i class="fa-solid fa-2x fa-computer"></i>';
+                room_icon = 'fa-computer';
             } else if (room.room_name.includes('Bed')) {
-                room_icon = '<i class="fa-solid fa-2x fa-bed"></i>';
+                room_icon = 'fa-bed';
             } else if (room.room_name.includes('Living')) {
-                room_icon = '<i class="fa-solid fa-2x fa-couch"></i>';
+                room_icon = 'fa-couch';
             } else {
-                room_icon = '<i class="fa-solid fa-2x fa-house"></i>';
+                room_icon = 'fa-house';
             }
 
             tabsHtml += `
                 <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    ${room_icon}
+                    <i class="fa-solid fa-xl ${room_icon}"></i>
                 </button>`;
             contentsHtml += `
                 <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     <h2 class="room-header">
-                        <span>${room.room_name}</span>
+                        <span><i class="fa-solid ${room_icon}"></i> ${room.room_name}</span>
                         ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
                     </h2>
                     <div class="device-grid" id="room-${room.id}-devices"></div>
@@ -88,7 +88,7 @@ async function createTabs() {
     
     tabsHtml += `
         <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
-            <i class="fas fa-2x fa-cog"></i>
+            <i class="fas fa-xl fa-cog"></i>
         </button>`;
 
     contentsHtml += `
