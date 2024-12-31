@@ -101,13 +101,13 @@
                 let room_icon; // Declare the variable first
     
                 if (room.room_name.includes('Office')) {
-                    room_icon = '<i class="fa-solid fa-computer"></i>';
+                    room_icon = '<i class="fa-solid fa-2x fa-computer"></i>';
                 } else if (room.room_name.includes('Bed')) {
-                    room_icon = '<i class="fa-solid fa-bed"></i>';
+                    room_icon = '<i class="fa-solid fa-2x fa-bed"></i>';
                 } else if (room.room_name.includes('Living')) {
-                    room_icon = '<i class="fa-solid fa-couch"></i>';
+                    room_icon = '<i class="fa-solid fa-2x fa-couch"></i>';
                 }else {
-                    room_icon = '<i class="fa-solid fa-house"></i>';
+                    room_icon = '<i class="fa-solid fa-2x fa-house"></i>';
                 }
     
                 tabsHtml += `
@@ -128,7 +128,7 @@
         // Add configuration tab for mobile
         tabsHtml += `
             <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
-                <i class="fas fa-cog"></i>
+                <i class="fas fa-2x fa-cog"></i>
             </button>`;
     
         // Add configuration content (visible in both mobile and desktop)
