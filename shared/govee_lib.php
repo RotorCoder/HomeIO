@@ -277,6 +277,73 @@ class GoveeAPI {
     public function __construct($apiKey, $dbConfig) {
         $this->apiKey = $apiKey;
         $this->dbConfig = $dbConfig;
+        
+        // Initialize database connection
+        $this->pdo = new PDO(
+            "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+            $dbConfig['user'],
+            $dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        
+        // Create devices table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS devices (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device VARCHAR(255) NOT NULL UNIQUE,
+                model VARCHAR(255),
+                device_name VARCHAR(255),
+                controllable BOOLEAN DEFAULT 1,
+                retrievable BOOLEAN DEFAULT 1,
+                supportCmds TEXT,
+                colorTemp_rangeMin INT,
+                colorTemp_rangeMax INT,
+                brand VARCHAR(50),
+                online BOOLEAN DEFAULT 0,
+                powerState VARCHAR(10),
+                brightness INT,
+                colorTemp INT,
+                x10Code VARCHAR(10),
+                room INT,
+                deviceGroup INT,
+                showInGroupOnly BOOLEAN DEFAULT 0,
+                low INT DEFAULT 25,
+                medium INT DEFAULT 50,
+                high INT DEFAULT 75,
+                preferredColorTem INT
+            )
+        ");
+        
+        // Create govee_api_calls table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS govee_api_calls (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                `API-RateLimit-Remaining` INT,
+                `API-RateLimit-Reset` DATETIME,
+                `API-RateLimit-Limit` INT,
+                `X-RateLimit-Limit` INT,
+                `X-RateLimit-Remaining` INT,
+                `X-RateLimit-Reset` DATETIME,
+                `X-Response-Time` INT,
+                `Date` DATETIME
+            )
+        ");
+        
+        // Create command_queue table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS command_queue (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device VARCHAR(255) NOT NULL,
+                model VARCHAR(255),
+                command TEXT,
+                brand VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP NULL,
+                error_message TEXT
+            )
+        ");
+    
         $this->rateLimiter = new GoveeAPIRateLimiter($dbConfig);
         $this->commandQueue = new GoveeCommandQueue($dbConfig);
     }

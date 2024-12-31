@@ -18,8 +18,23 @@ def setup_database():
         db = mysql.connector.connect(**CONFIG['database'])
         cursor = db.cursor()
         
+        # Create thermometers table if it doesn't exist
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS thermometers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            mac VARCHAR(17) NOT NULL UNIQUE,
+            model VARCHAR(50),
+            name VARCHAR(50),
+            rssi INT,
+            temp DECIMAL(5,2),
+            humidity DECIMAL(5,2),
+            battery INT,
+            updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )
+        """)
+        
         # Create thermometer_history table if it doesn't exist
-        create_table_query = """
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS thermometer_history (
             id INT AUTO_INCREMENT PRIMARY KEY,
             mac VARCHAR(17) NOT NULL,
@@ -31,8 +46,8 @@ def setup_database():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_mac_timestamp (mac, timestamp)
         )
-        """
-        cursor.execute(create_table_query)
+        """)
+        
         db.commit()
         cursor.close()
         db.close()
@@ -71,7 +86,7 @@ def process_detection(device, advertising_data):
             current_time = time.time()
             if device.address in device_last_update:
                 time_since_last_update = current_time - device_last_update[device.address]
-                if time_since_last_update < CONFIG['monitoring']['update_interval']:
+                if time_since_last_update < (CONFIG['monitoring']['update_interval'] * 60):
                     return
                     
             result = decode_govee_thermometer(advertising_data.manufacturer_data)
@@ -162,7 +177,7 @@ async def run_scanner():
     """Main scanner function"""
     print("Starting Govee device monitor")
     print(f"Looking for devices with names starting with '{CONFIG['monitoring']['device_prefix']}'")
-    print(f"Update interval: {CONFIG['monitoring']['update_interval']} seconds")
+    print(f"Update interval: {CONFIG['monitoring']['update_interval']} minute(s)")
     print("Press Ctrl+C to stop...")
     
     # Set up database tables

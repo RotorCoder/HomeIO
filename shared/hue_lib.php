@@ -90,14 +90,70 @@ class HueAPI {
         $this->bridgeIP = $bridgeIP;
         $this->apiKey = $apiKey;
         $this->dbConfig = $dbConfig;
+        
         if ($dbConfig) {
-            $this->commandQueue = new HueCommandQueue($dbConfig);
             $this->pdo = new PDO(
                 "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
                 $dbConfig['user'],
                 $dbConfig['password'],
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
+            
+            // Create devices table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS devices (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device VARCHAR(255) NOT NULL UNIQUE,
+                    model VARCHAR(255),
+                    device_name VARCHAR(255),
+                    controllable BOOLEAN DEFAULT 1,
+                    retrievable BOOLEAN DEFAULT 1,
+                    supportCmds TEXT,
+                    colorTemp_rangeMin INT,
+                    colorTemp_rangeMax INT,
+                    brand VARCHAR(50),
+                    online BOOLEAN DEFAULT 0,
+                    powerState VARCHAR(10),
+                    brightness INT,
+                    colorTemp INT,
+                    x10Code VARCHAR(10),
+                    room INT,
+                    deviceGroup INT,
+                    showInGroupOnly BOOLEAN DEFAULT 0,
+                    low INT DEFAULT 25,
+                    medium INT DEFAULT 50,
+                    high INT DEFAULT 75,
+                    preferredColorTem INT
+                )
+            ");
+            
+            // Create device_groups table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS device_groups (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    model VARCHAR(255),
+                    reference_device VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            
+            // Create command_queue table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS command_queue (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device VARCHAR(255) NOT NULL,
+                    model VARCHAR(255),
+                    command TEXT,
+                    brand VARCHAR(50),
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMP NULL,
+                    error_message TEXT
+                )
+            ");
+            
+            $this->commandQueue = new HueCommandQueue($dbConfig);
         }
     }
 

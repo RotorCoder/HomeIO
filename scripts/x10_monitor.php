@@ -7,6 +7,83 @@ require $config['sharedpath'].'/govee_lib.php';
 require $config['sharedpath'].'/logger.php';
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
+try {
+    $pdo = new PDO(
+        "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
+        $config['db_config']['user'],
+        $config['db_config']['password'],
+        array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
+    );
+    
+    // Create devices table if it doesn't exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS devices (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            device VARCHAR(255) NOT NULL UNIQUE,
+            model VARCHAR(255),
+            device_name VARCHAR(255),
+            controllable BOOLEAN DEFAULT 1,
+            retrievable BOOLEAN DEFAULT 1,
+            supportCmds TEXT,
+            colorTemp_rangeMin INT,
+            colorTemp_rangeMax INT,
+            brand VARCHAR(50),
+            online BOOLEAN DEFAULT 0,
+            powerState VARCHAR(10),
+            brightness INT,
+            colorTemp INT,
+            x10Code VARCHAR(10),
+            room INT,
+            deviceGroup INT,
+            showInGroupOnly BOOLEAN DEFAULT 0,
+            low INT DEFAULT 25,
+            medium INT DEFAULT 50,
+            high INT DEFAULT 75,
+            preferredColorTem INT
+        )
+    ");
+    
+    // Create device_groups table if it doesn't exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS device_groups (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            model VARCHAR(255),
+            reference_device VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ");
+    
+    // Create command_queue table if it doesn't exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS command_queue (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            device VARCHAR(255) NOT NULL,
+            model VARCHAR(255),
+            command TEXT,
+            brand VARCHAR(50),
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            processed_at TIMESTAMP NULL,
+            error_message TEXT
+        )
+    ");
+    
+    // Create rooms table if it doesn't exist
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS rooms (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            room_name VARCHAR(255) NOT NULL,
+            thermometer VARCHAR(50),
+            tab_order INT DEFAULT 0
+        )
+    ");
+
+} catch (Exception $e) {
+    $log->logErrorMsg("Database initialization error: " . $e->getMessage());
+    exit(1);
+}
+
 // Store last command info for deduplication
 $lastCommand = [
     'device' => '',

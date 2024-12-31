@@ -7,8 +7,8 @@ CONFIG = {
         'password': 'xxxxxxxxxxx',
         'database': 'homeio'
     },
-    'monitoring': {
-        'update_interval': 30,  # seconds between updates for each device
+    monitoring': {
+        'update_interval': 15,  # minutes between updates for each device
         'device_prefix': 'GVH5075',  # prefix to identify target devices
         'skip_rssi': -127  # RSSI value to skip (indicates loss of signal)
     }
