@@ -1,5 +1,3 @@
-<!-- /../shared/govee_lib.php -->
-
 <?php
 
 class GoveeAPIRateLimiter {
