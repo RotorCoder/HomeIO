@@ -417,7 +417,7 @@ $app->get('/room-temperature', function (Request $request, Response $response) u
         $pdo = getDatabaseConnection($config);
         // Get temperature data by joining on MAC address
         $stmt = $pdo->prepare("
-            SELECT t.temp, t.humidity 
+            SELECT t.temp, t.humidity, t.mac 
             FROM rooms r
             JOIN thermometers t ON t.mac = r.thermometer 
             WHERE r.id = ? 
@@ -433,7 +433,8 @@ $app->get('/room-temperature', function (Request $request, Response $response) u
         
         return sendSuccessResponse($response, [
             'temperature' => $tempData['temp'],
-            'humidity' => $tempData['humidity']
+            'humidity' => $tempData['humidity'],
+            'mac' => $tempData['mac']
         ]);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
@@ -655,6 +656,44 @@ $app->get('/update-hue-devices', function (Request $request, Response $response)
         return sendSuccessResponse($response, $result['result']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/thermometer-history', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['mac']);
+        $mac = $request->getQueryParams()['mac'];
+        $hours = isset($request->getQueryParams()['hours']) ? (int)$request->getQueryParams()['hours'] : 24;
+
+        $pdo = getDatabaseConnection($config);
+        
+        // First get the device name
+        $stmt = $pdo->prepare("
+            SELECT name FROM thermometers WHERE mac = ?
+        ");
+        $stmt->execute([$mac]);
+        $device = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Then get the history
+        $stmt = $pdo->prepare("
+            SELECT 
+                temperature,
+                humidity,
+                battery,
+                DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i') as timestamp
+            FROM thermometer_history 
+            WHERE mac = ? 
+            AND timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY timestamp DESC
+        ");
+        $stmt->execute([$mac, $hours]);
+        
+        return sendSuccessResponse($response, [
+            'history' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'device_name' => $device ? $device['name'] : 'Unknown Device'
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
     }
 });
 

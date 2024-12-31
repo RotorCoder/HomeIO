@@ -11,6 +11,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
     <link rel="manifest" href="assets/images/site.webmanifest">
     <link rel="stylesheet" href="assets/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -89,7 +90,9 @@
                     const response = await apiFetch(`api/room-temperature?room=${room.id}`);
                     const data = await response.json();
                     if (data.success && data.temperature) {
-                        tempInfo = `${data.temperature}°F ${data.humidity}%`;
+                        tempInfo = `<span class="room-temp-info" onclick="showTempHistory('${data.mac}', '${room.room_name}')" style="cursor: pointer">
+                            ${data.temperature}°F ${data.humidity}%
+                        </span>`;
                     }
                 } catch (error) {
                     console.error('Error fetching temperature:', error);
@@ -1220,129 +1223,296 @@ async function manualRefresh() {
             }
     
         }
+        
+        async function showTempHistory(mac, deviceName) {
+    const popup = document.getElementById('history-popup');
+    document.getElementById('history-device-title').textContent = `Temperature History - ${deviceName}`;
+    popup.dataset.mac = mac;
+    popup.style.display = 'block';
+    await loadTempHistory();
+}
+        
+        function hideHistoryPopup() {
+            document.getElementById('history-popup').style.display = 'none';
+        }
+        
+        async function loadTempHistory() {
+    const popup = document.getElementById('history-popup');
+    const mac = popup.dataset.mac;
+    const hours = document.getElementById('history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        // Update table
+        const tbody = document.querySelector('#history-table tbody');
+        tbody.innerHTML = data.history.map(record => `
+            <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.timestamp}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
+            </tr>
+        `).join('');
+
+        // Create chart data - reverse for chronological order
+        const chartData = [...data.history].reverse();
+
+        // Don't create chart if no data
+        if (chartData.length === 0) {
+            document.getElementById('temp-history-chart').innerHTML = 
+                '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
+            return;
+        }
+
+        // Get canvas context
+        const canvas = document.getElementById('temp-history-chart');
+        const ctx = canvas.getContext('2d');
+
+        // Destroy existing chart if it exists
+        if (window.tempHistoryChart) {
+            window.tempHistoryChart.destroy();
+        }
+
+        // Create new chart
+        window.tempHistoryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartData.map(record => record.timestamp),
+                datasets: [
+                    {
+                        label: 'Temperature (°F)',
+                        data: chartData.map(record => record.temperature),
+                        borderColor: 'rgb(255, 99, 132)',
+                        yAxisID: 'y',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        data: chartData.map(record => record.humidity),
+                        borderColor: 'rgb(54, 162, 235)',
+                        yAxisID: 'y1',
+                        tension: 0.3,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 8,
+                            maxRotation: 0
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Temperature (°F)'
+                        },
+                        min: Math.floor(Math.min(...chartData.map(d => d.temperature)) - 2),
+                        max: Math.ceil(Math.max(...chartData.map(d => d.temperature)) + 2)
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Humidity (%)'
+                        },
+                        min: Math.floor(Math.min(...chartData.map(d => d.humidity)) - 2),
+                        max: Math.ceil(Math.max(...chartData.map(d => d.humidity)) + 2),
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}
 
         initialize();
     </script>
     
     <div id="config-popup" style="display: none;">
-    <div class="config-popup">
-        <div class="header">
-            <h3 id="config-device-title">Device Configuration</h3>
-            <button onclick="hideConfigMenu()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div class="content">
-            <form id="device-config-form">
-                <!-- Hidden inputs -->
-                <input type="hidden" id="config-device-id">
-                <input type="hidden" id="config-device-name">
-                
-                <div class="form-group" style="display: flex; gap: 10px;">
-                    <div style="flex: 1;">
-                        <label>Brand:</label>
-                        <input type="text" id="config-brand" readonly style="width: 100%;">
-                    </div>
-                    <div style="flex: 1;">
-                        <label>Model:</label>
-                        <input type="text" id="config-model" readonly style="width: 100%;">
-                    </div>
-                </div>
-
-                <div class="form-group" style="display: flex; gap: 10px;">
-                    <div style="flex: 1;">
-                        <label>X10 Letter:</label>
-                        <select id="config-x10-letter" style="width: 100%;"></select>
-                    </div>
-                    <div style="flex: 1;">
-                        <label>X10 Number:</label>
-                        <select id="config-x10-number" style="width: 100%;"></select>
-                    </div>
-                </div>
-
-                <div id="config-error-message" class="config-error-message" style="display: none;"></div>
-
-                <div class="form-group">
-                    <label>Room:</label>
-                    <select id="config-room"></select>
-                </div>
-
-                <!-- Regular device settings -->
-                <div id="regular-config-elements">
-                    <div class="form-group">
-                        <label>Low Brightness (%):</label>
-                        <input type="number" id="config-low" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Medium Brightness (%):</label>
-                        <input type="number" id="config-medium" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>High Brightness (%):</label>
-                        <input type="number" id="config-high" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Preferred Color Temperature:</label>
-                        <input type="number" id="config-color-temp" min="2000" max="9000">
-                    </div>
-                    <div class="form-group">
-                        <label>Device Grouping:</label>
-                        <select id="config-group-action" onchange="handleGroupActionChange()">
-                            <option value="none">No Group</option>
-                            <option value="create">Create New Group</option>
-                            <option value="join">Join Existing Group</option>
-                        </select>
-                    </div>
-                    <div class="form-group" id="group-name-container" style="display: none;">
-                        <label>Group Name:</label>
-                        <input type="text" id="config-group-name">
-                    </div>
-                    <div class="form-group" id="existing-groups-container" style="display: none;">
-                        <label>Select Group:</label>
-                        <select id="config-existing-groups"></select>
-                    </div>
-                </div>
-
-                <!-- Group device settings -->
-                <div id="group-config-elements" style="display: none;">
-                    <div class="form-group">
-                        <label>Low Brightness (%):</label>
-                        <input type="number" id="config-low" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Medium Brightness (%):</label>
-                        <input type="number" id="config-medium" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>High Brightness (%):</label>
-                        <input type="number" id="config-high" min="1" max="100">
-                    </div>
-                    <div class="form-group">
-                        <label>Preferred Color Temperature:</label>
-                        <input type="number" id="config-color-temp" min="2000" max="9000">
-                    </div>
-                    <div class="group-members">
-                        <h4>Group Members</h4>
-                        <div id="group-members-list">
-                            <!-- Group members will be inserted here dynamically -->
+        <div class="config-popup">
+            <div class="header">
+                <h3 id="config-device-title">Device Configuration</h3>
+                <button onclick="hideConfigMenu()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="content">
+                <form id="device-config-form">
+                    <!-- Hidden inputs -->
+                    <input type="hidden" id="config-device-id">
+                    <input type="hidden" id="config-device-name">
+                    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Brand:</label>
+                            <input type="text" id="config-brand" readonly style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Model:</label>
+                            <input type="text" id="config-model" readonly style="width: 100%;">
                         </div>
                     </div>
-
-                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(groupId)" 
-                            style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px;">
-                        Delete Group
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <div class="buttons">
-            <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
-            <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>X10 Letter:</label>
+                            <select id="config-x10-letter" style="width: 100%;"></select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>X10 Number:</label>
+                            <select id="config-x10-number" style="width: 100%;"></select>
+                        </div>
+                    </div>
+    
+                    <div id="config-error-message" class="config-error-message" style="display: none;"></div>
+    
+                    <div class="form-group">
+                        <label>Room:</label>
+                        <select id="config-room"></select>
+                    </div>
+    
+                    <!-- Regular device settings -->
+                    <div id="regular-config-elements">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="form-group">
+                            <label>Device Grouping:</label>
+                            <select id="config-group-action" onchange="handleGroupActionChange()">
+                                <option value="none">No Group</option>
+                                <option value="create">Create New Group</option>
+                                <option value="join">Join Existing Group</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="group-name-container" style="display: none;">
+                            <label>Group Name:</label>
+                            <input type="text" id="config-group-name">
+                        </div>
+                        <div class="form-group" id="existing-groups-container" style="display: none;">
+                            <label>Select Group:</label>
+                            <select id="config-existing-groups"></select>
+                        </div>
+                    </div>
+    
+                    <!-- Group device settings -->
+                    <div id="group-config-elements" style="display: none;">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="group-members">
+                            <h4>Group Members</h4>
+                            <div id="group-members-list">
+                                <!-- Group members will be inserted here dynamically -->
+                            </div>
+                        </div>
+    
+                        <button type="button" class="delete-btn" onclick="deleteDeviceGroup(groupId)" 
+                                style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px;">
+                            Delete Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+    
+            <div class="buttons">
+                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+            </div>
         </div>
     </div>
-</div>
+    <div id="history-popup" style="display: none;">
+        <div class="config-popup">
+            <div class="header">
+                <h3 id="history-device-title">Temperature History</h3>
+                <button onclick="hideHistoryPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="content">
+                <div class="history-controls">
+                    <select id="history-range" onchange="loadTempHistory()">
+                        <option value="24">Last 24 Hours</option>
+                        <option value="48">Last 48 Hours</option>
+                        <option value="168">Last Week</option>
+                    </select>
+                </div>
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="temp-history-chart"></canvas>
+                </div>
+                <div class="history-table-container" style="margin-top: 20px; max-height: 300px; overflow-y: auto;">
+                    <table id="history-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 
 
 </body>
