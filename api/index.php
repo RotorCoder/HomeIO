@@ -415,7 +415,15 @@ $app->get('/room-temperature', function (Request $request, Response $response) u
         validateRequiredParams($request->getQueryParams(), ['room']);
         
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT temp, humidity FROM thermometers WHERE room = ? ORDER BY updated DESC LIMIT 1");
+        // Get temperature data by joining on MAC address
+        $stmt = $pdo->prepare("
+            SELECT t.temp, t.humidity 
+            FROM rooms r
+            JOIN thermometers t ON t.mac = r.thermometer 
+            WHERE r.id = ? 
+            ORDER BY t.updated DESC 
+            LIMIT 1
+        ");
         $stmt->execute([$request->getQueryParams()['room']]);
         
         $tempData = $stmt->fetch(PDO::FETCH_ASSOC);
