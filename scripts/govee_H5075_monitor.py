@@ -1,3 +1,6 @@
+# cd C:\Users\Tech\Documents\HomeIO
+# python govee_H5075_monitor.py
+
 import asyncio
 from bleak import BleakScanner
 from datetime import datetime
@@ -6,18 +9,16 @@ import os
 import mysql.connector
 
 def decode_govee_thermometer(manufacturer_data):
-    for company_id, data in manufacturer_data.items():
-        if company_id == 0xec88 and len(data) == 6:  
+    # For H5075 devices - keep existing working code
+
+    if 0xec88 in manufacturer_data:
+        data = manufacturer_data[0xec88]
+        if len(data) == 6:
             basenum = (data[1] << 16) + (data[2] << 8) + data[3]
             
-            # Temperature calculation
             temp_c = (basenum / 10000.0)
             temp_f = (temp_c * 9.0/5.0 + 32.0)
-            
-            # Humidity calculation
             humidity = (basenum % 1000) / 10.0
-            
-            # Battery level
             battery = data[4]
             
             return {
@@ -28,12 +29,10 @@ def decode_govee_thermometer(manufacturer_data):
             }
             
     return None
-
+    
 def process_detection(device, advertising_data):
-    if device.name and (device.name.startswith("GVH5100") or device.name.startswith("GVH5075")):
+    if device.name and (device.name.startswith("GVH51xx") or device.name.startswith("GVH5075")):
         if advertising_data.manufacturer_data:
-            print(f"\n=== {device.name} ===")
-            print(f"\n=== {advertising_data.manufacturer_data} ===")
             result = decode_govee_thermometer(advertising_data.manufacturer_data)
             if result:
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -45,9 +44,7 @@ def process_detection(device, advertising_data):
                 print(f"Battery: {result['battery']}%")
                 
                 try:
-                    # Database connection setup (you'll need to import mysql.connector)
-                    import mysql.connector
-                    
+                    # Database connection
                     db = mysql.connector.connect(
                         host="192.168.99.200",
                         user="homeio_rw",
@@ -74,7 +71,7 @@ def process_detection(device, advertising_data):
                         WHERE mac = %s
                         """
                         update_values = (
-                            device.name[:7],  # model (GVH5100 or GVH5075)
+                            device.name[:7],
                             device.name,
                             advertising_data.rssi,
                             round(result['temperature_f'], 1),
@@ -92,7 +89,7 @@ def process_detection(device, advertising_data):
                         """
                         insert_values = (
                             device.address,
-                            device.name[:7],  # model (GVH5100 or GVH5075)
+                            device.name[:7],
                             device.name,
                             advertising_data.rssi,
                             round(result['temperature_f'], 1),
@@ -105,7 +102,7 @@ def process_detection(device, advertising_data):
                     cursor.close()
                     db.close()
                     
-                    # Keep the existing JSON file writing
+                    # Save to JSON file
                     os.makedirs('device_data', exist_ok=True)
                     filename = f"device_data/{device.address.replace(':', '_')}.json"
                     device_data = {
@@ -123,7 +120,7 @@ def process_detection(device, advertising_data):
                         
                 except Exception as e:
                     print(f"Error processing data: {e}")
-                    
+
 async def run_scanner():
     """Main scanner function"""
     print("Starting Govee device monitor")
