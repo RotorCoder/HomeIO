@@ -1368,7 +1368,10 @@ async function manualRefresh() {
                     y: {
                         display: true,
                         type: 'logarithmic',
-                      },
+                        ticks: {
+                            display: false // This will remove the numbers on the left side
+                        }
+                    },
                     temp: {
                         type: 'linear',
                         display: true,
