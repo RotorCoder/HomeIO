@@ -1,5 +1,6 @@
+<!-- /../shared/hue_lib.php -->
+
 <?php
-// hue_lib.php
 
 class HueCommandQueue {
     private $pdo;

@@ -1,4 +1,5 @@
 <!-- templates/history-popup.php -->
+
 <div id="history-popup" style="display: none;">
     <div class="config-popup">
         <div class="header">
