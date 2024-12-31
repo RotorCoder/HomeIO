@@ -31,7 +31,7 @@ def decode_govee_thermometer(manufacturer_data):
     return None
     
 def process_detection(device, advertising_data):
-    if device.name and (device.name.startswith("GVH51xx") or device.name.startswith("GVH5075")):
+    if device.name and device.name.startswith("GVH5075"):
         if advertising_data.manufacturer_data:
             result = decode_govee_thermometer(advertising_data.manufacturer_data)
             if result:
@@ -124,7 +124,7 @@ def process_detection(device, advertising_data):
 async def run_scanner():
     """Main scanner function"""
     print("Starting Govee device monitor")
-    print("Looking for devices with names starting with 'GVH'")
+    print("Looking for devices with names starting with 'GVH5075'")
     print("Press Ctrl+C to stop...")
     
     async with BleakScanner(detection_callback=process_detection):
