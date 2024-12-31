@@ -301,29 +301,54 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
             $pdo = getDatabaseConnection($config);
             
             if (!$quick) {
-                // Only update Govee on non-quick refreshes
-                $govee_timing = measureExecutionTime(function() use ($config, $log) {
-                    $log->logInfoMsg("Starting Govee devices update (quick = false)");
-                    try {
-                        $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
-                        $goveeDevices = $goveeApi->getDevices();
-                        
-                        if ($goveeDevices['statusCode'] !== 200) {
-                            throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
-                        }
-                        
-                        $goveeData = json_decode($goveeDevices['body'], true);
-                        if (!$goveeData['success']) {
-                            throw new Exception($goveeData['error'] ?? 'Unknown error updating Govee devices');
-                        }
-                        
-                        $log->logInfoMsg("Govee update completed successfully");
-                    } catch (Exception $e) {
-                        $log->logErrorMsg("Govee update error: " . $e->getMessage());
-                    }
-                });
-                $timing['govee'] = ['duration' => $govee_timing['duration']];
+    // Only update Govee on non-quick refreshes
+    $govee_timing = measureExecutionTime(function() use ($config, $log) {
+        $log->logInfoMsg("Starting Govee devices update (quick = false)");
+        try {
+            $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
+            $goveeDevices = $goveeApi->getDevices();
+            
+            if ($goveeDevices['statusCode'] !== 200) {
+                throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
             }
+            
+            $goveeData = json_decode($goveeDevices['body'], true);
+            if (!isset($goveeData['data']) || !isset($goveeData['data']['devices'])) {
+                throw new Exception('Invalid response format from Govee API');
+            }
+            
+            foreach ($goveeData['data']['devices'] as $device) {
+                // First update device info
+                $goveeApi->updateDeviceDatabase($device);
+                
+                // Then get and update device state
+                $log->logInfoMsg("Fetching state for device: " . $device['device']);
+                $stateResponse = $goveeApi->getDeviceState($device);
+                
+                if ($stateResponse['statusCode'] !== 200) {
+                    $log->logErrorMsg("Failed to get state for device " . $device['device'] . ": HTTP " . $stateResponse['statusCode']);
+                    continue;
+                }
+                
+                $stateData = json_decode($stateResponse['body'], true);
+                if (!$stateData || !isset($stateData['data']) || !isset($stateData['data']['properties'])) {
+                    $log->logErrorMsg("Invalid state data for device " . $device['device']);
+                    continue;
+                }
+                
+                $log->logInfoMsg("Updating state for device: " . $device['device']);
+                $device_states = [$device['device'] => $stateData['data']['properties']];
+                $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
+            }
+            
+            $log->logInfoMsg("Govee update completed successfully");
+        } catch (Exception $e) {
+            $log->logErrorMsg("Govee update error: " . $e->getMessage());
+            throw $e;
+        }
+    });
+    $timing['govee'] = ['duration' => $govee_timing['duration']];
+}
 
             // Always update Hue devices
             $hue_timing = measureExecutionTime(function() use ($config, $log) {

@@ -1,6 +1,8 @@
 <?php
 // govee_lib.php
 
+
+
 class GoveeAPIRateLimiter {
     private $pdo;
     
@@ -309,174 +311,242 @@ class GoveeAPI {
     }
 
     public function getDeviceState($device) {
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => "https://developer-api.govee.com/v1/devices/state?device=" . 
-                          $device['device'] . "&model=" . $device['model'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER => true,
-            CURLOPT_HTTPHEADER => array(
-                'Govee-API-Key: ' . $this->apiKey,
-                'Content-Type: application/json'
-            )
-        ));
-        
-        $response = curl_exec($curl);
-        $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-        $headers = substr($response, 0, $header_size);
-        $body = substr($response, $header_size);
-        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        
-        $this->rateLimiter->logAPICall($headers);
-        
-        curl_close($curl);
-        
-        return [
-            'headers' => $headers,
-            'body' => $body,
-            'statusCode' => $state_status
-        ];
-    }
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://developer-api.govee.com/v1/devices/state?device=" . 
+                      $device['device'] . "&model=" . $device['model'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => array(
+            'Govee-API-Key: ' . $this->apiKey,
+            'Content-Type: application/json'
+        )
+    ));
+    
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    
+    $this->rateLimiter->logAPICall($headers);
+    
+    curl_close($curl);
+    
+    // Fix the status code variable name
+    return [
+        'headers' => $headers,
+        'body' => $body,
+        'statusCode' => $statusCode  // Changed from $state_status to $statusCode
+    ];
+}
     
     public function processBatch($maxCommands = 5) {
-        if (!$this->rateLimiter->canMakeRequest()) {
-            return [
-                'success' => false,
-                'message' => 'Rate limit reached, try again later'
+    global $log;  // Add this to use the logger
+    
+    if (!$this->rateLimiter->canMakeRequest()) {
+        return [
+            'success' => false,
+            'message' => 'Rate limit reached, try again later'
+        ];
+    }
+    
+    $commands = $this->commandQueue->getNextBatch($maxCommands);
+    $results = [];
+    
+    // Initialize PDO connection
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    foreach ($commands as $command) {
+        try {
+            $log->logInfoMsg("Processing command for device: " . $command['device']);
+            
+            // Decode command before sending
+            $cmd = json_decode($command['command'], true);
+            
+            // Send the command to device
+            $result = $this->sendCommand(
+                $command['device'],
+                $command['model'],
+                $cmd
+            );
+            
+            // Get device current state
+            $deviceStmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+            $deviceStmt->execute([$command['device']]);
+            $deviceData = $deviceStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($deviceData) {
+                // Update state based on command type
+                switch($cmd['name']) {
+                    case 'turn':
+                        $log->logInfoMsg("Updating power state to: " . $cmd['value'] . " for device: " . $command['device']);
+                        $stmt = $pdo->prepare("UPDATE devices SET powerState = ?, online = 1 WHERE device = ?");
+                        $stmt->execute([$cmd['value'], $command['device']]);
+                        break;
+                        
+                    case 'brightness':
+                        $brightness = intval($cmd['value']);
+                        $log->logInfoMsg("Updating brightness to: " . $brightness . " for device: " . $command['device']);
+                        $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on', online = 1 WHERE device = ?");
+                        $stmt->execute([$brightness, $command['device']]);
+                        break;
+                }
+                
+                // Verify the update
+                $verifyStmt = $pdo->prepare("SELECT powerState, brightness FROM devices WHERE device = ?");
+                $verifyStmt->execute([$command['device']]);
+                $newState = $verifyStmt->fetch(PDO::FETCH_ASSOC);
+                $log->logInfoMsg("New device state - Power: " . $newState['powerState'] . ", Brightness: " . $newState['brightness']);
+            }
+            
+            $this->commandQueue->markCommandComplete($command['id'], true);
+            $results[] = [
+                'command_id' => $command['id'],
+                'result' => $result,
+                'success' => true
+            ];
+            
+            // Check rate limit after each command
+            if (!$this->rateLimiter->canMakeRequest()) {
+                $log->logInfoMsg("Rate limit reached, stopping batch processing");
+                break;
+            }
+            
+        } catch (Exception $e) {
+            $log->logErrorMsg("Error processing command: " . $e->getMessage());
+            $this->commandQueue->markCommandComplete(
+                $command['id'],
+                false,
+                $e->getMessage()
+            );
+            $results[] = [
+                'command_id' => $command['id'],
+                'error' => $e->getMessage(),
+                'success' => false
             ];
         }
-        
-        $commands = $this->commandQueue->getNextBatch($maxCommands);
-        $results = [];
-        
-        foreach ($commands as $command) {
-            try {
-                // Send the command
-                $result = $this->sendCommand(
-                    $command['device'],
-                    $command['model'],
-                    json_decode($command['command'], true)
-                );
-                
-                $this->commandQueue->markCommandComplete($command['id'], true);
-                $results[] = [
-                    'command_id' => $command['id'],
-                    'result' => $result,
-                    'success' => true
-                ];
-                
-                // Check rate limit after each command
-                if (!$this->rateLimiter->canMakeRequest()) {
-                    break;
-                }
-                
-            } catch (Exception $e) {
-                $this->commandQueue->markCommandComplete(
-                    $command['id'],
-                    false,
-                    $e->getMessage()
-                );
-                $results[] = [
-                    'command_id' => $command['id'],
-                    'error' => $e->getMessage(),
-                    'success' => false
-                ];
-            }
-        }
-        
-        return [
-            'success' => true,
-            'processed' => count($results),
-            'results' => $results
-        ];
     }
+    
+    return [
+        'success' => true,
+        'processed' => count($results),
+        'results' => $results
+    ];
+}
     
     public function sendCommand($device, $model, $cmd) {
-        // Validate basic parameters
-        if (!$device || !$model) {
-            throw new Exception('Device and model are required');
-        }
-        
-        // Validate command structure
-        if (!is_array($cmd) || !isset($cmd['name'])) {
-            throw new Exception('Invalid command format');
-        }
-        
-        // Transform command based on type
-        $goveeCmd = ['name' => $cmd['name']];
-        
-        // Handle different command types
-        switch ($cmd['name']) {
-            case 'brightness':
-                if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
-                    throw new Exception('Brightness value must be a number');
-                }
-                $goveeCmd['value'] = (int)$cmd['value'];
-                break;
-                
-            case 'turn':
-                if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
-                    throw new Exception('Turn command must specify "on" or "off"');
-                }
-                $goveeCmd['value'] = $cmd['value'];
-                break;
-                
-            default:
-                throw new Exception('Unsupported command type: ' . $cmd['name']);
-        }
-    
-        // Rate limit check
-        if (!$this->rateLimiter->canMakeRequest()) {
-            $waitTime = $this->rateLimiter->getWaitTime();
-            if ($waitTime > 0) {
-                sleep($waitTime);
-            }
-        }
-    
-        // Send command to Govee API
-        $curl = curl_init();
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => 'https://developer-api.govee.com/v1/devices/control',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HEADER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'PUT',
-            CURLOPT_POSTFIELDS => json_encode(array(
-                'device' => $device,
-                'model' => $model,
-                'cmd' => $goveeCmd
-            )),
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/json',
-                'Govee-API-Key: ' . $this->apiKey
-            ),
-        ));
-    
-        $response = curl_exec($curl);
-        $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
-        $headers = substr($response, 0, $header_size);
-        $body = substr($response, $header_size);
-        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        
-        $this->rateLimiter->logAPICall($headers);
-        
-        curl_close($curl);
-        
-        $result = json_decode($body, true);
-        
-        if (!isset($result['code']) || $result['code'] !== 200) {
-            throw new Exception($result['message'] ?? 'Failed to send command to device');
-        }
-        
-        return [
-            'success' => true,
-            'message' => 'Command sent successfully'
-        ];
+    // Validate basic parameters
+    if (!$device || !$model) {
+        throw new Exception('Device and model are required');
     }
+    
+    // Validate command structure
+    if (!is_array($cmd) || !isset($cmd['name'])) {
+        throw new Exception('Invalid command format');
+    }
+    
+    // Transform command based on type
+    $goveeCmd = ['name' => $cmd['name']];
+    
+    // Handle different command types
+    switch ($cmd['name']) {
+        case 'brightness':
+            if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
+                throw new Exception('Brightness value must be a number');
+            }
+            $goveeCmd['value'] = (int)$cmd['value'];
+            break;
+            
+        case 'turn':
+            if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
+                throw new Exception('Turn command must specify "on" or "off"');
+            }
+            $goveeCmd['value'] = $cmd['value'];
+            break;
+            
+        default:
+            throw new Exception('Unsupported command type: ' . $cmd['name']);
+    }
+
+    // Rate limit check
+    if (!$this->rateLimiter->canMakeRequest()) {
+        $waitTime = $this->rateLimiter->getWaitTime();
+        if ($waitTime > 0) {
+            sleep($waitTime);
+        }
+    }
+
+    // Send command to Govee API
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => 'https://developer-api.govee.com/v1/devices/control',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_ENCODING => '',
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => json_encode(array(
+            'device' => $device,
+            'model' => $model,
+            'cmd' => $goveeCmd
+        )),
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/json',
+            'Govee-API-Key: ' . $this->apiKey
+        ),
+    ));
+
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    
+    $this->rateLimiter->logAPICall($headers);
+    
+    curl_close($curl);
+    
+    $result = json_decode($body, true);
+    
+    if (!isset($result['code']) || $result['code'] !== 200) {
+        throw new Exception($result['message'] ?? 'Failed to send command to device');
+    }
+    
+    // Update device state in database after successful command
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    // Update state based on command type
+    switch($cmd['name']) {
+        case 'turn':
+            $stmt = $pdo->prepare("UPDATE devices SET powerState = ? WHERE device = ?");
+            $stmt->execute([$cmd['value'], $device]);
+            break;
+            
+        case 'brightness':
+            $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on' WHERE device = ?");
+            $stmt->execute([(int)$cmd['value'], $device]);
+            break;
+    }
+    
+    return [
+        'success' => true,
+        'message' => 'Command sent successfully'
+    ];
+}
 
     public function updateDeviceDatabase($device) {
         $pdo = new PDO(

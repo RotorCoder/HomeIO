@@ -67,7 +67,7 @@ function getX10DeviceMapping($x10Code) {
                 'brand' => $device['brand']
             ];
             
-            //$log->logInfoMsg("Low: ".$device['device']." - ".$device['model']." - ".$device['brand']);
+            $log->logInfoMsg("Low: ".$device['device']." - ".$device['model']." - ".$device['brand']);
             
             if ($device['group_id']) {
                 $groupStmt = $pdo->prepare("
@@ -97,7 +97,7 @@ function getNextBrightnessLevel($currentBrightness, $deviceConfig, $command) {
     $medium = (int)$deviceConfig['medium'];
     $high = (int)$deviceConfig['high'];
     
-    //$log->logInfoMsg("Low: ".$current." - ".$low." - ".$medium." - ".$high);
+    $log->logInfoMsg("Low: ".$current." - ".$low." - ".$medium." - ".$high);
     
     if ($command === 'Bright') {
         if ($current < $low) {

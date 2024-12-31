@@ -28,6 +28,7 @@ try {
             } else {
                 // If we hit rate limit, log it and wait
                 $log->logInfoMsg("Rate limit reached: {$result['message']}");
+                sleep(2);
             }
             
             // Sleep for a short interval before checking for new commands
