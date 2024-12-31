@@ -1,3 +1,5 @@
+// assets/js/groups.js
+
 async function loadAvailableGroups(model) {
     try {
         const response = await apiFetch(`api/available-groups?model=${model}`);

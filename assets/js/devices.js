@@ -1,3 +1,5 @@
+// assets/js/devices.js
+
 function getDeviceIcon(deviceName, powerState = 'off') {
     deviceName = deviceName.toLowerCase();
     if (deviceName.includes('fan')) {

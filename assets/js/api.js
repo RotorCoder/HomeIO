@@ -1,3 +1,5 @@
+// assets/js/api.js
+
 async function apiFetch(url, options = {}) {
     const defaultOptions = {
         headers: {
