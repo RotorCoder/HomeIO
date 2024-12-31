@@ -1,3 +1,5 @@
+<!-- index.php -->
+
 <?php require_once __DIR__ . '/config/config.php'; ?>
 <!DOCTYPE html>
 <html lang="en">

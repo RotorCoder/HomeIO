@@ -1,4 +1,5 @@
 <!-- templates/config-popup.php -->
+
 <div id="config-popup" style="display: none;">
         <div class="config-popup">
             <div class="header">
