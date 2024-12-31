@@ -434,7 +434,7 @@ try {
             fclose($handle);
 
             // Small sleep to prevent excessive CPU usage
-            usleep(250000); // 250ms pause
+            usleep(10000); // 250ms pause
 
         } catch (Exception $e) {
             $log->logInfoMsg("Error in processing loop: " . $e->getMessage());

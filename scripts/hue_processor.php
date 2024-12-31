@@ -42,7 +42,7 @@ try {
             }
             
             // Short sleep between checks since Hue uses local API
-            // usleep(50000); // 50ms pause
+            usleep(10000); // 50ms pause
             
         } catch (Exception $e) {
             $log->logInfoMsg("Error processing batch: " . $e->getMessage());

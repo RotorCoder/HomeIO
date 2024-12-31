@@ -1375,10 +1375,10 @@ async function manualRefresh() {
                     temp: {
                         type: 'linear',
                         display: true,
-                        position: 'left',
+                        position: 'right',
                         title: {
                             display: true,
-                            text: 'Temperature (°F)'
+                            text: 'Temperature °F'
                         },
                         ticks: {
                             stepSize: 1
@@ -1387,10 +1387,10 @@ async function manualRefresh() {
                     humidity: {
                         type: 'linear',
                         display: true,
-                        position: 'right',
+                        position: 'left',
                         title: {
                             display: true,
-                            text: 'Humidity (%)'
+                            text: 'Humidity %'
                         },
                         grid: {
                             drawOnChartArea: false,
