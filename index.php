@@ -1100,4 +1100,558 @@ async function manualRefresh() {
                 updateDevices(); // Refresh the devices
                 
             } catch (error) {
+                showError('Failed to delete group: ' + error.message);
+            }
+        }
+        
+        async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
+            try {
+                const response = await apiFetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error checking X10 code:', error);
+                throw error;
+            }
+        }
+        
+        function setupX10CodeValidation() {
+            const letterSelect = document.getElementById('config-x10-letter');
+            const numberSelect = document.getElementById('config-x10-number');
+            
+            if (!letterSelect || !numberSelect) return;
+        
+            async function checkX10Selection() {
+                const letter = letterSelect.value;
+                const number = numberSelect.value;
+                const deviceId = document.getElementById('config-device-id').value;
+        
+                if (letter && number) {
+                    const x10Code = letter + number;
+                    try {
+                        const duplicateCheck = await checkX10CodeDuplicate(x10Code, deviceId);
+                        if (duplicateCheck.isDuplicate) {
+                            showConfigError(`X10 code ${x10Code.toUpperCase()} is already in use by device: ${duplicateCheck.deviceName}`);
+                            return false;
+                        } else {
+                            document.getElementById('config-error-message').style.display = 'none';
+                            return true;
+                        }
+                    } catch (error) {
+                        console.error('Error checking X10 code:', error);
+                        showError('Failed to validate X10 code: ' + error.message);
+                        return false;
+                    }
+                }
+                return true;
+            }
+        
+            // Add change event listeners
+            letterSelect.addEventListener('change', checkX10Selection);
+            numberSelect.addEventListener('change', checkX10Selection);
+        
+            // Return the validation function to be used during form submission
+            return checkX10Selection;
+        }
+        
+        function initializeX10Dropdowns() {
+            const letterSelect = document.getElementById('config-x10-letter');
+            const numberSelect = document.getElementById('config-x10-number');
+        
+            if (!letterSelect || !numberSelect) {
+                console.error('X10 select elements not found');
+                return;
+            }
+        
+            // Clear existing options
+            letterSelect.innerHTML = '';
+            numberSelect.innerHTML = '';
+            
+            letterSelect.appendChild(new Option('Select Letter', ''));
+            numberSelect.appendChild(new Option('Select Number', ''));
+        
+            // Add letter options (A-P)
+            for (let i = 65; i <= 80; i++) {
+                const letter = String.fromCharCode(i);
+                const option = document.createElement('option');
+                option.value = letter.toLowerCase();
+                option.textContent = letter;
+                letterSelect.appendChild(option);
+            }
+        
+            // Add number options (1-16)
+            for (let i = 1; i <= 16; i++) {
+                const option = document.createElement('option');
+                option.value = i.toString();
+                option.textContent = i.toString();
+                numberSelect.appendChild(option);
+            }
+        
+            
+        }
+        
+        function showConfigError(message) {
+            const errorElement = document.getElementById('config-error-message');
+            if (errorElement) {
+                errorElement.textContent = message;
+                errorElement.style.display = 'block';
+            }
+        }
+
+        async function initialize() {
+            await fetchRooms();
+            await createTabs();
+            await loadInitialData();
+            
+            const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+            // Get stored preference, default to true if not set
+            const storedAutoRefresh = localStorage.getItem('autoRefreshEnabled');
+            autoRefreshToggle.checked = storedAutoRefresh === null ? true : storedAutoRefresh === 'true';
+            
+            autoRefreshToggle.addEventListener('change', (e) => {
+                // Store the new preference
+                localStorage.setItem('autoRefreshEnabled', e.target.checked);
+                toggleAutoRefresh(e.target.checked);
+            });
+            
+            // Initialize with stored preference
+            toggleAutoRefresh(autoRefreshToggle.checked);
+            
+            // If auto-refresh is enabled, do an immediate full refresh
+            if (autoRefreshToggle.checked) {
+                updateDevices();  // This performs a full refresh
+            }
+    
+        }
+        
+        async function showTempHistory(mac, deviceName) {
+    const popup = document.getElementById('history-popup');
+    document.getElementById('history-device-title').textContent = `Temperature History - ${deviceName}`;
+    popup.dataset.mac = mac;
+    popup.style.display = 'block';
+    await loadTempHistory();
+}
+        
+        function hideHistoryPopup() {
+            document.getElementById('history-popup').style.display = 'none';
+        }
+        
+        async function loadTempHistory() {
+    const popup = document.getElementById('history-popup');
+    const mac = popup.dataset.mac;
+    const hours = document.getElementById('history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        // Function to update table based on visible datasets
+        function updateTable(chartInstance, historyData) {
+            const tbody = document.querySelector('#history-table tbody');
+            const thead = document.querySelector('#history-table thead tr');
+            
+            // Update header
+            thead.innerHTML = `
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+            `;
+            
+            // Update rows - reverse the data array before mapping
+            tbody.innerHTML = [...historyData].reverse().map(record => {
+                const date = new Date(record.timestamp);
+                let formattedDate;
                 
+                if (hours === '24') {
+                    formattedDate = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                } else {
+                    formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                }
+                
+                return `
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const chartData = [...data.history].reverse();
+
+        if (chartData.length === 0) {
+            document.getElementById('temp-history-chart').innerHTML = 
+                '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
+            return;
+        }
+
+        const labels = chartData.map(record => {
+            const date = new Date(record.timestamp);
+            if (hours === '24') {
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            } else {
+                return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            }
+        });
+
+        const canvas = document.getElementById('temp-history-chart');
+        const ctx = canvas.getContext('2d');
+
+        if (window.tempHistoryChart) {
+            window.tempHistoryChart.destroy();
+        }
+
+        window.tempHistoryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Temperature (°F)',
+                        data: chartData.map(record => record.temperature),
+                        borderColor: 'rgb(255, 99, 132)',
+                        yAxisID: 'temp',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        data: chartData.map(record => record.humidity),
+                        borderColor: 'rgb(54, 162, 235)',
+                        yAxisID: 'humidity',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Battery (%)',
+                        data: chartData.map(record => record.battery),
+                        borderColor: 'rgb(75, 192, 192)',
+                        yAxisID: 'battery',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        hidden: true
+                    },
+                    {
+                        label: 'Signal Strength (dBm)',
+                        data: chartData.map(record => record.rssi),
+                        borderColor: 'rgb(153, 102, 255)',
+                        yAxisID: 'rssi',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        hidden: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                          // For a category axis, the val is the index so the lookup via getLabelForValue is needed
+                          callback: function(val, index) {
+                            // Hide every 2nd tick label
+                            return index % 2 === 0 ? this.getLabelForValue(val) : '';
+                          },
+                          color: 'red',
+                        }
+                    },
+                    y: {
+                        display: true,
+                        type: 'logarithmic',
+                        ticks: {
+                            display: false
+                        }
+                    },
+                    temp: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Temperature (°F)'
+                        },
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    humidity: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Humidity (%)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
+                        }
+                    },
+                    battery: {
+                        type: 'linear',
+                        display: false,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Battery (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 10
+                        }
+                    },
+                    rssi: {
+                        type: 'linear',
+                        display: false,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Signal Strength (dBm)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        onClick: (e, legendItem, legend) => {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+                            const meta = ci.getDatasetMeta(index);
+
+                            // Toggle dataset visibility
+                            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                            
+                            // Toggle axis visibility based on dataset
+                            const scaleId = ci.data.datasets[index].yAxisID;
+                            const scale = ci.scales[scaleId];
+                            scale.display = !meta.hidden;
+                            
+                            ci.update();
+                            
+                            // Update table after toggling visibility
+                            updateTable(ci, chartData);
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Initial table update
+        updateTable(window.tempHistoryChart, chartData);
+        
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}
+        
+        function toggleDataset(checkbox) {
+            const chart = window.tempHistoryChart;
+            const seriesName = checkbox.dataset.series;
+            
+            // Find the dataset index
+            let datasetIndex;
+            switch(seriesName) {
+                case 'temp': datasetIndex = 0; break;
+                case 'humidity': datasetIndex = 1; break;
+                case 'battery': datasetIndex = 2; break;
+                case 'rssi': datasetIndex = 3; break;
+            }
+            
+            // Toggle dataset visibility
+            chart.data.datasets[datasetIndex].hidden = !checkbox.checked;
+            
+            // Toggle axis visibility
+            const scale = chart.options.scales[seriesName];
+            if (scale) {
+                scale.display = checkbox.checked;
+            }
+            
+            chart.update();
+        }
+
+        initialize();
+    </script>
+    
+    <div id="config-popup" style="display: none;">
+        <div class="config-popup">
+            <div class="header">
+                <h3 id="config-device-title">Device Configuration</h3>
+                <button onclick="hideConfigMenu()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="content">
+                <form id="device-config-form">
+                    <!-- Hidden inputs -->
+                    <input type="hidden" id="config-device-id">
+                    <input type="hidden" id="config-device-name">
+                    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Brand:</label>
+                            <input type="text" id="config-brand" readonly style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Model:</label>
+                            <input type="text" id="config-model" readonly style="width: 100%;">
+                        </div>
+                    </div>
+    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>X10 Letter:</label>
+                            <select id="config-x10-letter" style="width: 100%;"></select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>X10 Number:</label>
+                            <select id="config-x10-number" style="width: 100%;"></select>
+                        </div>
+                    </div>
+    
+                    <div id="config-error-message" class="config-error-message" style="display: none;"></div>
+    
+                    <div class="form-group">
+                        <label>Room:</label>
+                        <select id="config-room"></select>
+                    </div>
+    
+                    <!-- Regular device settings -->
+                    <div id="regular-config-elements">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="form-group">
+                            <label>Device Grouping:</label>
+                            <select id="config-group-action" onchange="handleGroupActionChange()">
+                                <option value="none">No Group</option>
+                                <option value="create">Create New Group</option>
+                                <option value="join">Join Existing Group</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="group-name-container" style="display: none;">
+                            <label>Group Name:</label>
+                            <input type="text" id="config-group-name">
+                        </div>
+                        <div class="form-group" id="existing-groups-container" style="display: none;">
+                            <label>Select Group:</label>
+                            <select id="config-existing-groups"></select>
+                        </div>
+                    </div>
+    
+                    <!-- Group device settings -->
+                    <div id="group-config-elements" style="display: none;">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="group-members">
+                            <h4>Group Members</h4>
+                            <div id="group-members-list">
+                                <!-- Group members will be inserted here dynamically -->
+                            </div>
+                        </div>
+    
+                        <button type="button" class="delete-btn" onclick="deleteDeviceGroup(groupId)" 
+                                style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px;">
+                            Delete Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+    
+            <div class="buttons">
+                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+            </div>
+        </div>
+    </div>
+    <div id="history-popup" style="display: none;">
+        <div class="config-popup">
+            <div class="header">
+                <h3 id="history-device-title">Temperature History</h3>
+                <button onclick="hideHistoryPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="content">
+                <div class="history-controls">
+                    <select id="history-range" onchange="loadTempHistory()">
+                        <option value="24">Last 24 Hours</option>
+                        <option value="168">Last 7 Days</option>
+                        <option value="720">Last 30 Days</option>
+                    </select>
+                </div>
+                <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="temp-history-chart"></canvas>
+                </div>
+                <div class="history-table-container" style="margin-top: 20px; max-height: 300px; overflow-y: auto;">
+                    <table id="history-table" style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+</body>
+</html>
