@@ -2,6 +2,7 @@
 config.php
 *.config.php
 .env
+*config.py
 
 # Dependency directories
 /vendor/

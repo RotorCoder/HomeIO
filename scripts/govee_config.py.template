@@ -1,0 +1,15 @@
+# govee_config.py
+
+CONFIG = {
+    'database': {
+        'host': '192.168.xxx.xxx',
+        'user': 'xxxxxxxxx',
+        'password': 'xxxxxxxxxxx',
+        'database': 'homeio'
+    },
+    'monitoring': {
+        'update_interval': 30,  # seconds between updates for each device
+        'device_prefix': 'GVH5075',  # prefix to identify target devices
+        'skip_rssi': -127  # RSSI value to skip (indicates loss of signal)
+    }
+}
