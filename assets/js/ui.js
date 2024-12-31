@@ -1,3 +1,5 @@
+// assets/js/ui.js
+
 function showError(message) {
     const errorElement = document.getElementById('error-message');
     errorElement.textContent = `Error: ${message}`;

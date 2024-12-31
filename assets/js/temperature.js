@@ -1,3 +1,5 @@
+// assets/js/temperature.js
+
 async function showTempHistory(mac, deviceName) {
     const popup = document.getElementById('history-popup');
     document.getElementById('history-device-title').textContent = `Temperature History - ${deviceName}`;
