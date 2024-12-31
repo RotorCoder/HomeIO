@@ -1,8 +1,6 @@
 <?php
 // govee_lib.php
 
-
-
 class GoveeAPIRateLimiter {
     private $pdo;
     
