@@ -1249,50 +1249,53 @@ async function manualRefresh() {
             throw new Error(data.error || 'Failed to load temperature history');
         }
 
-        // Update table
-        const tbody = document.querySelector('#history-table tbody');
-        tbody.innerHTML = data.history.map(record => {
-            // Format the date to just show month-day
-            const date = new Date(record.timestamp);
-            const formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+        // Function to update table based on visible datasets
+        function updateTable(chartInstance, historyData) {
+            const tbody = document.querySelector('#history-table tbody');
+            const thead = document.querySelector('#history-table thead tr');
             
-            return `
-                <tr>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.battery}%</td>
-                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.rssi} dBm</td>
-                </tr>
+            // Update header
+            thead.innerHTML = `
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
             `;
-        }).join('');
+            
+            // Update rows
+            tbody.innerHTML = historyData.map(record => {
+                const date = new Date(record.timestamp);
+                const formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                
+                return `
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
 
-        // Create chart data - reverse for chronological order
         const chartData = [...data.history].reverse();
 
-        // Don't create chart if no data
         if (chartData.length === 0) {
             document.getElementById('temp-history-chart').innerHTML = 
                 '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
             return;
         }
 
-        // Format dates for chart labels
         const labels = chartData.map(record => {
             const date = new Date(record.timestamp);
             return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
         });
 
-        // Get canvas context
         const canvas = document.getElementById('temp-history-chart');
         const ctx = canvas.getContext('2d');
 
-        // Destroy existing chart if it exists
         if (window.tempHistoryChart) {
             window.tempHistoryChart.destroy();
         }
 
-        // Create new chart
         window.tempHistoryChart = new Chart(ctx, {
             type: 'line',
             data: {
@@ -1320,7 +1323,8 @@ async function manualRefresh() {
                         borderColor: 'rgb(75, 192, 192)',
                         yAxisID: 'battery',
                         tension: 0.3,
-                        pointRadius: 3
+                        pointRadius: 3,
+                        hidden: true
                     },
                     {
                         label: 'Signal Strength (dBm)',
@@ -1328,7 +1332,8 @@ async function manualRefresh() {
                         borderColor: 'rgb(153, 102, 255)',
                         yAxisID: 'rssi',
                         tension: 0.3,
-                        pointRadius: 3
+                        pointRadius: 3,
+                        hidden: true
                     }
                 ]
             },
@@ -1369,7 +1374,7 @@ async function manualRefresh() {
                     },
                     battery: {
                         type: 'linear',
-                        display: true,
+                        display: false,
                         position: 'right',
                         title: {
                             display: true,
@@ -1383,7 +1388,7 @@ async function manualRefresh() {
                     },
                     rssi: {
                         type: 'linear',
-                        display: true,
+                        display: false,
                         position: 'right',
                         title: {
                             display: true,
@@ -1405,19 +1410,26 @@ async function manualRefresh() {
                             const ci = legend.chart;
                             const meta = ci.getDatasetMeta(index);
 
+                            // Toggle dataset visibility
                             meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
                             
-                            // Toggle axis visibility
+                            // Toggle axis visibility based on dataset
                             const scaleId = ci.data.datasets[index].yAxisID;
                             const scale = ci.scales[scaleId];
                             scale.display = !meta.hidden;
                             
                             ci.update();
+                            
+                            // Update table after toggling visibility
+                            updateTable(ci, chartData);
                         }
                     }
                 }
             }
         });
+        
+        // Initial table update
+        updateTable(window.tempHistoryChart, chartData);
         
     } catch (error) {
         console.error('Error loading temperature history:', error);
@@ -1598,8 +1610,6 @@ async function manualRefresh() {
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
-                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Battery</th>
-                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Signal</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
