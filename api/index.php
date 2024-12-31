@@ -680,6 +680,7 @@ $app->get('/thermometer-history', function (Request $request, Response $response
                 temperature,
                 humidity,
                 battery,
+                rssi,
                 DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i') as timestamp
             FROM thermometer_history 
             WHERE mac = ? 

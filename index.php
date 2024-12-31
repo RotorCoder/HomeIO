@@ -1251,13 +1251,21 @@ async function manualRefresh() {
 
         // Update table
         const tbody = document.querySelector('#history-table tbody');
-        tbody.innerHTML = data.history.map(record => `
-            <tr>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.timestamp}</td>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
-                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
-            </tr>
-        `).join('');
+        tbody.innerHTML = data.history.map(record => {
+            // Format the date to just show month-day
+            const date = new Date(record.timestamp);
+            const formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            
+            return `
+                <tr>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.battery}%</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.rssi} dBm</td>
+                </tr>
+            `;
+        }).join('');
 
         // Create chart data - reverse for chronological order
         const chartData = [...data.history].reverse();
@@ -1268,6 +1276,12 @@ async function manualRefresh() {
                 '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
             return;
         }
+
+        // Format dates for chart labels
+        const labels = chartData.map(record => {
+            const date = new Date(record.timestamp);
+            return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+        });
 
         // Get canvas context
         const canvas = document.getElementById('temp-history-chart');
@@ -1282,13 +1296,13 @@ async function manualRefresh() {
         window.tempHistoryChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: chartData.map(record => record.timestamp),
+                labels: labels,
                 datasets: [
                     {
                         label: 'Temperature (°F)',
                         data: chartData.map(record => record.temperature),
                         borderColor: 'rgb(255, 99, 132)',
-                        yAxisID: 'y',
+                        yAxisID: 'temp',
                         tension: 0.3,
                         pointRadius: 3
                     },
@@ -1296,7 +1310,23 @@ async function manualRefresh() {
                         label: 'Humidity (%)',
                         data: chartData.map(record => record.humidity),
                         borderColor: 'rgb(54, 162, 235)',
-                        yAxisID: 'y1',
+                        yAxisID: 'humidity',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Battery (%)',
+                        data: chartData.map(record => record.battery),
+                        borderColor: 'rgb(75, 192, 192)',
+                        yAxisID: 'battery',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Signal Strength (dBm)',
+                        data: chartData.map(record => record.rssi),
+                        borderColor: 'rgb(153, 102, 255)',
+                        yAxisID: 'rssi',
                         tension: 0.3,
                         pointRadius: 3
                     }
@@ -1316,18 +1346,16 @@ async function manualRefresh() {
                             maxRotation: 0
                         }
                     },
-                    y: {
+                    temp: {
                         type: 'linear',
                         display: true,
                         position: 'left',
                         title: {
                             display: true,
                             text: 'Temperature (°F)'
-                        },
-                        min: Math.floor(Math.min(...chartData.map(d => d.temperature)) - 2),
-                        max: Math.ceil(Math.max(...chartData.map(d => d.temperature)) + 2)
+                        }
                     },
-                    y1: {
+                    humidity: {
                         type: 'linear',
                         display: true,
                         position: 'right',
@@ -1335,17 +1363,57 @@ async function manualRefresh() {
                             display: true,
                             text: 'Humidity (%)'
                         },
-                        min: Math.floor(Math.min(...chartData.map(d => d.humidity)) - 2),
-                        max: Math.ceil(Math.max(...chartData.map(d => d.humidity)) + 2),
                         grid: {
                             drawOnChartArea: false,
+                        }
+                    },
+                    battery: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Battery (%)'
                         },
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            drawOnChartArea: false,
+                        }
+                    },
+                    rssi: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Signal Strength (dBm)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        }
                     }
                 },
                 plugins: {
                     tooltip: {
                         mode: 'index',
                         intersect: false
+                    },
+                    legend: {
+                        onClick: (e, legendItem, legend) => {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+                            const meta = ci.getDatasetMeta(index);
+
+                            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                            
+                            // Toggle axis visibility
+                            const scaleId = ci.data.datasets[index].yAxisID;
+                            const scale = ci.scales[scaleId];
+                            scale.display = !meta.hidden;
+                            
+                            ci.update();
+                        }
                     }
                 }
             }
@@ -1356,6 +1424,31 @@ async function manualRefresh() {
         showError('Failed to load temperature history: ' + error.message);
     }
 }
+        
+        function toggleDataset(checkbox) {
+            const chart = window.tempHistoryChart;
+            const seriesName = checkbox.dataset.series;
+            
+            // Find the dataset index
+            let datasetIndex;
+            switch(seriesName) {
+                case 'temp': datasetIndex = 0; break;
+                case 'humidity': datasetIndex = 1; break;
+                case 'battery': datasetIndex = 2; break;
+                case 'rssi': datasetIndex = 3; break;
+            }
+            
+            // Toggle dataset visibility
+            chart.data.datasets[datasetIndex].hidden = !checkbox.checked;
+            
+            // Toggle axis visibility
+            const scale = chart.options.scales[seriesName];
+            if (scale) {
+                scale.display = checkbox.checked;
+            }
+            
+            chart.update();
+        }
 
         initialize();
     </script>
@@ -1505,6 +1598,8 @@ async function manualRefresh() {
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
                                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Battery</th>
+                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Signal</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
