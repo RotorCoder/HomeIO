@@ -28,28 +28,22 @@ add_file() {
     fi
 }
 
-# List of files to combine based on your actual file structure
-files=(
-    "index.php"
-    "config/config.php"
-    "components/config-popup.php"
-    "components/history-popup.php"
-    "assets/js/api.js"
-    "assets/js/device-management.js"
-    "assets/js/room-management.js"
-    "assets/js/ui-controls.js"
-    "assets/js/temperature-history.js"
-    "assets/js/config-popup.js"
-    "assets/js/init.js"
-    "assets/css/styles.css"
-    "../shared/govee_lib.php"
-    "../shared/hue_lib.php"
-    "../shared/logger.php"
-)
-
-# Process each file
-for file in "${files[@]}"; do
-    add_file "$file"
-done
+# Add each file individually instead of using an array
+add_file "index.php"
+add_file "config/config.php"
+add_file "templates/config-popup.php"
+add_file "templates/history-popup.php"
+add_file "assets/js/api.js"
+add_file "assets/js/config.js"
+add_file "assets/js/devices.js"
+add_file "assets/js/groups.js"
+add_file "assets/js/main.js"
+add_file "assets/js/temperature.js"
+add_file "assets/js/ui.js"
+add_file "assets/css/styles.css"
+add_file "../shared/vesync_lib.py"
+add_file "../shared/govee_lib.php"
+add_file "../shared/hue_lib.php"
+add_file "../shared/logger.php"
 
 echo "Reference file created: $output_file"
