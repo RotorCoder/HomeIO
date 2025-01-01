@@ -138,10 +138,7 @@ async function showConfigMenu(deviceId) {
 
                 // Update buttons for group devices
                 document.querySelector('.buttons').innerHTML = `
-                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})" 
-                            style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: auto;">
-                        Delete Group
-                    </button>
+                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})">Delete Group</button>
                     <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
                     <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
                 `;
