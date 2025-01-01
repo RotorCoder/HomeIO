@@ -22,7 +22,6 @@
     <div id="tabs" class="tabs"></div>
     <div id="tab-contents"></div>
 
-    <!-- Add the new config popup and button here -->
     <div class="config-popup-desktop" id="config-popup-desktop">
         <div class="config-content">
             <div class="header">
@@ -41,14 +40,15 @@
                 </div>
                 <button onclick="manualRefresh()" class="config-button">
                     <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
+                    <span>Refresh Govee Devices</span>
                 </button>
                 <button onclick="showAllTempHistory()" class="config-button">
                     <i class="fas fa-temperature-high"></i>
-                    <span>All Temperature History</span>
+                    <span>Thermometers</span>
                 </button>
                 <button onclick="showDefaultRoomDevices()" class="config-button">
-                    <span>Show Unassigned Devices</span>
+                    <i class="fas fa-plug"></i>
+                    <span>All Devices</span>
                 </button>
             </div>
         </div>
