@@ -54,69 +54,16 @@ def measure_execution_time(func):
     duration = round((time.time() - start) * 1000)  # Convert to milliseconds
     return {'result': result, 'duration': duration}
 
-def update_devices():
-    """Main function to update VeSync devices"""
-    try:
-        # Get config file path
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(script_dir, '..', 'config', 'config.php')
-        
-        # Get configuration
-        db_config, vesync_config = parse_php_config(config_path)
-        
-        # Add shared directory to Python path
-        shared_path = "/var/www/html/shared"
-        if shared_path not in sys.path:
-            sys.path.append(shared_path)
-            
-        # Import VeSyncAPI after adding shared path
-        from vesync_lib import VeSyncAPI
-        
-        timing = {}
-        
-        # Initialize VeSync API and get devices
-        api_timing = measure_execution_time(lambda: VeSyncAPI(
-            username=vesync_config['username'],
-            password=vesync_config['password'],
-            dbConfig=db_config
-        ))
-        timing['init'] = api_timing['duration']
-        
-        vesync = api_timing['result']
-        
-        # Login to VeSync
-        login_timing = measure_execution_time(vesync.login)
-        if not login_timing['result']:
-            raise Exception("Failed to login to VeSync")
-        timing['login'] = login_timing['duration']
-        
-        # Get devices
-        devices_timing = measure_execution_time(vesync.get_devices)
-        timing['devices'] = devices_timing['duration']
-        devices = devices_timing['result']
-        
-        # Update devices in database
-        updated_devices = []
-        update_timing = measure_execution_time(lambda: [
-            process_device_update(vesync, device_type, device)
-            for device_type, device_list in devices.items()
-            for device in device_list
-        ])
-        timing['updates'] = update_timing['duration']
-        updated_devices = update_timing['result']
-        
-        result = {
-            'devices': updated_devices,
-            'updated': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'timing': timing
-        }
-        
-        logger.info(json.dumps(result, indent=2))
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error updating devices: {str(e)}")
-        raise
+def update_devices(self):
+    """Update device lists and status if interval has passed"""
+    current_time = time.time()
+    if current_time - self.last_update >= self.update_interval:
+        # Update with details=True to get all info in one call
+        success = self.manager.update(details=True)  
+        if success:
+            self.last_update = current_time
+        return success
+    return True
 
 def process_device_update(vesync, device_type, device):
     """Process individual device update"""
