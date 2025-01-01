@@ -706,71 +706,70 @@ class GoveeAPI {
     }
 
     public function updateDeviceStateInDatabase($device, $device_states, $govee_device) {
-        $pdo = new PDO(
-            "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
-            $this->dbConfig['user'],
-            $this->dbConfig['password'],
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
-        
-        $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
-        $stmt->execute([$device['device']]);
-        $current = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $new_values = [
-            'online' => $govee_device ? ($govee_device['deviceName'] === $device['device_name']) : false,
-            'model' => $govee_device ? $govee_device['model'] : $device['model'],
-            'powerState' => null,
-            'brightness' => null,
-            'colorTemp' => null
-        ];
-        
-        if (isset($device_states[$device['device']])) {
-            foreach ($device_states[$device['device']] as $property) {
-                foreach ($new_values as $key => $value) {
-                    if (isset($property[$key])) {
-                        $new_values[$key] = $property[$key];
-                    }
-                }
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+    $stmt->execute([$device['device']]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $new_values = [
+        'online' => $govee_device ? ($govee_device['deviceName'] === $device['device_name']) : false,
+        'model' => $govee_device ? $govee_device['model'] : $device['model'],
+        'powerState' => null,
+        'brightness' => null,
+        'colorTemp' => null
+    ];
+    
+    if (isset($device_states[$device['device']])) {
+        foreach ($device_states[$device['device']] as $property) {
+            if (isset($property['powerState'])) {
+                $new_values['powerState'] = $property['powerState'];
+            }
+            if (isset($property['brightness'])) {
+                $new_values['brightness'] = $property['brightness'];
+            }
+            if (isset($property['colorTemp'])) {
+                $new_values['colorTemp'] = $property['colorTemp'];
             }
         }
-        
-        $changes = [];
-        $updates = [];
-        $params = [':device' => $device['device']];
-        
-        foreach ($new_values as $key => $value) {
-            if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
-                continue;
-            }
-            
-            if ($key === 'online') {
-                $current_value = (bool)$current[$key];
-                $new_value = (bool)$value;
-            } else {
-                $current_value = $current[$key];
-                $new_value = $value;
-            }
-            
-            if ($current_value !== $new_value) {
-                $changes[] = "$key changed";
-                $updates[] = "$key = :$key";
-                $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
-            }
-        }
-        
-        if (!empty($updates)) {
-            $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-        }
-        
-        foreach ($new_values as $key => $value) {
-            if ($value !== null) {
-                $device[$key] = $value;
-            }
-        }
-        
-        return $device;
     }
+    
+    // Only update actual states, not preferred states
+    $changes = [];
+    $updates = [];
+    $params = [':device' => $device['device']];
+    
+    foreach ($new_values as $key => $value) {
+        if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
+            continue;
+        }
+        
+        if ($key === 'online') {
+            $current_value = (bool)$current[$key];
+            $new_value = (bool)$value;
+        } else {
+            $current_value = $current[$key];
+            $new_value = $value;
+        }
+        
+        if ($current_value !== $new_value) {
+            $changes[] = "$key changed";
+            $updates[] = "$key = :$key";
+            $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
+        }
+    }
+    
+    if (!empty($updates)) {
+        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+    }
+    
+    return $device;
+}
 }
