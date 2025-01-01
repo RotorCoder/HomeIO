@@ -259,3 +259,122 @@ function toggleDataset(checkbox) {
     
     chart.update();
 }
+
+async function showAllTempHistory() {
+    const popup = document.getElementById('all-temps-popup');
+    popup.style.display = 'block';
+    await loadAllTempHistory();
+}
+
+function hideAllTempsPopup() {
+    document.getElementById('all-temps-popup').style.display = 'none';
+}
+
+async function loadAllTempHistory() {
+    const hours = document.getElementById('all-temps-history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        const canvas = document.getElementById('all-temps-chart');
+        const ctx = canvas.getContext('2d');
+        
+        // Create datasets for each device
+        const datasets = [];
+        const deviceData = {};
+
+        // Group data by device
+        data.history.forEach(record => {
+            if (!deviceData[record.device_name]) {
+                deviceData[record.device_name] = [];
+            }
+            deviceData[record.device_name].push(record);
+        });
+
+        // Create a dataset for each device
+        Object.entries(deviceData).forEach(([deviceName, records], index) => {
+            // Generate a color based on index
+            const hue = (index * 137.508) % 360; // Use golden angle approximation
+            const color = `hsl(${hue}, 70%, 50%)`;
+
+            datasets.push({
+                label: `${deviceName} Temperature`,
+                data: records.map(record => ({
+                    x: new Date(record.timestamp),
+                    y: record.temperature
+                })),
+                borderColor: color,
+                tension: 0.3,
+                pointRadius: 2
+            });
+
+            datasets.push({
+                label: `${deviceName} Humidity`,
+                data: records.map(record => ({
+                    x: new Date(record.timestamp),
+                    y: record.humidity
+                })),
+                borderColor: color,
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 2
+            });
+        });
+
+        if (window.allTempsChart) {
+            window.allTempsChart.destroy();
+        }
+
+        window.allTempsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: hours === '24' ? 'hour' : 'day'
+                        },
+                        display: true
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Temperature (°F) / Humidity (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}

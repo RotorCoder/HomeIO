@@ -30,9 +30,11 @@ add_file() {
 
 # Add each file individually instead of using an array
 add_file "index.php"
+add_file "api/index.php"
 add_file "config/config.php"
 add_file "templates/config-popup.php"
 add_file "templates/history-popup.php"
+add_file "templates/all-temps-popup.php"
 add_file "assets/js/api.js"
 add_file "assets/js/config.js"
 add_file "assets/js/devices.js"
