@@ -109,7 +109,11 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
     $log->logInfoMsg("Getting devices from the database.");
     
     try {
-        $baseQuery = "SELECT devices.*, rooms.room_name,
+        $baseQuery = "SELECT devices.*, 
+                      -- Use preferred values for display if they exist
+                      COALESCE(devices.preferredPowerState, devices.powerState) as displayPowerState,
+                      COALESCE(devices.preferredBrightness, devices.brightness) as displayBrightness,
+                      rooms.room_name,
                       device_groups.name as group_name,
                       device_groups.id as group_id 
                       FROM devices 
@@ -151,12 +155,22 @@ function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $excl
             return !hasDevicePendingCommand($pdo, $device['device']);
         });
         
+        // Modify each device to use the display values for UI
         foreach ($filteredDevices as &$device) {
+            // Use the displayPowerState and displayBrightness for UI
+            $device['powerState'] = $device['displayPowerState'];
+            $device['brightness'] = $device['displayBrightness'];
+            
+            // Remove the display fields to avoid confusion
+            unset($device['displayPowerState']);
+            unset($device['displayBrightness']);
+            
             if (!empty($device['device']) && !empty($device['deviceGroup'])) {
                 $groupStmt = $pdo->prepare(
                     "SELECT devices.device, devices.device_name, 
-                            devices.powerState, devices.online, 
-                            devices.brightness, devices.brand
+                            COALESCE(devices.preferredPowerState, devices.powerState) as powerState,
+                            COALESCE(devices.preferredBrightness, devices.brightness) as brightness,
+                            devices.online, devices.brand
                      FROM devices 
                      WHERE devices.deviceGroup = ? AND devices.device != ?
                      ORDER BY devices.device_name"
@@ -536,22 +550,65 @@ $app->post('/update-device-state', function (Request $request, Response $respons
         
         $pdo = getDatabaseConnection($config);
         
+        // Get current device state
+        $stmt = $pdo->prepare("SELECT powerState, brightness, preferredPowerState, preferredBrightness FROM devices WHERE device = ?");
+        $stmt->execute([$data['device']]);
+        $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $shouldQueueCommand = false;
+        
         switch($data['command']) {
             case 'turn':
-                $stmt = $pdo->prepare("UPDATE devices SET powerState = ? WHERE device = ?");
+                // Update preferred power state
+                $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
                 $stmt->execute([$data['value'], $data['device']]);
+                
+                // Queue command only if current state doesn't match preferred state
+                if ($currentState['powerState'] !== $data['value']) {
+                    $shouldQueueCommand = true;
+                }
                 break;
                 
             case 'brightness':
-                $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on' WHERE device = ?");
-                $stmt->execute([(int)$data['value'], $data['device']]);
+                $brightness = (int)$data['value'];
+                // Update preferred brightness
+                $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
+                $stmt->execute([$brightness, $data['device']]);
+                
+                // Queue command only if current brightness doesn't match preferred brightness
+                if ($currentState['brightness'] !== $brightness) {
+                    $shouldQueueCommand = true;
+                }
                 break;
             
             default:
                 throw new Exception('Invalid command type');
         }
         
-        return sendSuccessResponse($response, ['message' => 'Device state updated successfully']);
+        // Queue command if needed
+        if ($shouldQueueCommand) {
+            $stmt = $pdo->prepare("
+                INSERT INTO command_queue 
+                (device, model, command, brand) 
+                SELECT 
+                    device,
+                    model,
+                    :command,
+                    brand
+                FROM devices
+                WHERE device = :device
+            ");
+            
+            $stmt->execute([
+                'command' => json_encode([
+                    'name' => $data['command'],
+                    'value' => $data['value']
+                ]),
+                'device' => $data['device']
+            ]);
+        }
+        
+        return sendSuccessResponse($response, ['message' => 'Device state preferences updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e, $log);
     }

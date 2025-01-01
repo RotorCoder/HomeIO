@@ -190,7 +190,7 @@ class VeSyncAPI:
             cursor.execute("SELECT * FROM devices WHERE device = %s", (device.cid,))
             current = cursor.fetchone()
             
-            # Prepare new values
+            # Prepare new values - only updating actual states from API
             new_values = {
                 'device': device.cid,
                 'model': device.device_type,
@@ -225,7 +225,7 @@ class VeSyncAPI:
                 """, values)
                 
             else:
-                # Update existing device
+                # Update existing device - only updating actual states
                 updates = [f"{k} = %s" for k in new_values.keys()]
                 values = list(new_values.values()) + [device.cid]
                 
@@ -237,14 +237,14 @@ class VeSyncAPI:
     
             self.pdo.commit()
             return new_values
-
+    
         except Exception as e:
             self.pdo.rollback()
             logger.error(f"Error updating device database: {str(e)}")
             raise
         finally:
             cursor.close()
-
+    
     def send_command(self, device_id: str, command: Dict) -> Dict:
         """Send command to device"""
         self.update_devices()
