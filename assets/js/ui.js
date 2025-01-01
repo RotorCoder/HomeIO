@@ -92,6 +92,7 @@ async function createTabs() {
         }
     }
     
+    // Keep the config tab for mobile view only
     tabsHtml += `
         <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
             <i class="fas fa-xl fa-cog"></i>
@@ -99,42 +100,24 @@ async function createTabs() {
 
     contentsHtml += `
         <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            <div>
-                <button onclick="showDefaultRoomDevices()" class="mobile-config-btn">
-                    Show Unassigned Devices
-                </button>
+            <div class="auto-refresh-control" style="margin-bottom: 10px;">
+                <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+                    <span>Auto-refresh</span>
+                </label>
+                <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
             </div>
-            <div class="device-grid" id="room-config-devices"></div>
-        </div>`;
-
-    contentsHtml += `
-        <div class="config-section">
-            <h2 class="header" onclick="toggleConfigContent()">
-                <i class="fas fa-cog"></i>
-                Configuration
-                <i class="fas fa-chevron-down"></i>
-            </h2>
-            <div class="config-content" id="desktop-config-content">
-                <div class="auto-refresh-control" style="margin-bottom: 10px;">
-                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
-                        <span>Auto-refresh</span>
-                    </label>
-                    <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
-                </div>
-                <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
-                </button>
-                <button class="desktop-config-btn" onclick="showAllTempHistory()">
-                    <i class="fas fa-temperature-high"></i>
-                    <span>All Temperature History</span>
-                </button>
-                <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
-                    Show Unassigned Devices
-                </button>
-                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
-            </div>
+            <button onclick="manualRefresh()" class="config-button">
+                <i class="fas fa-sync-alt"></i>
+                <span>Refresh</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-temperature-high"></i>
+                <span>All Temperature History</span>
+            </button>
+            <button onclick="showDefaultRoomDevices()" class="config-button">
+                <span>Show Unassigned Devices</span>
+            </button>
         </div>`;
     
     tabsContainer.innerHTML = tabsHtml;
@@ -168,13 +151,6 @@ function switchTab(roomId) {
     if (autoRefreshToggle.checked) {
         resetUpdateTimers();
     }
-}
-
-function toggleConfigContent() {
-    const configContent = document.getElementById('desktop-config-content');
-    const chevron = document.querySelector('.header .fa-chevron-down');
-    configContent.classList.toggle('show');
-    chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
 }
 
 function showDefaultRoomDevices() {
@@ -249,4 +225,43 @@ function getCurrentRoomId() {
 function manualRefresh() {
     console.log(`[${new Date().toLocaleTimeString()}] Manual refresh requested`);
     updateDevices();
+}
+
+function showDesktopConfig() {
+    const popup = document.getElementById('config-popup-desktop');
+    popup.style.display = 'block';
+    
+    // Sync checkbox state
+    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
+    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
+    desktopCheckbox.checked = mobileCheckbox.checked;
+    
+    // Sync last update time
+    const mobileTime = document.getElementById('last-update').textContent;
+    document.getElementById('desktop-last-update').textContent = mobileTime;
+}
+
+function hideDesktopConfig() {
+    document.getElementById('config-popup-desktop').style.display = 'none';
+}
+
+// Update the existing toggleAutoRefresh function to sync both checkboxes
+function toggleAutoRefresh(enabled) {
+    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
+    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
+    
+    mobileCheckbox.checked = enabled;
+    desktopCheckbox.checked = enabled;
+    
+    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
+    backgroundUpdateInterval = null;
+    
+    if (enabled) {
+        backgroundUpdateInterval = setInterval(() => {
+            updateDevices();
+        }, VISIBLE_UPDATE_INTERVAL);
+    }
+    
+    localStorage.setItem('autoRefreshEnabled', enabled);
+    resetUpdateTimers();
 }
