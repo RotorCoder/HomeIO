@@ -206,12 +206,12 @@ class VeSyncAPI:
             if hasattr(device, 'details'):
                 if 'brightness' in device.details:
                     new_values['brightness'] = device.details['brightness']
-            
-            # For outlets/switches with energy monitoring
-            if hasattr(device, 'energy'):
-                new_values['energy_today'] = device.energy.get('today', 0)
-                new_values['power'] = device.energy.get('power', 0)
-                new_values['voltage'] = device.energy.get('voltage', 0)
+                # Get energy data from details
+                if 'energy' in device.details:
+                    new_values['energy_today'] = device.details.get('energy', 0)
+                    new_values['power'] = device.details.get('power', 0)
+                    new_values['voltage'] = device.details.get('voltage', 0)
+                    logger.debug(f"Energy values from details for {device.device_name}: energy={new_values['energy_today']}, power={new_values['power']}, voltage={new_values['voltage']}")
     
             if not current:
                 # Insert new device
