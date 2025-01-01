@@ -318,82 +318,82 @@ class HueAPI {
     }
 
     public function updateDeviceDatabase($device) {
-    global $log;
-    
-    $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
-    $stmt->execute([$device['id']]);
-    $current = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    // Only update actual device states, not preferences
-    $new_values = [
-        'device' => $device['id'],
-        'model' => $device['type'],
-        'device_name' => $device['metadata']['name'],
-        'controllable' => 1,
-        'retrievable' => 1,
-        'supportCmds' => json_encode(['brightness', 'colorTem', 'color']),
-        'brand' => 'hue',
-        'online' => true,
-        'powerState' => $device['on']['on'] ? 'on' : 'off',
-        'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
-        'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
-    ];
-    
-    if (!$current) {
-        $log->logInfoMsg("New Hue device detected: {$device['id']}");
+        global $log;
+        
+        $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
+        $stmt->execute([$device['id']]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Only update actual device states, not preferences
+        $new_values = [
+            'device' => $device['id'],
+            'model' => $device['type'],
+            'device_name' => $device['metadata']['name'],
+            'controllable' => 1,
+            'retrievable' => 1,
+            'supportCmds' => json_encode(['brightness', 'colorTem', 'color']),
+            'brand' => 'hue',
+            'online' => isset($device['status']) && isset($device['status']['reachable']) ? $device['status']['reachable'] : false,
+            'powerState' => $device['on']['on'] ? 'on' : 'off',
+            'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
+            'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
+        ];
+        
+        if (!$current) {
+            $log->logInfoMsg("New Hue device detected: {$device['id']}");
+            $updates = [];
+            $params = [];
+            foreach ($new_values as $key => $value) {
+                if ($value !== null) {
+                    $updates[] = "$key = :$key";
+                    $params[":$key"] = $value;
+                }
+            }
+            
+            if (!empty($updates)) {
+                $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute($params);
+            }
+            return $new_values;
+        }
+        
+        $changes = [];
         $updates = [];
-        $params = [];
+        $params = [':device' => $device['id']];
+        
         foreach ($new_values as $key => $value) {
-            if ($value !== null) {
+            // Skip preferred state columns
+            if (in_array($key, ['preferredPowerState', 'preferredBrightness'])) {
+                continue;
+            }
+            
+            if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
+                continue;
+            }
+            
+            if ($key === 'online') {
+                $current_value = (bool)$current[$key];
+                $new_value = (bool)$value;
+            } else {
+                $current_value = $current[$key];
+                $new_value = $value;
+            }
+            
+            if ($current_value !== $new_value) {
+                $changes[] = "$key changed from $current_value to $new_value";
                 $updates[] = "$key = :$key";
-                $params[":$key"] = $value;
+                $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
             }
         }
         
         if (!empty($updates)) {
-            $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+            $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($params);
+            $log->logInfoMsg("Updated Hue device {$device['id']}: " . implode(", ", $changes));
         }
+        
         return $new_values;
     }
-    
-    $changes = [];
-    $updates = [];
-    $params = [':device' => $device['id']];
-    
-    foreach ($new_values as $key => $value) {
-        // Skip preferred state columns
-        if (in_array($key, ['preferredPowerState', 'preferredBrightness'])) {
-            continue;
-        }
-        
-        if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
-            continue;
-        }
-        
-        if ($key === 'online') {
-            $current_value = (bool)$current[$key];
-            $new_value = (bool)$value;
-        } else {
-            $current_value = $current[$key];
-            $new_value = $value;
-        }
-        
-        if ($current_value !== $new_value) {
-            $changes[] = "$key changed from $current_value to $new_value";
-            $updates[] = "$key = :$key";
-            $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
-        }
-    }
-    
-    if (!empty($updates)) {
-        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($params);
-        $log->logInfoMsg("Updated Hue device {$device['id']}: " . implode(", ", $changes));
-    }
-    
-    return $new_values;
-}
 }
