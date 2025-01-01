@@ -18,10 +18,47 @@
 </head>
 <body>
     <div class="container">
-        <div class="error-message" id="error-message"></div>
-        <div id="tabs" class="tabs"></div>
-        <div id="tab-contents"></div>
+    <div class="error-message" id="error-message"></div>
+    <div id="tabs" class="tabs"></div>
+    <div id="tab-contents"></div>
+
+    <!-- Add the new config popup and button here -->
+    <div class="config-popup-desktop" id="config-popup-desktop">
+        <div class="config-content">
+            <div class="header">
+                <h2>Configuration</h2>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="content">
+                <div class="auto-refresh-control">
+                    <label class="refresh-toggle">
+                        <input type="checkbox" id="desktop-auto-refresh-toggle">
+                        <span>Auto-refresh</span>
+                    </label>
+                    <p class="refresh-time" id="desktop-last-update"></p>
+                </div>
+                <button onclick="manualRefresh()" class="config-button">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>All Temperature History</span>
+                </button>
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <span>Show Unassigned Devices</span>
+                </button>
+            </div>
+        </div>
     </div>
+
+    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
+        <i class="fas fa-cog"></i>
+        <span>Configuration</span>
+    </button>
+</div>
     
     <?php include 'templates/config-popup.php'; ?>
     <?php include 'templates/history-popup.php'; ?>

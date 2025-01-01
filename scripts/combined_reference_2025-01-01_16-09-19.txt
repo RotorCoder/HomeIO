@@ -1,0 +1,5181 @@
+Combined Reference File - Created on Wed Jan  1 04:09:19 PM EST 2025
+Root Path: /var/www/html/homeio
+
+================================================================================
+FILE: index.php
+================================================================================
+
+<!-- index.php -->
+
+<?php require_once __DIR__ . '/config/config.php'; ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomeIO</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
+    <link rel="manifest" href="assets/images/site.webmanifest">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container">
+    <div class="error-message" id="error-message"></div>
+    <div id="tabs" class="tabs"></div>
+    <div id="tab-contents"></div>
+
+    <!-- Add the new config popup and button here -->
+    <div class="config-popup-desktop" id="config-popup-desktop">
+        <div class="config-content">
+            <div class="header">
+                <h2>Configuration</h2>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="content">
+                <div class="auto-refresh-control">
+                    <label class="refresh-toggle">
+                        <input type="checkbox" id="desktop-auto-refresh-toggle">
+                        <span>Auto-refresh</span>
+                    </label>
+                    <p class="refresh-time" id="desktop-last-update"></p>
+                </div>
+                <button onclick="manualRefresh()" class="config-button">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>All Temperature History</span>
+                </button>
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <span>Show Unassigned Devices</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
+        <i class="fas fa-cog"></i>
+        <span>Configuration</span>
+    </button>
+</div>
+    
+    <?php include 'templates/config-popup.php'; ?>
+    <?php include 'templates/history-popup.php'; ?>
+    <?php include 'templates/all-temps-popup.php'; ?>
+    
+    <script>
+        const API_KEY = '<?php echo $config['homeio_api_key']; ?>';
+    </script>
+    <script src="assets/js/api.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script src="assets/js/devices.js"></script>
+    <script src="assets/js/groups.js"></script>
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/temperature.js"></script>
+    <script src="assets/js/main.js"></script>
+    </body>
+</html>
+
+================================================================================
+FILE: api/index.php
+================================================================================
+
+<?php
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Factory\AppFactory;
+
+require __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/../config/config.php';
+require $config['sharedpath'].'/logger.php';
+require $config['sharedpath'].'/govee_lib.php';
+require $config['sharedpath'].'/hue_lib.php';
+
+function validateApiKey($request, $handler) {
+    global $config;
+    
+    // Get API key from header
+    $apiKey = $request->getHeaderLine('X-API-Key');
+    
+    // Check if API key exists and is valid
+    if (empty($apiKey) || !in_array($apiKey, $config['api_keys'])) {
+        $response = new \Slim\Psr7\Response();
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Invalid or missing API key'
+        ]));
+        
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus(401);
+    }
+    
+    return $handler->handle($request);
+}
+
+// Helper Functions
+function sendErrorResponse($response, $error, $log = null) {
+    if ($log) {
+        $log->logErrorMsg($error->getMessage());
+    }
+    
+    $payload = json_encode([
+        'success' => false,
+        'error' => $error->getMessage()
+    ]);
+    
+    $response->getBody()->write($payload);
+    return $response
+        ->withHeader('Content-Type', 'application/json')
+        ->withStatus(500);
+}
+
+function sendSuccessResponse($response, $data, $status = 200) {
+    $payload = json_encode(array_merge(
+        ['success' => true],
+        $data
+    ));
+    
+    $response->getBody()->write($payload);
+    return $response
+        ->withHeader('Content-Type', 'application/json')
+        ->withStatus($status);
+}
+
+function measureExecutionTime($callback) {
+    $start = microtime(true);
+    $result = $callback();
+    $duration = round((microtime(true) - $start) * 1000);
+    
+    return [
+        'result' => $result,
+        'duration' => $duration
+    ];
+}
+
+function validateRequiredParams($params, $required) {
+    $missing = array_filter($required, function($param) use ($params) {
+        return !isset($params[$param]);
+    });
+    
+    if (!empty($missing)) {
+        throw new Exception('Missing required parameters: ' . implode(', ', $missing));
+    }
+    
+    return true;
+}
+
+function getDatabaseConnection($config) {
+    return new PDO(
+        "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
+        $config['db_config']['user'],
+        $config['db_config']['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+}
+
+function hasDevicePendingCommand($pdo, $device) {
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count 
+        FROM command_queue 
+        WHERE device = ? 
+        AND status IN ('xpending', 'xprocessing')
+    ");
+    $stmt->execute([$device]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($result['count'] > 0);
+}
+
+function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
+    global $log;
+    $log->logInfoMsg("Getting devices from the database.");
+    
+    try {
+        $baseQuery = "SELECT devices.*, 
+                      -- Use preferred values for display if they exist
+                      COALESCE(devices.preferredPowerState, devices.powerState) as displayPowerState,
+                      COALESCE(devices.preferredBrightness, devices.brightness) as displayBrightness,
+                      rooms.room_name,
+                      device_groups.name as group_name,
+                      device_groups.id as group_id 
+                      FROM devices 
+                      LEFT JOIN rooms ON devices.room = rooms.id
+                      LEFT JOIN device_groups ON devices.deviceGroup = device_groups.id";
+        
+        if ($single_device) {
+            $stmt = $pdo->prepare($baseQuery . " WHERE devices.device = ?");
+            $stmt->execute([$single_device]);
+        } else {
+            $whereConditions = [];
+            $params = [];
+            
+            $whereConditions[] = "(devices.deviceGroup IS NULL OR 
+                                 devices.showInGroupOnly = 0 OR 
+                                 devices.device IN (SELECT reference_device FROM device_groups))";
+            
+            if ($room !== null) {
+                $whereConditions[] = "devices.room = ?";
+                $params[] = $room;
+            } elseif ($exclude_room !== null) {
+                $whereConditions[] = "devices.room != ?";
+                $params[] = $exclude_room;
+            }
+            
+            $query = $baseQuery;
+            if (!empty($whereConditions)) {
+                $query .= " WHERE " . implode(" AND ", $whereConditions);
+            }
+            
+            $stmt = $pdo->prepare($query);
+            $stmt->execute($params);
+        }
+        
+        $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Filter out devices with pending commands
+        $filteredDevices = array_filter($devices, function($device) use ($pdo) {
+            return !hasDevicePendingCommand($pdo, $device['device']);
+        });
+        
+        // Modify each device to use the display values for UI
+        foreach ($filteredDevices as &$device) {
+            // Use the displayPowerState and displayBrightness for UI
+            $device['powerState'] = $device['displayPowerState'];
+            $device['brightness'] = $device['displayBrightness'];
+            
+            // Remove the display fields to avoid confusion
+            unset($device['displayPowerState']);
+            unset($device['displayBrightness']);
+            
+            if (!empty($device['device']) && !empty($device['deviceGroup'])) {
+                $groupStmt = $pdo->prepare(
+                    "SELECT devices.device, devices.device_name, 
+                            COALESCE(devices.preferredPowerState, devices.powerState) as powerState,
+                            COALESCE(devices.preferredBrightness, devices.brightness) as brightness,
+                            devices.online, devices.brand
+                     FROM devices 
+                     WHERE devices.deviceGroup = ? AND devices.device != ?
+                     ORDER BY devices.device_name"
+                );
+                $groupStmt->execute([$device['deviceGroup'], $device['device']]);
+                
+                // Filter group members with pending commands
+                $groupMembers = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+                $device['group_members'] = array_filter($groupMembers, function($member) use ($pdo) {
+                    return !hasDevicePendingCommand($pdo, $member['device']);
+                });
+            }
+        }
+        
+        return array_values($filteredDevices); // Re-index array after filtering
+        
+    } catch (PDOException $e) {
+        $log->logErrorMsg("Database error: " . $e->getMessage());
+        throw new Exception("Database error occurred");
+    } catch (Exception $e) {
+        $log->logErrorMsg("Error in getDevicesFromDatabase: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+// Create Slim app and configure middleware
+$app = AppFactory::create();
+$app->setBasePath('/homeio/api');
+$app->addRoutingMiddleware();
+//$app->add('validateApiKey');
+$app->addErrorMiddleware(true, true, true);
+
+// Initialize logger
+$log = new logger(basename(__FILE__, '.php')."_", __DIR__);
+
+// Routes
+$app->get('/check-x10-code', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['x10Code']);
+        $x10Code = $request->getQueryParams()['x10Code'];
+        $currentDevice = $request->getQueryParams()['currentDevice'] ?? null;
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("SELECT device, device_name FROM devices WHERE x10Code = ? AND device != ?");
+        $stmt->execute([$x10Code, $currentDevice]);
+        $existingDevice = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return sendSuccessResponse($response, [
+            'isDuplicate' => (bool)$existingDevice,
+            'deviceName' => $existingDevice ? $existingDevice['device_name'] : null,
+            'device' => $existingDevice ? $existingDevice['device'] : null
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->post('/delete-device-group', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['groupId']);
+        
+        $pdo = getDatabaseConnection($config);
+        $pdo->beginTransaction();
+        
+        try {
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE deviceGroup = ?");
+            $stmt->execute([$data['groupId']]);
+            
+            $stmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
+            $stmt->execute([$data['groupId']]);
+            
+            $pdo->commit();
+            return sendSuccessResponse($response, ['message' => 'Group deleted successfully']);
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/available-groups', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['model']);
+        $model = $request->getQueryParams()['model'];
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("SELECT id, name FROM device_groups WHERE model = ?");
+        $stmt->execute([$model]);
+        
+        return sendSuccessResponse($response, ['groups' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/group-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['groupId']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("SELECT device, device_name, powerState, online FROM devices WHERE deviceGroup = ?");
+        $stmt->execute([$request->getQueryParams()['groupId']]);
+        
+        return sendSuccessResponse($response, ['devices' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/device-config', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['device']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code FROM devices WHERE device = ?");
+        $stmt->execute([$request->getQueryParams()['device']]);
+        
+        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$config) {
+            throw new Exception('Device not found');
+        }
+        
+        return sendSuccessResponse($response, $config);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $timing = [];
+        $result = measureExecutionTime(function() use ($request, $config, $log, &$timing) {
+            $single_device = $request->getQueryParams()['device'] ?? null;
+            $room = $request->getQueryParams()['room'] ?? null;
+            $exclude_room = $request->getQueryParams()['exclude_room'] ?? null;
+            $quick = isset($request->getQueryParams()['quick']) ? 
+                ($request->getQueryParams()['quick'] === 'true') : false;
+
+            $pdo = getDatabaseConnection($config);
+            
+            if (!$quick) {
+    // Only update Govee on non-quick refreshes
+    $govee_timing = measureExecutionTime(function() use ($config, $log) {
+        $log->logInfoMsg("Starting Govee devices update (quick = false)");
+        try {
+            $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
+            $goveeDevices = $goveeApi->getDevices();
+            
+            if ($goveeDevices['statusCode'] !== 200) {
+                throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
+            }
+            
+            $goveeData = json_decode($goveeDevices['body'], true);
+            if (!isset($goveeData['data']) || !isset($goveeData['data']['devices'])) {
+                throw new Exception('Invalid response format from Govee API');
+            }
+            
+            foreach ($goveeData['data']['devices'] as $device) {
+                // First update device info
+                $goveeApi->updateDeviceDatabase($device);
+                
+                // Then get and update device state
+                $log->logInfoMsg("Fetching state for device: " . $device['device']);
+                $stateResponse = $goveeApi->getDeviceState($device);
+                
+                if ($stateResponse['statusCode'] !== 200) {
+                    $log->logErrorMsg("Failed to get state for device " . $device['device'] . ": HTTP " . $stateResponse['statusCode']);
+                    continue;
+                }
+                
+                $stateData = json_decode($stateResponse['body'], true);
+                if (!$stateData || !isset($stateData['data']) || !isset($stateData['data']['properties'])) {
+                    $log->logErrorMsg("Invalid state data for device " . $device['device']);
+                    continue;
+                }
+                
+                $log->logInfoMsg("Updating state for device: " . $device['device']);
+                $device_states = [$device['device'] => $stateData['data']['properties']];
+                $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
+            }
+            
+            $log->logInfoMsg("Govee update completed successfully");
+        } catch (Exception $e) {
+            $log->logErrorMsg("Govee update error: " . $e->getMessage());
+            throw $e;
+        }
+    });
+    $timing['govee'] = ['duration' => $govee_timing['duration']];
+}
+
+            // Always update Hue devices
+            $hue_timing = measureExecutionTime(function() use ($config, $log) {
+                $log->logInfoMsg("Starting Hue devices update");
+                try {
+                    $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
+                    $hueResponse = $hueApi->getDevices();
+                    
+                    if ($hueResponse['statusCode'] !== 200) {
+                        throw new Exception('Failed to get devices from Hue Bridge');
+                    }
+                    
+                    $devices = json_decode($hueResponse['body'], true);
+                    if (!$devices || !isset($devices['data'])) {
+                        throw new Exception('Failed to parse Hue Bridge response');
+                    }
+                    
+                    foreach ($devices['data'] as $device) {
+                        $hueApi->updateDeviceDatabase($device);
+                    }
+                    
+                    $log->logInfoMsg("Hue update completed successfully");
+                } catch (Exception $e) {
+                    $log->logErrorMsg("Hue update error: " . $e->getMessage());
+                }
+            });
+            $timing['hue'] = ['duration' => $hue_timing['duration']];
+
+            // Get all devices from database
+            $devices_timing = measureExecutionTime(function() use ($pdo, $single_device, $room, $exclude_room) {
+                return getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
+            });
+            
+            $timing['devices'] = ['duration' => $devices_timing['duration']];
+            $timing['database'] = ['duration' => $devices_timing['duration']];
+            
+            return [
+                'devices' => $devices_timing['result'],
+                'updated' => date('c'),
+                'timing' => $timing,
+                'quick' => $quick
+            ];
+        });
+        
+        return sendSuccessResponse($response, $result['result']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/rooms', function (Request $request, Response $response) use ($config) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->query("SELECT id, room_name FROM rooms ORDER BY tab_order");
+        
+        return sendSuccessResponse($response, ['rooms' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/room-temperature', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['room']);
+        
+        $pdo = getDatabaseConnection($config);
+        // Get all thermometers for the room, joining with thermometer_history for latest readings
+        $stmt = $pdo->prepare("
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                th.temperature as temp,
+                th.humidity,
+                th.timestamp as updated
+            FROM thermometers t
+            LEFT JOIN thermometer_history th ON t.mac = th.mac
+            INNER JOIN (
+                SELECT mac, MAX(timestamp) as max_timestamp
+                FROM thermometer_history
+                GROUP BY mac
+            ) latest ON th.mac = latest.mac AND th.timestamp = latest.max_timestamp
+            WHERE t.room = ?
+            ORDER BY t.display_name, t.name
+        ");
+        $stmt->execute([$request->getQueryParams()['room']]);
+        
+        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Instead of throwing an error, just return empty array
+        return sendSuccessResponse($response, [
+            'thermometers' => $thermometers
+        ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/send-command', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device', 'model', 'cmd', 'brand']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("
+            INSERT INTO command_queue 
+            (device, model, command, brand) 
+            VALUES 
+            (:device, :model, :command, :brand)
+        ");
+
+        $stmt->execute([
+            'device' => $data['device'],
+            'model' => $data['model'],
+            'command' => json_encode($data['cmd']),
+            'brand' => $data['brand']
+        ]);
+
+        return sendSuccessResponse($response, [
+            'message' => 'Command queued successfully',
+            'command_id' => $pdo->lastInsertId()
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device']);
+        
+        $pdo = getDatabaseConnection($config);
+        $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+        
+        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ? WHERE device = ?");
+        $stmt->execute([
+            $data['room'],
+            $data['low'],
+            $data['medium'],
+            $data['high'],
+            $data['preferredColorTem'],
+            $x10Code,
+            $data['device']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-device-group', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device', 'action']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        if ($data['action'] === 'create') {
+            validateRequiredParams($data, ['groupName', 'model']);
+            
+            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, reference_device) VALUES (?, ?, ?)");
+            $stmt->execute([$data['groupName'], $data['model'], $data['device']]);
+            $groupId = $pdo->lastInsertId();
+            
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 0 WHERE device = ?");
+            $stmt->execute([$groupId, $data['device']]);
+            
+        } else if ($data['action'] === 'join') {
+            validateRequiredParams($data, ['groupId']);
+            
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 1 WHERE device = ?");
+            $stmt->execute([$data['groupId'], $data['device']]);
+            
+        } else if ($data['action'] === 'leave') {
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE device = ?");
+            $stmt->execute([$data['device']]);
+        }
+        
+        return sendSuccessResponse($response, ['message' => 'Device group updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-device-state', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device', 'command', 'value']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Get current device state
+        $stmt = $pdo->prepare("SELECT powerState, brightness, preferredPowerState, preferredBrightness FROM devices WHERE device = ?");
+        $stmt->execute([$data['device']]);
+        $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $shouldQueueCommand = false;
+        
+        switch($data['command']) {
+            case 'turn':
+                // Update preferred power state
+                $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
+                $stmt->execute([$data['value'], $data['device']]);
+                
+                // Queue command only if current state doesn't match preferred state
+                if ($currentState['powerState'] !== $data['value']) {
+                    $shouldQueueCommand = true;
+                }
+                break;
+                
+            case 'brightness':
+                $brightness = (int)$data['value'];
+                // Update preferred brightness
+                $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
+                $stmt->execute([$brightness, $data['device']]);
+                
+                // Queue command only if current brightness doesn't match preferred brightness
+                if ($currentState['brightness'] !== $brightness) {
+                    $shouldQueueCommand = true;
+                }
+                break;
+            
+            default:
+                throw new Exception('Invalid command type');
+        }
+        
+        // Queue command if needed
+        if ($shouldQueueCommand) {
+            $stmt = $pdo->prepare("
+                INSERT INTO command_queue 
+                (device, model, command, brand) 
+                SELECT 
+                    device,
+                    model,
+                    :command,
+                    brand
+                FROM devices
+                WHERE device = :device
+            ");
+            
+            $stmt->execute([
+                'command' => json_encode([
+                    'name' => $data['command'],
+                    'value' => $data['value']
+                ]),
+                'device' => $data['device']
+            ]);
+        }
+        
+        return sendSuccessResponse($response, ['message' => 'Device state preferences updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/update-govee-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $timing = [];
+        $result = measureExecutionTime(function() use ($config, $log, &$timing) {
+            $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
+            
+            $api_timing = measureExecutionTime(function() use ($goveeApi) {
+                $goveeResponse = $goveeApi->getDevices();
+                if ($goveeResponse['statusCode'] !== 200) {
+                    throw new Exception('Failed to get devices from Govee API');
+                }
+                
+                $result = json_decode($goveeResponse['body'], true);
+                if ($result['code'] !== 200) {
+                    throw new Exception($result['message']);
+                }
+                
+                return $result;
+            });
+            $timing['devices'] = ['duration' => $api_timing['duration']];
+            
+            $states_timing = measureExecutionTime(function() use ($goveeApi, $api_timing) {
+                $govee_devices = $api_timing['result']['data']['devices'];
+                $device_states = array();
+                $updated_devices = array();
+                
+                foreach ($govee_devices as $device) {
+                    $goveeApi->updateDeviceDatabase($device);
+                    
+                    $stateResponse = $goveeApi->getDeviceState($device);
+                    if ($stateResponse['statusCode'] === 200) {
+                        $state_result = json_decode($stateResponse['body'], true);
+                        if ($state_result['code'] === 200) {
+                            $device_states[$device['device']] = $state_result['data']['properties'];
+                            $updated_devices[] = $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
+                        }
+                    }
+                }
+                
+                return $updated_devices;
+            });
+            
+            $timing['states'] = ['duration' => $states_timing['duration']];
+            
+            return [
+                'devices' => $states_timing['result'],
+                'updated' => date('c'),
+                'timing' => $timing
+            ];
+        });
+        
+        return sendSuccessResponse($response, $result['result']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/update-hue-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $timing = [];
+        $result = measureExecutionTime(function() use ($config, &$timing) {
+            // Initialize HueAPI
+            $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
+            
+            $api_timing = measureExecutionTime(function() use ($hueApi) {
+                $hueResponse = $hueApi->getDevices();
+                if ($hueResponse['statusCode'] !== 200) {
+                    throw new Exception('Failed to get devices from Hue Bridge');
+                }
+                
+                $devices = json_decode($hueResponse['body'], true);
+                if (!$devices || !isset($devices['data'])) {
+                    throw new Exception('Failed to parse Hue Bridge response');
+                }
+                
+                return $devices;
+            });
+            $timing['devices'] = ['duration' => $api_timing['duration']];
+            
+            $states_timing = measureExecutionTime(function() use ($hueApi, $api_timing) {
+                $updated_devices = array();
+                foreach ($api_timing['result']['data'] as $device) {
+                    $updated_devices[] = $hueApi->updateDeviceDatabase($device);
+                }
+                return $updated_devices;
+            });
+            
+            $timing['states'] = ['duration' => $states_timing['duration']];
+            
+            return [
+                'devices' => $states_timing['result'],
+                'updated' => date('c'),
+                'timing' => $timing
+            ];
+        });
+        
+        return sendSuccessResponse($response, $result['result']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->get('/thermometer-history', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['mac']);
+        $mac = $request->getQueryParams()['mac'];
+        $hours = isset($request->getQueryParams()['hours']) ? (int)$request->getQueryParams()['hours'] : 24;
+
+        $pdo = getDatabaseConnection($config);
+        
+        // First get the device name and room info - updated query without JOIN
+        $stmt = $pdo->prepare("
+            SELECT name, display_name, room
+            FROM thermometers 
+            WHERE mac = ?
+        ");
+        $stmt->execute([$mac]);
+        $device = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Then get the history
+        $stmt = $pdo->prepare("
+            SELECT 
+                temperature,
+                humidity,
+                battery,
+                rssi,
+                DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i') as timestamp
+            FROM thermometer_history 
+            WHERE mac = ? 
+            AND timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY timestamp DESC
+        ");
+        $stmt->execute([$mac, $hours]);
+        
+        return sendSuccessResponse($response, [
+            'history' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'device_name' => $device ? ($device['display_name'] ?: $device['name']) : 'Unknown Device'
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/all-thermometer-history', function (Request $request, Response $response) use ($config) {
+    try {
+        // Get hours parameter, default to 24 if not specified
+        $hours = isset($request->getQueryParams()['hours']) ? (int)$request->getQueryParams()['hours'] : 24;
+        
+        // Validate hours parameter
+        if (!in_array($hours, [24, 168, 720])) {
+            throw new Exception('Invalid hours parameter');
+        }
+
+        $pdo = getDatabaseConnection($config);
+        
+        // Get history for all thermometers with device names
+        $stmt = $pdo->prepare("
+            SELECT 
+                th.temperature,
+                th.humidity,
+                th.battery,
+                th.rssi,
+                DATE_FORMAT(th.timestamp, '%Y-%m-%d %H:%i') as timestamp,
+                COALESCE(t.display_name, t.name, d.device_name, th.mac) as device_name,
+                th.mac
+            FROM thermometer_history th
+            LEFT JOIN thermometers t ON th.mac = t.mac
+            LEFT JOIN devices d ON th.mac = d.device
+            WHERE th.timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY th.timestamp ASC
+        ");
+        
+        $stmt->execute([$hours]);
+        $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Format data for response
+        $formattedHistory = array_map(function($record) {
+            return [
+                'device_name' => $record['device_name'],
+                'mac' => $record['mac'],
+                'temperature' => floatval($record['temperature']),
+                'humidity' => floatval($record['humidity']),
+                'battery' => intval($record['battery']),
+                'rssi' => intval($record['rssi']),
+                'timestamp' => $record['timestamp']
+            ];
+        }, $history);
+
+        return sendSuccessResponse($response, [
+            'history' => $formattedHistory
+        ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/thermometer-list', function (Request $request, Response $response) use ($config) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        
+        // Updated query to use room from thermometers table
+        $stmt = $pdo->prepare("
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                t.model,
+                t.room as room_id,
+                r.room_name,
+                t.updated
+            FROM thermometers t
+            LEFT JOIN rooms r ON t.room = r.id
+            ORDER BY t.name
+        ");
+        $stmt->execute();
+        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get room list for dropdown
+        $roomStmt = $pdo->query("SELECT id, room_name FROM rooms WHERE id != 1 ORDER BY room_name");
+        $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return sendSuccessResponse($response, [
+            'thermometers' => $thermometers,
+            'rooms' => $rooms
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-thermometer', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['mac']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Update thermometer display name and room
+        $stmt = $pdo->prepare("
+            UPDATE thermometers 
+            SET display_name = ?,
+                room = ?
+            WHERE mac = ?
+        ");
+        
+        $stmt->execute([
+            $data['display_name'] ?: null,
+            $data['room'] ?: null,
+            $data['mac']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Thermometer updated successfully']);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->run();
+
+================================================================================
+FILE: config/config.php
+================================================================================
+
+<?php
+
+date_default_timezone_set('America/Detroit');
+
+if (basename(__DIR__) === 'scripts' || basename(__DIR__) === 'api') {
+    $sharedPathDepth = '../../../shared';
+} else {
+    $sharedPathDepth = '../../shared';
+}
+$config['sharedpath'] = __DIR__ . '/' . $sharedPathDepth;
+
+// Database configuration
+$config['db_config'] = [
+    'host' => 'localhost',
+    'dbname' => 'homeio',
+    'user' => 'homeio_rw',
+    'password' => 'sfdjhgHGFD23543$#@'
+];
+
+$config['vesync_api'] = [
+    'user' => 'steve304635@gmail.com',
+    'password' => 'Pandora2!'
+];
+
+$config['api_keys'] = [ // keys allowed to access apis
+    '3a9d2c55384b7a1c6d9e2f5b8a4c7d1e' // homeio
+];
+
+$config['homeio_api_key'] = '3a9d2c55384b7a1c6d9e2f5b8a4c7d1e'; // key used by homeio to access apis
+
+$config['govee_api_key'] = '0c87dab3-9744-4d03-b301-5bd4b682f750';
+$config['govee_api_url'] = 'https://developer-api.govee.com/v1/devices';
+
+$config['hue_bridge_ip'] = '192.168.99.136';
+$config['hue_api_key'] = 'XKcmm7v8yO5fe7DR2-RqpSKiSbYtj7gQAdrqWfFO';
+
+$config['x10_log_file'] = '/mnt/X10Commander/X10 Commander.log';
+
+?>
+
+
+================================================================================
+FILE: templates/config-popup.php
+================================================================================
+
+<!-- templates/config-popup.php -->
+
+<div id="config-popup" style="display: none;">
+        <div class="config-popup">
+            <div class="header">
+                <h3 id="config-device-title">Device Configuration</h3>
+                <button onclick="hideConfigMenu()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="content">
+                <form id="device-config-form">
+                    <!-- Hidden inputs -->
+                    <input type="hidden" id="config-device-id">
+                    <input type="hidden" id="config-device-name">
+                    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Brand:</label>
+                            <input type="text" id="config-brand" readonly style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Model:</label>
+                            <input type="text" id="config-model" readonly style="width: 100%;">
+                        </div>
+                    </div>
+    
+                    <div class="form-group" style="display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>X10 Letter:</label>
+                            <select id="config-x10-letter" style="width: 100%;"></select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>X10 Number:</label>
+                            <select id="config-x10-number" style="width: 100%;"></select>
+                        </div>
+                    </div>
+    
+                    <div id="config-error-message" class="config-error-message" style="display: none;"></div>
+    
+                    <div class="form-group">
+                        <label>Room:</label>
+                        <select id="config-room"></select>
+                    </div>
+    
+                    <!-- Regular device settings -->
+                    <div id="regular-config-elements">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="form-group">
+                            <label>Device Grouping:</label>
+                            <select id="config-group-action" onchange="handleGroupActionChange()">
+                                <option value="none">No Group</option>
+                                <option value="create">Create New Group</option>
+                                <option value="join">Join Existing Group</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="group-name-container" style="display: none;">
+                            <label>Group Name:</label>
+                            <input type="text" id="config-group-name">
+                        </div>
+                        <div class="form-group" id="existing-groups-container" style="display: none;">
+                            <label>Select Group:</label>
+                            <select id="config-existing-groups"></select>
+                        </div>
+                    </div>
+    
+                    <!-- Group device settings -->
+                    <div id="group-config-elements" style="display: none;">
+                        <div class="form-group">
+                            <label>Low Brightness (%):</label>
+                            <input type="number" id="config-low" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Medium Brightness (%):</label>
+                            <input type="number" id="config-medium" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>High Brightness (%):</label>
+                            <input type="number" id="config-high" min="1" max="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Preferred Color Temperature:</label>
+                            <input type="number" id="config-color-temp" min="2000" max="9000">
+                        </div>
+                        <div class="group-members">
+                            <h4>Group Members</h4>
+                            <div id="group-members-list">
+                                <!-- Group members will be inserted here dynamically -->
+                            </div>
+                        </div>
+    
+                        <button type="button" class="delete-btn" onclick="deleteDeviceGroup(groupId)" 
+                                style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-top: 20px;">
+                            Delete Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+    
+            <div class="buttons">
+                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+            </div>
+        </div>
+    </div>
+
+================================================================================
+FILE: templates/history-popup.php
+================================================================================
+
+<!-- templates/history-popup.php -->
+
+<div id="history-popup" style="display: none;">
+    <div class="config-popup">
+        <div class="header">
+            <h3 id="history-device-title">Temperature History</h3>
+            <button onclick="hideHistoryPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="content">
+            <div class="history-controls">
+                <select id="history-range" onchange="loadTempHistory()">
+                    <option value="24">Last 24 Hours</option>
+                    <option value="168">Last 7 Days</option>
+                    <option value="720">Last 30 Days</option>
+                </select>
+            </div>
+            <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                <canvas id="temp-history-chart"></canvas>
+            </div>
+            <div class="history-table-container" style="margin-top: 20px; max-height: 300px; overflow-y: auto;">
+                <table id="history-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+================================================================================
+FILE: templates/all-temps-popup.php
+================================================================================
+
+<!-- templates/all-temps-popup.php -->
+<div id="all-temps-popup" style="display: none;">
+    <div class="config-popup">
+        <div class="header">
+            <h3>All Temperature History</h3>
+            <button onclick="hideAllTempsPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="content">
+            <div class="history-controls">
+                <select id="all-temps-history-range" onchange="loadAllTempHistory()">
+                    <option value="24">Last 24 Hours</option>
+                    <option value="168">Last 7 Days</option>
+                    <option value="720">Last 30 Days</option>
+                </select>
+            </div>
+            <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
+                <canvas id="all-temps-chart"></canvas>
+            </div>
+            <div class="thermometer-table" style="margin-top: 20px;">
+                <h4>Thermometer Management</h4>
+                <table class="therm-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Display Name</th>
+                            <th>Name</th>
+                            <th>MAC</th>
+                            <th>Model</th>
+                            <th>Room</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="thermometer-list">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+================================================================================
+FILE: assets/js/api.js
+================================================================================
+
+// assets/js/api.js
+
+async function apiFetch(url, options = {}) {
+    const defaultOptions = {
+        headers: {
+            'X-API-Key': API_KEY
+        }
+    };
+    
+    const mergedOptions = {
+        ...defaultOptions,
+        ...options,
+        headers: {
+            ...defaultOptions.headers,
+            ...(options.headers || {})
+        }
+    };
+    
+    return fetch(url, mergedOptions);
+}
+
+async function fetchRooms() {
+    try {
+        const response = await apiFetch('api/rooms');
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Failed to fetch rooms');
+        rooms = data.rooms;
+        createTabs();
+    } catch (error) {
+        console.error('Error fetching rooms:', error);
+        showError('Failed to load rooms: ' + error.message);
+    }
+}
+
+async function loadInitialData() {
+    try {
+        const response = await apiFetch('api/devices?quick=true');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load devices');
+        }
+
+        handleDevicesUpdate(data.devices);
+        updateLastRefreshTime(data.updated);
+        document.getElementById('error-message').style.display = 'none';
+        
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+async function updateDevices() {
+    if (isRefreshing) return;
+    
+    setRefreshing(true);
+    console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
+
+    try {
+        const goveeResponse = await apiFetch('api/update-govee-devices');
+        const goveeData = await goveeResponse.json();
+        
+        if (!goveeData.success) {
+            throw new Error('Failed to update Govee devices: ' + goveeData.error);
+        }
+
+        const response = await apiFetch('api/devices?quick=false');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update devices');
+        }
+
+        console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
+        
+        if (data.devices && Array.isArray(data.devices)) {
+            console.log('Updating devices:', data.devices.length);
+            handleDevicesUpdate(data.devices);
+        }
+        
+        updateLastRefreshTime(data.updated);
+        document.getElementById('error-message').style.display = 'none';
+        
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
+        showError(error.message);
+    } finally {
+        setRefreshing(false);
+    }
+}
+
+async function updateBackgroundDevices() {
+    if (isRefreshing) return;
+    
+    const currentRoomId = getCurrentRoomId();
+    if (!currentRoomId) return;
+    
+    try {
+        const response = await apiFetch(`api/devices?exclude_room=${currentRoomId}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update background devices');
+        }
+
+        handleDevicesUpdate(data.devices);
+    } catch (error) {
+        console.error('Background update error:', error);
+    }
+}
+
+async function sendCommand(deviceId, command, value, model, groupId = null) {
+    const previousState = {...deviceStates.get(deviceId)};
+    let devicesToUpdate = [deviceId];
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    
+    try {
+        if (groupId) {
+            const response = await apiFetch(`api/group-devices?groupId=${groupId}`);
+            const data = await response.json();
+            if (data.success) {
+                devicesToUpdate = data.devices.map(d => d.device);
+            } else {
+                throw new Error('Failed to fetch group devices');
+            }
+        }
+
+        const dbUpdatePromises = devicesToUpdate.map(deviceId => 
+            apiFetch('api/update-device-state', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    device: deviceId,
+                    command: command,
+                    value: value
+                })
+            }).then(response => response.json())
+        );
+
+        const dbResults = await Promise.all(dbUpdatePromises);
+        if (dbResults.some(result => !result.success)) {
+            throw new Error('Failed to update device state in database');
+        }
+
+        const newState = command === 'brightness' ? 
+            { ...previousState, powerState: 'on', brightness: value } :
+            { ...previousState, powerState: value };
+
+        devicesToUpdate.forEach(deviceId => {
+            deviceStates.set(deviceId, {...newState});
+            updateDeviceUI(deviceId, newState);
+        });
+
+        const commandPromises = devicesToUpdate.map(deviceId => {
+            const deviceElem = document.getElementById(`device-${deviceId}`);
+            const cmd = {
+                name: command,
+                value: value
+            };
+            
+            return apiFetch('api/send-command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    device: deviceId,
+                    model: model,
+                    cmd: cmd,
+                    brand: deviceStates.get(deviceId)?.brand || 'unknown'
+                })
+            }).then(async response => {
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Command failed');
+                }
+                return data;
+            });
+        });
+
+        await Promise.all(commandPromises);
+
+    } catch (error) {
+        console.error('Command error:', error);
+        
+        try {
+            const revertPromises = devicesToUpdate.map(deviceId =>
+                apiFetch('api/update-device-state', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device: deviceId,
+                        command: command,
+                        value: command === 'brightness' ? previousState.brightness : previousState.powerState
+                    })
+                })
+            );
+
+            await Promise.all(revertPromises);
+
+            devicesToUpdate.forEach(deviceId => {
+                deviceStates.set(deviceId, previousState);
+                updateDeviceUI(deviceId, previousState);
+            });
+
+        } catch (revertError) {
+            console.error('Failed to revert state:', revertError);
+        }
+
+        showError('Command failed: ' + error.message);
+    }
+}
+
+================================================================================
+FILE: assets/js/config.js
+================================================================================
+
+// assets/js/config.js
+
+async function showConfigMenu(deviceId) {
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    const popup = document.getElementById('config-popup');
+    
+    if (!deviceElement || !popup) {
+        console.error('Required elements not found');
+        return;
+    }
+    // Set the device name in the header
+    const deviceName = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+    document.getElementById('config-device-title').textContent = deviceName;
+
+    const model = deviceElement.dataset.model;
+    const groupId = deviceElement.dataset.groupId;
+
+    // Populate the basic form fields
+    document.getElementById('config-device-id').value = deviceId;
+    document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+    // Add brand field population
+    document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
+    document.getElementById('config-model').value = model;
+    
+    // Reset group-related fields
+    const groupActionSelect = document.getElementById('config-group-action');
+    const groupNameInput = document.getElementById('config-group-name');
+    if (groupActionSelect) {
+        groupActionSelect.value = 'none';
+    }
+    if (groupNameInput) {
+        groupNameInput.value = '';
+    }
+
+    // Reset group containers visibility
+    const groupNameContainer = document.getElementById('group-name-container');
+    const existingGroupsContainer = document.getElementById('existing-groups-container');
+    if (groupNameContainer) {
+        groupNameContainer.style.display = 'none';
+    }
+    if (existingGroupsContainer) {
+        existingGroupsContainer.style.display = 'none';
+    }
+    
+    // Populate rooms dropdown
+    const roomSelect = document.getElementById('config-room');
+    roomSelect.innerHTML = rooms.map(room => 
+        `<option value="${room.id}">${room.room_name}</option>`
+    ).join('');
+
+    // Initialize X10 dropdowns and set up validation
+    initializeX10Dropdowns();
+    const validateX10 = setupX10CodeValidation();
+    popup.dataset.validateX10 = 'true';
+
+    try {
+        // Load device config
+        const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
+        const configData = await configResponse.json();
+        
+        // Store config values
+        const configValues = {
+            room: configData.success ? configData.room : '',
+            low: configData.success ? configData.low : '',
+            medium: configData.success ? configData.medium : '',
+            high: configData.success ? configData.high : '',
+            preferredColorTem: configData.success ? configData.preferredColorTem : '',
+            x10Code: configData.success ? configData.x10Code : ''
+        };
+
+        // Set room value
+        document.getElementById('config-room').value = configValues.room;
+
+        if (configValues.x10Code && configValues.x10Code.trim()) {
+            const letter = configValues.x10Code.charAt(0).toLowerCase();
+            const number = configValues.x10Code.substring(1);
+            document.getElementById('config-x10-letter').value = letter;
+            document.getElementById('config-x10-number').value = number;
+        } else {
+            // Set to blank options if x10Code is null or empty
+            document.getElementById('config-x10-letter').value = '';
+            document.getElementById('config-x10-number').value = '';
+        }
+
+        // Handle group vs regular device display
+        const groupConfigElements = document.getElementById('group-config-elements');
+        const regularConfigElements = document.getElementById('regular-config-elements');
+        
+        if (groupId) {
+            console.log('Showing group members for group:', groupId);
+            groupConfigElements.style.display = 'block';
+            regularConfigElements.style.display = 'none';
+            
+            // Get and display group members
+            const groupResponse = await apiFetch(`api/group-devices?groupId=${groupId}`);
+            const groupData = await groupResponse.json();
+            
+            if (groupData.success && groupData.devices) {
+                const membersHtml = groupData.devices.map(member => {
+                    const memberName = member.device_name || member.device;
+                    const displayName = memberName;
+                        
+                    return `
+                        <div class="group-member" data-full-name="${memberName}">
+                            <span class="member-name">${displayName}</span>
+                            <span class="member-status">
+                                ${member.powerState === 'on' ? 'On' : 'Off'} 
+                                (${member.online ? 'Online' : 'Offline'})
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Add group settings
+                const settingsHtml = `
+                    <div class="form-group">
+                        <label>Low Brightness (%):</label>
+                        <input type="number" id="config-low" min="1" max="100" value="${configValues.low}">
+                    </div>
+                    <div class="form-group">
+                        <label>Medium Brightness (%):</label>
+                        <input type="number" id="config-medium" min="1" max="100" value="${configValues.medium}">
+                    </div>
+                    <div class="form-group">
+                        <label>High Brightness (%):</label>
+                        <input type="number" id="config-high" min="1" max="100" value="${configValues.high}">
+                    </div>
+                    <div class="form-group">
+                        <label>Preferred Color Temperature:</label>
+                        <input type="number" id="config-color-temp" min="2000" max="9000" value="${configValues.preferredColorTem}">
+                    </div>
+                    <div class="group-members">
+                        <h4>Group Members:</h4>
+                        ${membersHtml}
+                    </div>`;
+                
+                groupConfigElements.innerHTML = settingsHtml;
+
+                // Update buttons for group devices
+                document.querySelector('.buttons').innerHTML = `
+                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})" 
+                            style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-right: auto;">
+                        Delete Group
+                    </button>
+                    <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                    <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+                `;
+            }
+        } else {
+            console.log('Showing regular config - no group ID');
+            groupConfigElements.style.display = 'none';
+            regularConfigElements.style.display = 'block';
+            
+            // Set values for regular device
+            document.getElementById('config-low').value = configValues.low;
+            document.getElementById('config-medium').value = configValues.medium;
+            document.getElementById('config-high').value = configValues.high;
+            document.getElementById('config-color-temp').value = configValues.preferredColorTem;
+            
+            // Regular device buttons
+            document.querySelector('.buttons').innerHTML = `
+                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
+                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
+            `;
+            
+            // Load available groups for this model
+            loadAvailableGroups(model);
+        }
+
+        // Show the popup
+        popup.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Configuration error:', error);
+        showError('Failed to load device configuration: ' + error.message);
+    }
+}
+
+function hideConfigMenu() {
+    const popup = document.getElementById('config-popup');
+    if (popup) {
+        popup.style.display = 'none';
+    }
+}
+
+async function saveDeviceConfig() {
+    console.log('saveDeviceConfig called');
+    console.log('Current group action:', window.groupAction);
+
+    const deviceId = document.getElementById('config-device-id').value;
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    const model = document.getElementById('config-model').value;
+    const groupId = deviceElement?.dataset.groupId;
+    
+    const letterSelect = document.getElementById('config-x10-letter');
+    const numberSelect = document.getElementById('config-x10-number');
+    let x10Code = null;
+    if (letterSelect.value && numberSelect.value) {
+        x10Code = letterSelect.value + numberSelect.value;
+    }
+    
+    try {
+        const formContainer = groupId ? 
+            document.getElementById('group-config-elements') : 
+            document.getElementById('regular-config-elements');
+            
+        const config = {
+            device: deviceId,
+            room: document.getElementById('config-room').value,
+            low: parseInt(formContainer.querySelector('input[id$="config-low"]').value) || 0,
+            medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
+            high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
+            preferredColorTem: parseInt(formContainer.querySelector('input[id$="config-color-temp"]').value) || 0,
+            x10Code: x10Code
+        };
+
+        const configResponse = await apiFetch('api/update-device-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        
+        const configData = await configResponse.json();
+        if (!configData.success) {
+            throw new Error(configData.error || 'Failed to update device configuration');
+        }
+        
+        const groupAction = document.getElementById('config-group-action').value;
+        if (!groupId && groupAction && groupAction !== 'none') {
+            console.log('Processing group action:', groupAction);
+            
+            const groupData = {
+                device: deviceId,
+                model: model,
+                action: groupAction
+            };
+            
+            if (groupAction === 'create') {
+                const groupName = document.getElementById('config-group-name').value;
+                if (!groupName) {
+                    throw new Error('Group name is required');
+                }
+                groupData.groupName = groupName;
+            } else if (groupAction === 'join') {
+                const groupId = document.getElementById('config-existing-groups').value;
+                if (!groupId) {
+                    throw new Error('Group selection is required');
+                }
+                groupData.groupId = groupId;
+            }
+
+            console.log('Sending group update with data:', groupData);
+
+            const groupResponse = await apiFetch('api/update-device-group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(groupData)
+            });
+            
+            const groupResult = await groupResponse.json();
+            if (!groupResult.success) {
+                throw new Error(groupResult.error || 'Failed to update group');
+            }
+        }
+        
+        hideConfigMenu();
+        updateDevices();
+        
+    } catch (error) {
+        showError('Failed to update configuration: ' + error.message);
+        console.error('Configuration error:', error);
+    }
+}
+
+function handleGroupActionChange() {
+    const action = document.getElementById('config-group-action').value;
+    const groupNameContainer = document.getElementById('group-name-container');
+    const existingGroupsContainer = document.getElementById('existing-groups-container');
+    
+    window.groupAction = action;
+    
+    groupNameContainer.style.display = action === 'create' ? 'block' : 'none';
+    existingGroupsContainer.style.display = action === 'join' ? 'block' : 'none';
+}
+
+async function loadAvailableGroups(model) {
+    try {
+        const response = await apiFetch(`api/available-groups?model=${model}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+        
+        const groupSelect = document.getElementById('config-existing-groups');
+        groupSelect.innerHTML = data.groups.map(group => 
+            `<option value="${group.id}">${group.name}</option>`
+        ).join('');
+        
+    } catch (error) {
+        showError('Failed to load available groups: ' + error.message);
+    }
+}
+
+async function deleteDeviceGroup(groupId) {
+    if (!confirm('Are you sure you want to delete this group? All devices will be ungrouped.')) {
+        return;
+    }
+    
+    try {
+        const response = await apiFetch('api/delete-device-group', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupId: groupId })
+        });
+        
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to delete group');
+        }
+        
+        hideConfigMenu();
+        updateDevices();
+        
+    } catch (error) {
+        showError('Failed to delete group: ' + error.message);
+    }
+}
+
+async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
+    try {
+        const response = await apiFetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error checking X10 code:', error);
+        throw error;
+    }
+}
+
+function setupX10CodeValidation() {
+    const letterSelect = document.getElementById('config-x10-letter');
+    const numberSelect = document.getElementById('config-x10-number');
+    
+    if (!letterSelect || !numberSelect) return;
+
+    async function checkX10Selection() {
+        const letter = letterSelect.value;
+        const number = numberSelect.value;
+        const deviceId = document.getElementById('config-device-id').value;
+
+        if (letter && number) {
+            const x10Code = letter + number;
+            try {
+                const duplicateCheck = await checkX10CodeDuplicate(x10Code, deviceId);
+                if (duplicateCheck.isDuplicate) {
+                    showConfigError(`X10 code ${x10Code.toUpperCase()} is already in use by device: ${duplicateCheck.deviceName}`);
+                    return false;
+                } else {
+                    document.getElementById('config-error-message').style.display = 'none';
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error checking X10 code:', error);
+                showError('Failed to validate X10 code: ' + error.message);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    letterSelect.addEventListener('change', checkX10Selection);
+    numberSelect.addEventListener('change', checkX10Selection);
+
+    return checkX10Selection;
+}
+
+function initializeX10Dropdowns() {
+    const letterSelect = document.getElementById('config-x10-letter');
+    const numberSelect = document.getElementById('config-x10-number');
+
+    if (!letterSelect || !numberSelect) {
+        console.error('X10 select elements not found');
+        return;
+    }
+
+    letterSelect.innerHTML = '';
+    numberSelect.innerHTML = '';
+    
+    letterSelect.appendChild(new Option('Select Letter', ''));
+    numberSelect.appendChild(new Option('Select Number', ''));
+
+    for (let i = 65; i <= 80; i++) {
+        const letter = String.fromCharCode(i);
+        const option = document.createElement('option');
+        option.value = letter.toLowerCase();
+        option.textContent = letter;
+        letterSelect.appendChild(option);
+    }
+
+    for (let i = 1; i <= 16; i++) {
+        const option = document.createElement('option');
+        option.value = i.toString();
+        option.textContent = i.toString();
+        numberSelect.appendChild(option);
+    }
+}
+
+function showConfigError(message) {
+    const errorElement = document.getElementById('config-error-message');
+    if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+    }
+}
+
+================================================================================
+FILE: assets/js/devices.js
+================================================================================
+
+// assets/js/devices.js
+
+function getDeviceIcon(deviceName, powerState = 'off') {
+    deviceName = deviceName.toLowerCase();
+    if (deviceName.includes('fan')) {
+        return `fa-solid fa-2x fa-fan${powerState === 'on' ? ' fa-spin' : ''}`;
+    } else if (deviceName.includes('tv') || deviceName.includes('glow')) {
+        return 'fa-solid fa-2x fa-tv';
+    } else if (deviceName.includes('light') || deviceName.includes('lamp')) {
+        return 'fa-solid fa-2x fa-lightbulb';
+    } else if (deviceName.includes('heater')) {
+        return 'fa-solid fa-2x fa-temperature-arrow-up';
+    } else if (deviceName.includes('filter')) {
+        return 'fa-solid fa-2x fa-head-side-mask';
+    } else if (deviceName.includes('dehumidifier')) {
+        return 'fa-solid fa-2x fa-droplet-slash';
+    } else if (deviceName.includes('humidifier')) {
+        return 'fa-solid fa-2x fa-droplet';
+    }
+    return 'fa-solid fa-2x fa-plug';
+}
+
+function createDeviceCard(device) {
+    const isOnline = device.online ?? false;
+    const deviceClass = isOnline ? 'device-online' : 'device-offline';
+    const icon = getDeviceIcon(device.device_name, device.powerState);
+    const powerState = device.powerState || 'off';
+    const supportedCmds = JSON.parse(device.supportCmds || '[]');
+    
+    // Store full names
+    const fullDeviceName = device.device_name;
+    const fullGroupName = device.group_name;
+    
+    // Display shortened version of either group name or device name
+    const displayName = fullGroupName ? 
+        (fullGroupName.includes('-') ? fullGroupName.split('-')[1].trim() : fullGroupName) :
+        (fullDeviceName.includes('-') ? fullDeviceName.split('-')[1].trim() : fullDeviceName);
+                    
+    let controlButtons = '';
+    if (isOnline) {
+        if (supportedCmds.includes('brightness')) {
+            controlButtons = `
+                <div class="device-controls">
+                    <button onclick="sendCommand('${device.device}', 'turn', 'off', '${device.model}', ${device.group_id || 'null'})" 
+                            class="btn ${powerState === 'off' ? 'active' : ''}">Off</button>
+                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.low}, '${device.model}', ${device.group_id || 'null'})" 
+                            class="btn ${powerState === 'on' && device.brightness == device.low ? 'active' : ''}"
+                            data-brightness="${device.low}">Low</button>
+                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.medium}, '${device.model}', ${device.group_id || 'null'})" 
+                            class="btn ${powerState === 'on' && device.brightness == device.medium ? 'active' : ''}"
+                            data-brightness="${device.medium}">Medium</button>
+                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.high}, '${device.model}', ${device.group_id || 'null'})" 
+                            class="btn ${powerState === 'on' && device.brightness == device.high ? 'active' : ''}"
+                            data-brightness="${device.high}">High</button>
+                </div>`;
+        } else {
+            controlButtons = `
+                <div class="device-controls">
+                    <button onclick="sendCommand('${device.device}', 'turn', '${powerState === 'off' ? 'on' : 'off'}', '${device.model}', ${device.group_id || 'null'})"
+                            class="btn">${powerState === 'off' ? 'Turn On' : 'Turn Off'}</button>
+                </div>`;
+        }
+    }
+
+    // Status text logic
+    let statusText = '';
+    if (!isOnline) {
+        statusText = 'Offline';
+    } else if (powerState === 'off') {
+        statusText = 'Off';
+    } else if (supportedCmds.includes('brightness') && device.brightness) {
+        statusText = `Brightness: ${device.brightness}%`;
+    } else if (powerState === 'on') {
+        statusText = 'On';
+    }
+
+    let iconColor = '#6b7280';
+    if (isOnline) {
+        iconColor = powerState === 'on' ? '#16a34a' : '#92400e';
+    }
+
+    return `
+        <div id="device-${device.device}" 
+            class="device-card ${deviceClass}" 
+            data-supported-cmds='${device.supportCmds}'
+            data-model="${device.model}"
+            data-full-device-name="${fullDeviceName}"
+            data-full-group-name="${fullGroupName || ''}"
+            ${device.deviceGroup ? `data-group-id="${device.deviceGroup}"` : ''}>
+            <div class="device-info">
+                <div class="device-icon">
+                    <i class="${icon}" style="color: ${iconColor}"></i>
+                </div>
+                <div class="device-details">
+                    <h3>${displayName}</h3>
+                    <p class="device-status">
+                        ${statusText}
+                    </p>
+                </div>
+                <button onclick="showConfigMenu('${device.device}')" class="config-btn">
+                    <i class="fas fa-xl fa-cog"></i>
+                </button>
+            </div>
+            ${controlButtons}
+        </div>
+    `;
+}
+
+function handleDevicesUpdate(devices) {
+    if (devices.length === 0) return;
+    
+    const updatedRooms = new Set(devices.map(device => device.room));
+    
+    updatedRooms.forEach(roomId => {
+        const roomGrid = document.getElementById(`room-${roomId}-devices`);
+        if (roomGrid) roomGrid.innerHTML = '';
+    });
+    
+    const currentDeviceIds = new Set();
+    
+    devices.forEach(device => {
+        currentDeviceIds.add(device.device);
+        const deviceHtml = createDeviceCard(device);
+        
+        if (device.room) {
+            const roomGrid = document.getElementById(`room-${device.room}-devices`);
+            if (roomGrid) {
+                roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
+            }
+        }
+        
+        deviceStates.set(device.device, {
+            online: device.online ?? false,
+            powerState: device.powerState,
+            brightness: device.brightness,
+            brand: device.brand
+        });
+    });
+}
+
+function updateDeviceUI(deviceId, state) {
+    const deviceElement = document.getElementById(`device-${deviceId}`);
+    if (!deviceElement) return;
+
+    const device = {...deviceStates.get(deviceId), ...state};
+    const supportedCmds = JSON.parse(deviceElement.dataset.supportedCmds || '[]');
+    const model = deviceElement.dataset.model;
+    
+    const iconElement = deviceElement.querySelector('.device-icon i');
+    if (iconElement) {
+        const iconColor = device.online ? 
+            (device.powerState === 'on' ? '#16a34a' : '#92400e') : 
+            '#6b7280';
+        iconElement.style.color = iconColor;
+    }
+
+    const statusElement = deviceElement.querySelector('.device-status');
+    if (statusElement) {
+        let statusText = '';
+        if (!device.online) {
+            statusText = 'Offline';
+        } else if (device.powerState === 'off') {
+            statusText = 'Off';
+        } else if (supportedCmds.includes('brightness') && device.brightness) {
+            statusText = `Brightness: ${device.brightness}%`;
+        } else if (device.powerState === 'on') {
+            statusText = 'On';
+        }
+        statusElement.textContent = statusText;
+    }
+
+    const buttons = deviceElement.querySelectorAll('.device-controls .btn');
+    buttons.forEach(button => {
+        if (supportedCmds.includes('brightness')) {
+            if (button.textContent === 'Off') {
+                button.classList.toggle('active', device.powerState === 'off');
+            } else {
+                const brightnessValue = parseInt(button.dataset.brightness);
+                button.classList.toggle('active', 
+                    device.powerState === 'on' && device.brightness === brightnessValue);
+            }
+        } else {
+            button.textContent = device.powerState === 'off' ? 'Turn On' : 'Turn Off';
+            button.onclick = () => sendCommand(deviceId, 'turn', device.powerState === 'off' ? 'on' : 'off', model);
+        }
+    });
+}
+
+================================================================================
+FILE: assets/js/groups.js
+================================================================================
+
+// assets/js/groups.js
+
+async function loadAvailableGroups(model) {
+    try {
+        const response = await apiFetch(`api/available-groups?model=${model}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error);
+        }
+        
+        const groupSelect = document.getElementById('config-existing-groups');
+        groupSelect.innerHTML = data.groups.map(group => 
+            `<option value="${group.id}">${group.name}</option>`
+        ).join('');
+        
+    } catch (error) {
+        showError('Failed to load available groups: ' + error.message);
+    }
+}
+
+function handleGroupActionChange() {
+    const action = document.getElementById('config-group-action').value;
+    const groupNameContainer = document.getElementById('group-name-container');
+    const existingGroupsContainer = document.getElementById('existing-groups-container');
+    
+    window.groupAction = action;
+    
+    groupNameContainer.style.display = action === 'create' ? 'block' : 'none';
+    existingGroupsContainer.style.display = action === 'join' ? 'block' : 'none';
+}
+
+async function deleteDeviceGroup(groupId) {
+    if (!confirm('Are you sure you want to delete this group? All devices will be ungrouped.')) {
+        return;
+    }
+    
+    try {
+        const response = await apiFetch('api/delete-device-group', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ groupId: groupId })
+        });
+        
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to delete group');
+        }
+        
+        hideConfigMenu();
+        updateDevices();
+        
+    } catch (error) {
+        showError('Failed to delete group: ' + error.message);
+    }
+}
+
+================================================================================
+FILE: assets/js/main.js
+================================================================================
+
+// assets/js/main.js
+
+// Global constants
+const QUICK_UPDATE_INTERVAL = 2000;     // 2 seconds for quick refresh
+const VISIBLE_UPDATE_INTERVAL = 300000;  // 300 seconds for full refresh of tab devices
+const BACKGROUND_UPDATE_INTERVAL = 3000000;  // 3000 seconds for full refresh of all devices
+
+// Global variables
+let deviceStates = new Map();
+let isRefreshing = false;
+let rooms = [];
+let visibleUpdateInterval;
+let backgroundUpdateInterval;
+
+function resetUpdateTimers() {
+    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+    
+    if (visibleUpdateInterval) clearInterval(visibleUpdateInterval);
+    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
+    
+    visibleUpdateInterval = setInterval(() => {
+        console.log(`[${new Date().toLocaleTimeString()}] Performing quick refresh`);
+        apiFetch(`api/devices?quick=true`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`[${new Date().toLocaleTimeString()}] Quick refresh completed successfully`);
+                    handleDevicesUpdate(data.devices);
+                    updateLastRefreshTime(data.updated);
+                }
+            })
+            .catch(error => {
+                console.error(`[${new Date().toLocaleTimeString()}] Quick refresh error:`, error);
+            });
+    }, QUICK_UPDATE_INTERVAL);
+    
+    if (autoRefreshToggle.checked) {
+        backgroundUpdateInterval = setInterval(() => {
+            console.log(`[${new Date().toLocaleTimeString()}] Starting scheduled full refresh`);
+            updateDevices();
+        }, VISIBLE_UPDATE_INTERVAL);
+    }
+}
+
+function toggleAutoRefresh(enabled) {
+    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
+    backgroundUpdateInterval = null;
+    
+    if (enabled) {
+        backgroundUpdateInterval = setInterval(() => {
+            updateDevices();
+        }, VISIBLE_UPDATE_INTERVAL);
+    }
+    
+    resetUpdateTimers();
+}
+
+async function initialize() {
+    await fetchRooms();
+    await createTabs();
+    await loadInitialData();
+    
+    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+    const storedAutoRefresh = localStorage.getItem('autoRefreshEnabled');
+    autoRefreshToggle.checked = storedAutoRefresh === null ? true : storedAutoRefresh === 'true';
+    
+    autoRefreshToggle.addEventListener('change', (e) => {
+        localStorage.setItem('autoRefreshEnabled', e.target.checked);
+        toggleAutoRefresh(e.target.checked);
+    });
+    
+    toggleAutoRefresh(autoRefreshToggle.checked);
+    
+    if (autoRefreshToggle.checked) {
+        updateDevices();
+    }
+}
+
+// Initialize the application
+initialize();
+
+================================================================================
+FILE: assets/js/temperature.js
+================================================================================
+
+// assets/js/temperature.js
+
+async function showTempHistory(mac, deviceName) {
+    const popup = document.getElementById('history-popup');
+    document.getElementById('history-device-title').textContent = `Temperature History - ${deviceName}`;
+    popup.dataset.mac = mac;
+    popup.style.display = 'block';
+    await loadTempHistory();
+}
+
+function hideHistoryPopup() {
+    document.getElementById('history-popup').style.display = 'none';
+}
+
+async function loadTempHistory() {
+    const popup = document.getElementById('history-popup');
+    const mac = popup.dataset.mac;
+    const hours = document.getElementById('history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        function updateTable(chartInstance, historyData) {
+            const tbody = document.querySelector('#history-table tbody');
+            const thead = document.querySelector('#history-table thead tr');
+            
+            thead.innerHTML = `
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(255, 99, 132);">Temperature</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(54, 162, 235);">Humidity</th>
+            `;
+            
+            tbody.innerHTML = [...historyData].reverse().map(record => {
+                const date = new Date(record.timestamp);
+                let formattedDate;
+                
+                if (hours === '24') {
+                    formattedDate = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                } else {
+                    formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+                }
+                
+                return `
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const chartData = [...data.history].reverse();
+
+        if (chartData.length === 0) {
+            document.getElementById('temp-history-chart').innerHTML = 
+                '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
+            return;
+        }
+
+        const labels = chartData.map(record => {
+            const date = new Date(record.timestamp);
+            if (hours === '24') {
+                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+            } else {
+                return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+            }
+        });
+
+        const canvas = document.getElementById('temp-history-chart');
+        const ctx = canvas.getContext('2d');
+
+        if (window.tempHistoryChart) {
+            window.tempHistoryChart.destroy();
+        }
+
+        window.tempHistoryChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Temperature (°F)',
+                        data: chartData.map(record => record.temperature),
+                        borderColor: 'rgb(255, 99, 132)',
+                        yAxisID: 'temp',
+                        tension: 0.3,
+                        pointRadius: 3,
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        data: chartData.map(record => record.humidity),
+                        borderColor: 'rgb(54, 162, 235)',
+                        yAxisID: 'humidity',
+                        tension: 0.3,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Battery (%)',
+                        data: chartData.map(record => record.battery),
+                        borderColor: 'rgb(75, 192, 192)',
+                        yAxisID: 'battery',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        hidden: true
+                    },
+                    {
+                        label: 'Signal Strength (dBm)',
+                        data: chartData.map(record => record.rssi),
+                        borderColor: 'rgb(153, 102, 255)',
+                        yAxisID: 'rssi',
+                        tension: 0.3,
+                        pointRadius: 3,
+                        hidden: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            callback: function(val, index) {
+                                return index % 2 === 0 ? this.getLabelForValue(val) : '';
+                            }
+                        }
+                    },
+                    y: {
+                        display: true,
+                        type: 'logarithmic',
+                        ticks: {
+                            display: false
+                        }
+                    },
+                    temp: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Temperature °F',
+                            color: 'rgb(255, 99, 132)',
+                        },
+                        ticks: {
+                            stepSize: 1
+                        },
+                    },
+                    humidity: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Humidity %',
+                            color: 'rgb(54, 162, 235)',
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
+                        }
+                    },
+                    battery: {
+                        type: 'linear',
+                        display: false,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Battery (%)'
+                        },
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 10
+                        }
+                    },
+                    rssi: {
+                        type: 'linear',
+                        display: false,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Signal Strength (dBm)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        ticks: {
+                            stepSize: 5
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        onClick: (e, legendItem, legend) => {
+                            const index = legendItem.datasetIndex;
+                            const ci = legend.chart;
+                            const meta = ci.getDatasetMeta(index);
+
+                            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
+                            
+                            const scaleId = ci.data.datasets[index].yAxisID;
+                            const scale = ci.scales[scaleId];
+                            scale.display = !meta.hidden;
+                            
+                            ci.update();
+                            
+                            updateTable(ci, chartData);
+                        }
+                    }
+                }
+            }
+        });
+        
+        updateTable(window.tempHistoryChart, chartData);
+        
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}
+
+function toggleDataset(checkbox) {
+    const chart = window.tempHistoryChart;
+    const seriesName = checkbox.dataset.series;
+    
+    let datasetIndex;
+    switch(seriesName) {
+        case 'temp': datasetIndex = 0; break;
+        case 'humidity': datasetIndex = 1; break;
+        case 'battery': datasetIndex = 2; break;
+        case 'rssi': datasetIndex = 3; break;
+    }
+    
+    chart.data.datasets[datasetIndex].hidden = !checkbox.checked;
+    
+    const scale = chart.options.scales[seriesName];
+    if (scale) {
+        scale.display = checkbox.checked;
+    }
+    
+    chart.update();
+}
+
+async function showAllTempHistory() {
+    const popup = document.getElementById('all-temps-popup');
+    popup.style.display = 'block';
+    await loadAllTempHistory();
+}
+
+function hideAllTempsPopup() {
+    document.getElementById('all-temps-popup').style.display = 'none';
+}
+
+async function loadAllTempHistory() {
+    const hours = document.getElementById('all-temps-history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        const canvas = document.getElementById('all-temps-chart');
+        const ctx = canvas.getContext('2d');
+        
+        // Create datasets for each device
+        const datasets = [];
+        const deviceData = {};
+
+        // Group data by device
+        data.history.forEach(record => {
+            if (!deviceData[record.device_name]) {
+                deviceData[record.device_name] = [];
+            }
+            deviceData[record.device_name].push(record);
+        });
+
+        // Create a dataset for each device
+        Object.entries(deviceData).forEach(([deviceName, records], index) => {
+            // Generate a color based on index
+            const hue = (index * 137.508) % 360; // Use golden angle approximation
+            const color = `hsl(${hue}, 70%, 50%)`;
+
+            datasets.push({
+                label: `${deviceName} Temperature`,
+                data: records.map(record => ({
+                    x: new Date(record.timestamp),
+                    y: record.temperature
+                })),
+                borderColor: color,
+                tension: 0.3,
+                pointRadius: 2
+            });
+
+            datasets.push({
+                label: `${deviceName} Humidity`,
+                data: records.map(record => ({
+                    x: new Date(record.timestamp),
+                    y: record.humidity
+                })),
+                borderColor: color,
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 2
+            });
+        });
+
+        if (window.allTempsChart) {
+            window.allTempsChart.destroy();
+        }
+
+        window.allTempsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: hours === '24' ? 'hour' : 'day'
+                        },
+                        display: true
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Temperature (°F) / Humidity (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}
+
+async function loadThermometerList() {
+    try {
+        const response = await apiFetch('api/thermometer-list');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load thermometer list');
+        }
+
+        const tbody = document.getElementById('thermometer-list');
+        tbody.innerHTML = data.thermometers.map(therm => {
+            const roomOptions = data.rooms.map(room => 
+                `<option value="${room.id}" ${room.id == therm.room_id ? 'selected' : ''}>
+                    ${room.room_name}
+                </option>`
+            ).join('');
+
+            return `
+                <tr data-mac="${therm.mac}">
+                    <td>
+                        <input type="text" class="therm-display-name" 
+                               value="${therm.display_name || ''}" 
+                               style="width: 100%">
+                    </td>
+                    <td>${therm.name || ''}</td>
+                    <td>${therm.mac}</td>
+                    <td>${therm.model || ''}</td>
+                    <td>
+                        <select class="therm-room" style="width: 100%">
+                            <option value="">No Room</option>
+                            ${roomOptions}
+                        </select>
+                    </td>
+                    <td>${new Date(therm.updated).toLocaleString()}</td>
+                    <td>
+                        <button onclick="saveThermometer('${therm.mac}')" class="save-btn">
+                            Save
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error loading thermometer list:', error);
+        showError('Failed to load thermometer list: ' + error.message);
+    }
+}
+
+async function saveThermometer(mac) {
+    const row = document.querySelector(`tr[data-mac="${mac}"]`);
+    if (!row) return;
+
+    const displayName = row.querySelector('.therm-display-name').value;
+    const room = row.querySelector('.therm-room').value;
+
+    try {
+        const response = await apiFetch('api/update-thermometer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                mac: mac,
+                display_name: displayName,
+                room: room
+            })
+        });
+        
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update thermometer');
+        }
+
+        // Reload both the list and the chart
+        await Promise.all([
+            loadThermometerList(),
+            loadAllTempHistory(),
+            loadInitialData()  // Also reload main UI to reflect changes
+        ]);
+
+    } catch (error) {
+        console.error('Error saving thermometer:', error);
+        showError('Failed to save thermometer: ' + error.message);
+    }
+}
+
+async function showAllTempHistory() {
+    const popup = document.getElementById('all-temps-popup');
+    popup.style.display = 'block';
+    await Promise.all([
+        loadAllTempHistory(),
+        loadThermometerList()
+    ]);
+}
+
+================================================================================
+FILE: assets/js/ui.js
+================================================================================
+
+// assets/js/ui.js
+
+function showError(message) {
+    const errorElement = document.getElementById('error-message');
+    errorElement.textContent = `Error: ${message}`;
+    errorElement.style.display = 'block';
+}
+
+function setRefreshing(refreshing) {
+    isRefreshing = refreshing;
+    const refreshButton = document.getElementById('refresh-button');
+    
+    if (!refreshButton) {
+        console.warn('Refresh button not found');
+        return;
+    }
+    
+    refreshButton.disabled = refreshing;
+    
+    if (refreshing) {
+        refreshButton.innerHTML = `
+            <i class="fas fa-sync-alt refresh-indicator"></i>
+            <span>Updating...</span>
+        `;
+    } else {
+        refreshButton.innerHTML = `
+            <i class="fas fa-sync-alt"></i>
+            <span>Refresh</span>
+        `;
+    }
+}
+
+function updateLastRefreshTime(timestamp) {
+    const date = timestamp ? new Date(timestamp) : new Date();
+    const timeStr = date.toLocaleTimeString();
+    document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
+}
+
+async function createTabs() {
+    const tabsContainer = document.getElementById('tabs');
+    const tabContents = document.getElementById('tab-contents');
+    
+    let tabsHtml = '';
+    let contentsHtml = '';
+    
+    const savedTab = localStorage.getItem('selectedTab');
+    
+    for (const room of rooms) {
+        if (room.id !== 1) {
+            let tempInfo = '';
+            try {
+                const response = await apiFetch(`api/room-temperature?room=${room.id}`);
+                const data = await response.json();
+                if (data.success && data.thermometers) {
+                    tempInfo = data.thermometers.map(therm => {
+                        const displayName = therm.display_name || therm.name || 'Unknown Sensor';
+                        return `<span class="room-temp-info" 
+                                     onclick="showTempHistory('${therm.mac}', '${displayName}')" 
+                                     title="${displayName}"
+                                     style="cursor: pointer; margin-left: 10px;">
+                            ${therm.temp}°F ${therm.humidity}%
+                        </span>`;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('Error fetching temperature:', error);
+            }
+            
+            let room_icon;
+            if (room.room_name.includes('Office')) {
+                room_icon = 'fa-computer';
+            } else if (room.room_name.includes('Bed')) {
+                room_icon = 'fa-bed';
+            } else if (room.room_name.includes('Living')) {
+                room_icon = 'fa-couch';
+            } else {
+                room_icon = 'fa-house';
+            }
+
+            tabsHtml += `
+                <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
+                    <i class="fa-solid fa-xl ${room_icon}"></i>
+                </button>`;
+            contentsHtml += `
+                <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
+                    <h2 class="room-header">
+                        <span><i class="fa-solid ${room_icon}"></i> ${room.room_name}</span>
+                        ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
+                    </h2>
+                    <div class="device-grid" id="room-${room.id}-devices"></div>
+                </div>`;
+        }
+    }
+    
+    tabsHtml += `
+        <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
+            <i class="fas fa-xl fa-cog"></i>
+        </button>`;
+
+    contentsHtml += `
+        <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
+            <div>
+                <button onclick="showDefaultRoomDevices()" class="mobile-config-btn">
+                    Show Unassigned Devices
+                </button>
+            </div>
+            <div class="device-grid" id="room-config-devices"></div>
+        </div>`;
+
+    contentsHtml += `
+        <div class="config-section">
+            <h2 class="header" onclick="toggleConfigContent()">
+                <i class="fas fa-cog"></i>
+                Configuration
+                <i class="fas fa-chevron-down"></i>
+            </h2>
+            <div class="config-content" id="desktop-config-content">
+                <div class="auto-refresh-control" style="margin-bottom: 10px;">
+                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+                        <span>Auto-refresh</span>
+                    </label>
+                    <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
+                </div>
+                <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+                <button class="desktop-config-btn" onclick="showAllTempHistory()">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>All Temperature History</span>
+                </button>
+                <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
+                    Show Unassigned Devices
+                </button>
+                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
+            </div>
+        </div>`;
+    
+    tabsContainer.innerHTML = tabsHtml;
+    tabContents.innerHTML = contentsHtml;
+    
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.room));
+    });
+
+    if (savedTab) {
+        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
+        switchTab(savedTab);
+    }
+}
+
+function switchTab(roomId) {
+    console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+    if (roomId !== 'config') {
+        console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+        localStorage.setItem('selectedTab', roomId);
+    }
+    
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.room === roomId);
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.dataset.room === roomId);
+    });
+
+    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+    if (autoRefreshToggle.checked) {
+        resetUpdateTimers();
+    }
+}
+
+function toggleConfigContent() {
+    const configContent = document.getElementById('desktop-config-content');
+    const chevron = document.querySelector('.header .fa-chevron-down');
+    configContent.classList.toggle('show');
+    chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
+}
+
+function showDefaultRoomDevices() {
+    const popup = document.createElement('div');
+    popup.innerHTML = `
+        <div class="popup-overlay" onclick="this.parentElement.remove()" style="
+            background: #F3F4F6;
+            padding: 20px;
+        ">
+            <div style="
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                background: white;
+                padding: 20px;
+                border-bottom: 1px solid #e5e7eb;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                z-index: 1002;
+            ">
+                <h3 style="margin: 0;">Unassigned Devices</h3>
+                <button onclick="this.closest('.popup-overlay').parentElement.remove()" style="
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    font-size: 1.5rem;
+                    padding: 5px;
+                ">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div style="
+                padding-top: 70px;
+                height: 100vh;
+                overflow-y: auto;
+            ">
+                <div class="device-grid" id="default-room-devices"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    apiFetch('api/devices?room=1&quick=true')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.devices) {
+                const deviceGrid = document.getElementById('default-room-devices');
+                deviceGrid.innerHTML = '';
+                const unassignedDevices = data.devices.filter(device => device.room === 1);
+                unassignedDevices.forEach(device => {
+                    deviceGrid.insertAdjacentHTML('beforeend', createDeviceCard(device));
+                });
+                
+                if (unassignedDevices.length === 0) {
+                    deviceGrid.innerHTML = '<p style="text-align: center; padding: 20px;">No unassigned devices found.</p>';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching default room devices:', error);
+            showError('Failed to load default room devices');
+        });
+}
+
+function getCurrentRoomId() {
+    const activeTab = document.querySelector('.tab.active');
+    return activeTab ? activeTab.dataset.room : null;
+}
+
+function manualRefresh() {
+    console.log(`[${new Date().toLocaleTimeString()}] Manual refresh requested`);
+    updateDevices();
+}
+
+function showDesktopConfig() {
+    const popup = document.getElementById('config-popup-desktop');
+    popup.style.display = 'block';
+    
+    // Sync checkbox state
+    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
+    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
+    desktopCheckbox.checked = mobileCheckbox.checked;
+    
+    // Sync last update time
+    const mobileTime = document.getElementById('last-update').textContent;
+    document.getElementById('desktop-last-update').textContent = mobileTime;
+}
+
+function hideDesktopConfig() {
+    document.getElementById('config-popup-desktop').style.display = 'none';
+}
+
+// Update the existing toggleAutoRefresh function to sync both checkboxes
+function toggleAutoRefresh(enabled) {
+    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
+    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
+    
+    mobileCheckbox.checked = enabled;
+    desktopCheckbox.checked = enabled;
+    
+    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
+    backgroundUpdateInterval = null;
+    
+    if (enabled) {
+        backgroundUpdateInterval = setInterval(() => {
+            updateDevices();
+        }, VISIBLE_UPDATE_INTERVAL);
+    }
+    
+    localStorage.setItem('autoRefreshEnabled', enabled);
+    resetUpdateTimers();
+}
+
+================================================================================
+FILE: assets/css/styles.css
+================================================================================
+
+/* assets/css/styles.css */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: #f3f4f6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0.5rem;
+    padding-top: 0;
+}
+
+/* Tabs styling */
+.tabs {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: #333;
+    margin: 0;
+    padding: 0;
+    z-index: 1000;
+}
+
+.tab {
+    flex: 1;
+    padding: 1.2rem .3rem 1.3rem .3rem;
+    background-color: #333;
+    border: none;
+    color: white;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.tab:hover {
+    background-color: #444;
+}
+
+.tab.active {
+    background-color: #00a65a;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.device-grid {
+    display: grid;
+    gap: .5rem;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.device-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.icon-wrapper {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.device-details h3 {
+    color: #111827;
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.device-details p {
+    color: #6b7280;
+    font-size: 0.875rem;
+    transition: color 0.3s ease;
+}
+
+.device-card {
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease;
+    height: 120px;
+}
+
+.device-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    height: 35%;
+    margin: 10px;
+    position: relative;
+}
+
+.device-controls {
+    display: flex;
+    height: 65%;
+    margin: 0;
+    padding: 0;
+}
+
+.device-controls .btn {
+    flex: 1;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 0;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.device-controls .btn:first-child {
+    border-bottom-left-radius: 0.5rem;
+}
+
+.device-controls .btn:last-child {
+    border-bottom-right-radius: 0.5rem;
+}
+
+.device-controls .btn:hover {
+    background-color: #f3f4f6;
+}
+
+.device-controls .btn.active {
+    background-color: #dcfce7;
+    border-color: #16a34a;
+    color: #16a34a;
+}
+
+.error-message {
+    background-color: #fee2e2;
+    border: 1px solid #ef4444;
+    color: #991b1b;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    display: none;
+}
+
+/* Configuration Popup Styles */
+.config-popup-desktop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+.config-popup-desktop .config-content {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.config-button {
+    background-color: #333;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    margin: 5px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 1rem;
+}
+
+.config-button:hover {
+    background-color: #444;
+}
+
+.config-button i {
+    font-size: 1.1em;
+}
+
+.auto-refresh-control {
+    margin-bottom: 15px;
+}
+
+.refresh-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+.refresh-time {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 5px;
+    font-size: 1.2rem;
+}
+
+.close-btn:hover {
+    color: #374151;
+}
+
+/* Media Queries */
+@media (min-width: 1024px) {
+    .tabs {
+        display: none;
+    }
+    
+    .tab-content {
+        display: block !important;
+    }
+
+    .tab-content[data-room="config"] {
+        display: none !important;
+    }
+
+    .desktop-config-btn {
+        display: block;
+        margin: 10px 0;
+    }
+}
+
+@media (max-width: 1023px) {
+    .tab-content:not(.active) {
+        display: none;
+    }
+
+    .desktop-config-btn {
+        display: none;
+    }
+
+    .config-popup-desktop {
+        display: none !important;
+    }
+
+    .room-header {
+        font-size: 1.25rem;
+        margin: 1rem 0 .75rem 0;
+        padding: 0 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .room-temp-info {
+        font-size: 1rem;
+        color: #6b7280;
+    }
+}
+
+/* Existing styles for history, temperature, etc. */
+.history-controls {
+    margin-bottom: 20px;
+}
+
+.history-controls select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.history-table-container {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.therm-table {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    width: 100%;
+}
+
+.therm-table th,
+.therm-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.therm-table th {
+    background-color: #f9fafb;
+    font-weight: 500;
+}
+
+.therm-table input,
+.therm-table select {
+    padding: 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+}
+
+.therm-table .save-btn {
+    padding: 4px 8px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.therm-table .save-btn:hover {
+    background: #15803d;
+}
+
+/* Animation keyframes */
+@keyframes highlight {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+
+.refresh-indicator {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+
+.status-change {
+    animation: highlight 1s ease;
+}
+
+================================================================================
+FILE: ../shared/vesync_lib.py
+================================================================================
+
+import logging
+from pyvesync import VeSync
+import json
+from typing import List, Dict, Any, Optional
+import time
+import mysql.connector
+
+logger = logging.getLogger(__name__)
+
+class VeSyncCommandQueue:
+    def __init__(self, dbConfig):
+        self.pdo = self._init_db_connection(dbConfig)
+        self._create_tables()
+        
+    def _init_db_connection(self, dbConfig):
+        return mysql.connector.connect(
+            host=dbConfig['host'],
+            user=dbConfig['user'],
+            password=dbConfig['password'],
+            database=dbConfig['dbname']
+        )
+    
+    def _create_tables(self):
+        cursor = self.pdo.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS command_queue (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device VARCHAR(255) NOT NULL,
+                model VARCHAR(255),
+                command TEXT,
+                brand VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP NULL,
+                error_message TEXT
+            )
+        """)
+        self.pdo.commit()
+        cursor.close()
+
+    def getNextBatch(self, limit: int = 5) -> List[Dict]:
+        cursor = self.pdo.cursor(dictionary=True)
+        try:
+            # Reset stuck commands
+            cursor.execute("""
+                UPDATE command_queue 
+                SET status = 'pending',
+                    processed_at = NULL
+                WHERE status = 'processing' 
+                AND processed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            """)
+            
+            # Get pending commands
+            cursor.execute("""
+                SELECT id, device, model, command 
+                FROM command_queue
+                WHERE status = 'pending'
+                AND brand = 'vesync'
+                ORDER BY created_at ASC
+                LIMIT %s
+            """, (limit,))
+            commands = cursor.fetchall()
+            
+            if commands:
+                # Mark as processing
+                ids = [cmd['id'] for cmd in commands]
+                placeholders = ','.join(['%s'] * len(ids))
+                cursor.execute(f"""
+                    UPDATE command_queue
+                    SET status = 'processing',
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id IN ({placeholders})
+                """, ids)
+            
+            self.pdo.commit()
+            return commands
+            
+        except Exception as e:
+            self.pdo.rollback()
+            logger.error(f"Error in getNextBatch: {str(e)}")
+            raise e
+        finally:
+            cursor.close()
+
+    def markCommandComplete(self, id: int, success: bool = True, errorMessage: str = None):
+        cursor = self.pdo.cursor()
+        try:
+            cursor.execute("""
+                UPDATE command_queue
+                SET 
+                    status = %s,
+                    processed_at = CURRENT_TIMESTAMP,
+                    error_message = %s
+                WHERE id = %s
+            """, (
+                'completed' if success else 'failed',
+                errorMessage,
+                id
+            ))
+            self.pdo.commit()
+        except Exception as e:
+            self.pdo.rollback()
+            logger.error(f"Error marking command complete: {str(e)}")
+            raise e
+        finally:
+            cursor.close()
+
+class VeSyncAPI:
+    def __init__(self, username: str, password: str, dbConfig: Optional[Dict] = None):
+        self.username = username
+        self.password = password
+        self.manager = VeSync(username, password)
+        self.dbConfig = dbConfig
+        self.commandQueue = None
+        self.last_update = 0
+        self.update_interval = 60  # Update device status every 60 seconds
+        
+        if dbConfig:
+            # Initialize database connection
+            self.pdo = mysql.connector.connect(
+                host=dbConfig['host'],
+                user=dbConfig['user'],
+                password=dbConfig['password'],
+                database=dbConfig['dbname']
+            )
+            self.commandQueue = VeSyncCommandQueue(dbConfig)
+            self._init_database()
+
+    def _init_database(self):
+        cursor = self.pdo.cursor()
+        try:
+            # Create devices table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS devices (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device VARCHAR(255) NOT NULL UNIQUE,
+                    model VARCHAR(255),
+                    device_name VARCHAR(255),
+                    controllable BOOLEAN DEFAULT 1,
+                    retrievable BOOLEAN DEFAULT 1,
+                    supportCmds TEXT,
+                    brand VARCHAR(50),
+                    online BOOLEAN DEFAULT 0,
+                    powerState VARCHAR(10),
+                    brightness INT,
+                    energy_today FLOAT,
+                    power FLOAT,
+                    voltage FLOAT
+                )
+            """)
+            self.pdo.commit()
+        except Exception as e:
+            logger.error(f"Error initializing database: {str(e)}")
+            raise
+        finally:
+            cursor.close()
+
+    def login(self) -> bool:
+        return self.manager.login()
+
+    def update_devices(self):
+        """Update device lists and status if interval has passed"""
+        current_time = time.time()
+        if current_time - self.last_update >= self.update_interval:
+            success = self.manager.update()  # This updates the device list and states
+            if success:
+                self.last_update = current_time
+            return success
+        return True
+    
+    def get_devices(self) -> Dict[str, List]:
+        """Get all devices organized by type"""
+        self.update_devices()
+        devices = {
+            'outlets': self.manager.outlets,
+            'switches': self.manager.switches,
+            'bulbs': self.manager.bulbs,
+            'fans': self.manager.fans
+        }
+        return devices
+    
+    def update_device_database(self, device) -> Dict:
+        """Update device information in database"""
+        if not self.dbConfig:
+            return {}
+    
+        cursor = self.pdo.cursor(dictionary=True)
+        try:
+            # Get current device data
+            cursor.execute("SELECT * FROM devices WHERE device = %s", (device.cid,))
+            current = cursor.fetchone()
+            
+            # Prepare new values - only updating actual states from API
+            new_values = {
+                'device': device.cid,
+                'model': device.device_type,
+                'device_name': device.device_name,
+                'controllable': True,
+                'retrievable': True,
+                'brand': 'vesync',
+                'online': device.connection_status == 'online',
+                'powerState': device.device_status
+            }
+    
+            # Add device-specific properties
+            if hasattr(device, 'details'):
+                if 'brightness' in device.details:
+                    new_values['brightness'] = device.details['brightness']
+                # Get energy data from details
+                if 'energy' in device.details:
+                    new_values['energy_today'] = device.details.get('energy', 0)
+                    new_values['power'] = device.details.get('power', 0)
+                    new_values['voltage'] = device.details.get('voltage', 0)
+                    logger.debug(f"Energy values from details for {device.device_name}: energy={new_values['energy_today']}, power={new_values['power']}, voltage={new_values['voltage']}")
+    
+            if not current:
+                # Insert new device
+                columns = ', '.join(new_values.keys())
+                placeholders = ', '.join(['%s'] * len(new_values))
+                values = list(new_values.values())
+                
+                cursor.execute(f"""
+                    INSERT INTO devices ({columns})
+                    VALUES ({placeholders})
+                """, values)
+                
+            else:
+                # Update existing device - only updating actual states
+                updates = [f"{k} = %s" for k in new_values.keys()]
+                values = list(new_values.values()) + [device.cid]
+                
+                cursor.execute(f"""
+                    UPDATE devices 
+                    SET {', '.join(updates)}
+                    WHERE device = %s
+                """, values)
+    
+            self.pdo.commit()
+            return new_values
+    
+        except Exception as e:
+            self.pdo.rollback()
+            logger.error(f"Error updating device database: {str(e)}")
+            raise
+        finally:
+            cursor.close()
+    
+    def send_command(self, device_id: str, command: Dict) -> Dict:
+        """Send command to device"""
+        self.update_devices()
+        
+        # Find device
+        device = None
+        for dev_list in [self.manager.outlets, self.manager.switches, 
+                        self.manager.bulbs, self.manager.fans]:
+            for dev in dev_list:
+                if dev.cid == device_id:
+                    device = dev
+                    break
+            if device:
+                break
+
+        if not device:
+            raise Exception('Device not found')
+
+        # Process command
+        try:
+            if command['name'] == 'turn':
+                if command['value'] == 'on':
+                    device.turn_on()
+                else:
+                    device.turn_off()
+            elif command['name'] == 'brightness' and hasattr(device, 'set_brightness'):
+                device.set_brightness(int(command['value']))
+            else:
+                raise Exception(f"Unsupported command: {command['name']}")
+
+            return {
+                'success': True,
+                'message': 'Command sent successfully'
+            }
+            
+        except Exception as e:
+            logger.error(f"Error sending command: {str(e)}")
+            raise Exception(f"Failed to send command: {str(e)}")
+
+    def process_batch(self, maxCommands: int = 5) -> Dict:
+        """Process a batch of commands from the queue"""
+        if not self.commandQueue:
+            return {'success': False, 'message': 'No command queue configured'}
+
+        commands = self.commandQueue.getNextBatch(maxCommands)
+        results = []
+
+        for command in commands:
+            try:
+                result = self.send_command(
+                    command['device'],
+                    json.loads(command['command'])
+                )
+                self.commandQueue.markCommandComplete(command['id'], True)
+                results.append({
+                    'command_id': command['id'],
+                    'result': result,
+                    'success': True
+                })
+                
+            except Exception as e:
+                self.commandQueue.markCommandComplete(
+                    command['id'],
+                    False,
+                    str(e)
+                )
+                results.append({
+                    'command_id': command['id'],
+                    'error': str(e),
+                    'success': False
+                })
+
+        return {
+            'success': True,
+            'processed': len(results),
+            'results': results
+        }
+
+================================================================================
+FILE: ../shared/govee_lib.php
+================================================================================
+
+<?php
+
+class GoveeAPIRateLimiter {
+    private $pdo;
+    
+    public function __construct($dbConfig) {
+        $this->pdo = new PDO(
+            "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+            $dbConfig['user'],
+            $dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+    }
+    
+    public function logAPICall($headers) {
+        // Debug log the raw headers
+        error_log("Raw Headers received: " . print_r($headers, true));
+        
+        // Parse all known rate limit headers
+        $values = [
+            'API-RateLimit-Remaining' => null,
+            'API-RateLimit-Reset' => null,
+            'API-RateLimit-Limit' => null,
+            'X-RateLimit-Limit' => null,
+            'X-RateLimit-Remaining' => null,
+            'X-RateLimit-Reset' => null,
+            'X-Response-Time' => null
+        ];
+    
+        // If headers is a string, split it into lines
+        if (is_string($headers)) {
+            $headerLines = array_filter(explode("\r\n", $headers));
+        } else {
+            $headerLines = $headers;
+        }
+    
+        error_log("Processed header lines: " . print_r($headerLines, true));
+    
+        foreach ($headerLines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+            
+            // Skip the HTTP/1.1 status line
+            if (strpos($line, 'HTTP/') === 0) continue;
+            
+            if (strpos($line, ':') === false) continue;
+            
+            list($name, $value) = array_map('trim', explode(':', $line, 2));
+            error_log("Processing header - Name: $name, Value: $value");
+            
+            switch ($name) {
+                case 'API-RateLimit-Remaining':
+                case 'api-ratelimit-remaining':
+                    $values['API-RateLimit-Remaining'] = (int)$value;
+                    break;
+                case 'API-RateLimit-Reset':
+                case 'api-ratelimit-reset':
+                    $values['API-RateLimit-Reset'] = date('Y-m-d H:i:s', (int)$value);
+                    break;
+                case 'API-RateLimit-Limit':
+                case 'api-ratelimit-limit':
+                    $values['API-RateLimit-Limit'] = (int)$value;
+                    break;
+                case 'X-RateLimit-Limit':
+                case 'x-ratelimit-limit':
+                    $values['X-RateLimit-Limit'] = (int)$value;
+                    break;
+                case 'X-RateLimit-Remaining':
+                case 'x-ratelimit-remaining':
+                    $values['X-RateLimit-Remaining'] = (int)$value;
+                    break;
+                case 'X-RateLimit-Reset':
+                case 'x-ratelimit-reset':
+                    $values['X-RateLimit-Reset'] = date('Y-m-d H:i:s', (int)$value);
+                    break;
+                case 'X-Response-Time':
+                case 'x-response-time':
+                    $values['X-Response-Time'] = (int)str_replace(['ms', ' '], '', $value);
+                    break;
+            }
+        }
+    
+        error_log("Final parsed values: " . print_r($values, true));
+    
+        // Insert into database
+        $sql = "INSERT INTO govee_api_calls (
+            `API-RateLimit-Remaining`,
+            `API-RateLimit-Reset`,
+            `API-RateLimit-Limit`,
+            `X-RateLimit-Limit`,
+            `X-RateLimit-Remaining`,
+            `X-RateLimit-Reset`,
+            `X-Response-Time`,
+            `Date`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            $values['API-RateLimit-Remaining'],
+            $values['API-RateLimit-Reset'],
+            $values['API-RateLimit-Limit'],
+            $values['X-RateLimit-Limit'],
+            $values['X-RateLimit-Remaining'],
+            $values['X-RateLimit-Reset'],
+            $values['X-Response-Time']
+        ]);
+        
+        return $values;
+    }
+    
+    public function canMakeRequest() {
+        // Get the most recent rate limit information
+        $stmt = $this->pdo->query("
+            SELECT 
+                `API-RateLimit-Remaining`,
+                `API-RateLimit-Reset`,
+                `X-RateLimit-Remaining`,
+                `X-RateLimit-Reset`
+            FROM govee_api_calls
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+        
+        $limits = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$limits) {
+            return true; // If no limits are recorded, allow the request
+        }
+        
+        $now = time();
+        
+        // Check API rate limit
+        if ($limits['API-RateLimit-Remaining'] !== null) {
+            $resetTime = strtotime($limits['API-RateLimit-Reset']);
+            if ($now < $resetTime && $limits['API-RateLimit-Remaining'] <= 0) {
+                return false;
+            }
+        }
+        
+        // Check X rate limit
+        if ($limits['X-RateLimit-Remaining'] !== null) {
+            $resetTime = strtotime($limits['X-RateLimit-Reset']);
+            if ($now < $resetTime && $limits['X-RateLimit-Remaining'] <= 0) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    public function getWaitTime() {
+        $stmt = $this->pdo->query("
+            SELECT 
+                `API-RateLimit-Reset`,
+                `X-RateLimit-Reset`
+            FROM govee_api_calls
+            WHERE `API-RateLimit-Remaining` = 0 
+            OR `X-RateLimit-Remaining` = 0
+            ORDER BY `Date` DESC
+            LIMIT 1
+        ");
+        
+        $limits = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$limits) {
+            return 0;
+        }
+        
+        $now = time();
+        $waitTime = 0;
+        
+        if ($limits['API-RateLimit-Reset']) {
+            $resetTime = strtotime($limits['API-RateLimit-Reset']);
+            if ($resetTime > $now) {
+                $waitTime = max($waitTime, $resetTime - $now);
+            }
+        }
+        
+        if ($limits['X-RateLimit-Reset']) {
+            $resetTime = strtotime($limits['X-RateLimit-Reset']);
+            if ($resetTime > $now) {
+                $waitTime = max($waitTime, $resetTime - $now);
+            }
+        }
+        
+        return $waitTime;
+    }
+}
+
+class GoveeCommandQueue {
+    private $pdo;
+    
+    public function __construct($dbConfig) {
+        $this->pdo = new PDO(
+            "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+            $dbConfig['user'],
+            $dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+    }
+    
+    public function getNextBatch($limit = 5) {
+        $this->pdo->beginTransaction();
+        try {
+            // Add timeout check - reset commands stuck processing for >5 minutes
+            $stmt = $this->pdo->prepare("
+                UPDATE command_queue 
+                SET status = 'pending',
+                    processed_at = NULL
+                WHERE status = 'processing' 
+                AND processed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ");
+            $stmt->execute();
+    
+            // Get next batch of pending Govee commands
+            $stmt = $this->pdo->prepare("
+            SELECT id, device, model, command 
+                FROM command_queue
+                WHERE status = 'pending'
+                AND brand = 'govee'
+                ORDER BY created_at ASC
+                LIMIT :limit
+            ");
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $commands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Mark these commands as processing
+            if (!empty($commands)) {
+                $ids = array_column($commands, 'id');
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $stmt = $this->pdo->prepare("
+                    UPDATE command_queue
+                    SET status = 'processing',
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id IN ($placeholders)
+                ");
+                $stmt->execute($ids);
+            }
+            
+            $this->pdo->commit();
+            return $commands;
+            
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+    
+    public function markCommandComplete($id, $success = true, $errorMessage = null) {
+        $stmt = $this->pdo->prepare("
+            UPDATE command_queue
+            SET 
+                status = :status,
+                processed_at = CURRENT_TIMESTAMP,
+                error_message = :error_message
+            WHERE id = :id
+        ");
+        
+        $stmt->execute([
+            'status' => $success ? 'completed' : 'failed',
+            'error_message' => $errorMessage,
+            'id' => $id
+        ]);
+    }
+}
+
+class GoveeAPI {
+    private $apiKey;
+    private $dbConfig;
+    private $rateLimiter;
+    private $commandQueue;
+    
+    public function __construct($apiKey, $dbConfig) {
+        $this->apiKey = $apiKey;
+        $this->dbConfig = $dbConfig;
+        
+        // Initialize database connection
+        $this->pdo = new PDO(
+            "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+            $dbConfig['user'],
+            $dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        
+        // Create devices table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS devices (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device VARCHAR(255) NOT NULL UNIQUE,
+                model VARCHAR(255),
+                device_name VARCHAR(255),
+                controllable BOOLEAN DEFAULT 1,
+                retrievable BOOLEAN DEFAULT 1,
+                supportCmds TEXT,
+                colorTemp_rangeMin INT,
+                colorTemp_rangeMax INT,
+                brand VARCHAR(50),
+                online BOOLEAN DEFAULT 0,
+                powerState VARCHAR(10),
+                brightness INT,
+                colorTemp INT,
+                x10Code VARCHAR(10),
+                room INT,
+                deviceGroup INT,
+                showInGroupOnly BOOLEAN DEFAULT 0,
+                low INT DEFAULT 25,
+                medium INT DEFAULT 50,
+                high INT DEFAULT 75,
+                preferredColorTem INT
+            )
+        ");
+        
+        // Create govee_api_calls table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS govee_api_calls (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                `API-RateLimit-Remaining` INT,
+                `API-RateLimit-Reset` DATETIME,
+                `API-RateLimit-Limit` INT,
+                `X-RateLimit-Limit` INT,
+                `X-RateLimit-Remaining` INT,
+                `X-RateLimit-Reset` DATETIME,
+                `X-Response-Time` INT,
+                `Date` DATETIME
+            )
+        ");
+        
+        // Create command_queue table if it doesn't exist
+        $this->pdo->exec("
+            CREATE TABLE IF NOT EXISTS command_queue (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                device VARCHAR(255) NOT NULL,
+                model VARCHAR(255),
+                command TEXT,
+                brand VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP NULL,
+                error_message TEXT
+            )
+        ");
+    
+        $this->rateLimiter = new GoveeAPIRateLimiter($dbConfig);
+        $this->commandQueue = new GoveeCommandQueue($dbConfig);
+    }
+    
+    public function getDevices() {
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'https://developer-api.govee.com/v1/devices',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => true,
+            CURLOPT_HTTPHEADER => array(
+                'Govee-API-Key: ' . $this->apiKey,
+                'Content-Type: application/json'
+            )
+        ));
+        
+        $response = curl_exec($curl);
+        $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+        $headers = substr($response, 0, $header_size);
+        $body = substr($response, $header_size);
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        $this->rateLimiter->logAPICall($headers);
+        
+        curl_close($curl);
+        
+        return [
+            'headers' => $headers,
+            'body' => $body,
+            'statusCode' => $statusCode
+        ];
+    }
+
+    public function getDeviceState($device) {
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://developer-api.govee.com/v1/devices/state?device=" . 
+                      $device['device'] . "&model=" . $device['model'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => array(
+            'Govee-API-Key: ' . $this->apiKey,
+            'Content-Type: application/json'
+        )
+    ));
+    
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    
+    $this->rateLimiter->logAPICall($headers);
+    
+    curl_close($curl);
+    
+    // Fix the status code variable name
+    return [
+        'headers' => $headers,
+        'body' => $body,
+        'statusCode' => $statusCode  // Changed from $state_status to $statusCode
+    ];
+}
+    
+    public function processBatch($maxCommands = 5) {
+    global $log;  // Add this to use the logger
+    
+    if (!$this->rateLimiter->canMakeRequest()) {
+        return [
+            'success' => false,
+            'message' => 'Rate limit reached, try again later'
+        ];
+    }
+    
+    $commands = $this->commandQueue->getNextBatch($maxCommands);
+    $results = [];
+    
+    // Initialize PDO connection
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    foreach ($commands as $command) {
+        try {
+            $log->logInfoMsg("Processing command for device: " . $command['device']);
+            
+            // Decode command before sending
+            $cmd = json_decode($command['command'], true);
+            
+            // Send the command to device
+            $result = $this->sendCommand(
+                $command['device'],
+                $command['model'],
+                $cmd
+            );
+            
+            // Get device current state
+            $deviceStmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+            $deviceStmt->execute([$command['device']]);
+            $deviceData = $deviceStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($deviceData) {
+                // Update state based on command type
+                switch($cmd['name']) {
+                    case 'turn':
+                        $log->logInfoMsg("Updating power state to: " . $cmd['value'] . " for device: " . $command['device']);
+                        $stmt = $pdo->prepare("UPDATE devices SET powerState = ?, online = 1 WHERE device = ?");
+                        $stmt->execute([$cmd['value'], $command['device']]);
+                        break;
+                        
+                    case 'brightness':
+                        $brightness = intval($cmd['value']);
+                        $log->logInfoMsg("Updating brightness to: " . $brightness . " for device: " . $command['device']);
+                        $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on', online = 1 WHERE device = ?");
+                        $stmt->execute([$brightness, $command['device']]);
+                        break;
+                }
+                
+                // Verify the update
+                $verifyStmt = $pdo->prepare("SELECT powerState, brightness FROM devices WHERE device = ?");
+                $verifyStmt->execute([$command['device']]);
+                $newState = $verifyStmt->fetch(PDO::FETCH_ASSOC);
+                $log->logInfoMsg("New device state - Power: " . $newState['powerState'] . ", Brightness: " . $newState['brightness']);
+            }
+            
+            $this->commandQueue->markCommandComplete($command['id'], true);
+            $results[] = [
+                'command_id' => $command['id'],
+                'result' => $result,
+                'success' => true
+            ];
+            
+            // Check rate limit after each command
+            if (!$this->rateLimiter->canMakeRequest()) {
+                $log->logInfoMsg("Rate limit reached, stopping batch processing");
+                break;
+            }
+            
+        } catch (Exception $e) {
+            $log->logErrorMsg("Error processing command: " . $e->getMessage());
+            $this->commandQueue->markCommandComplete(
+                $command['id'],
+                false,
+                $e->getMessage()
+            );
+            $results[] = [
+                'command_id' => $command['id'],
+                'error' => $e->getMessage(),
+                'success' => false
+            ];
+        }
+    }
+    
+    return [
+        'success' => true,
+        'processed' => count($results),
+        'results' => $results
+    ];
+}
+    
+    public function sendCommand($device, $model, $cmd) {
+    // Validate basic parameters
+    if (!$device || !$model) {
+        throw new Exception('Device and model are required');
+    }
+    
+    // Validate command structure
+    if (!is_array($cmd) || !isset($cmd['name'])) {
+        throw new Exception('Invalid command format');
+    }
+    
+    // Transform command based on type
+    $goveeCmd = ['name' => $cmd['name']];
+    
+    // Handle different command types
+    switch ($cmd['name']) {
+        case 'brightness':
+            if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
+                throw new Exception('Brightness value must be a number');
+            }
+            $goveeCmd['value'] = (int)$cmd['value'];
+            break;
+            
+        case 'turn':
+            if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
+                throw new Exception('Turn command must specify "on" or "off"');
+            }
+            $goveeCmd['value'] = $cmd['value'];
+            break;
+            
+        default:
+            throw new Exception('Unsupported command type: ' . $cmd['name']);
+    }
+
+    // Rate limit check
+    if (!$this->rateLimiter->canMakeRequest()) {
+        $waitTime = $this->rateLimiter->getWaitTime();
+        if ($waitTime > 0) {
+            sleep($waitTime);
+        }
+    }
+
+    // Send command to Govee API
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_URL => 'https://developer-api.govee.com/v1/devices/control',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_ENCODING => '',
+        CURLOPT_MAXREDIRS => 10,
+        CURLOPT_TIMEOUT => 0,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_CUSTOMREQUEST => 'PUT',
+        CURLOPT_POSTFIELDS => json_encode(array(
+            'device' => $device,
+            'model' => $model,
+            'cmd' => $goveeCmd
+        )),
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/json',
+            'Govee-API-Key: ' . $this->apiKey
+        ),
+    ));
+
+    $response = curl_exec($curl);
+    $header_size = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    $headers = substr($response, 0, $header_size);
+    $body = substr($response, $header_size);
+    $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+    
+    $this->rateLimiter->logAPICall($headers);
+    
+    curl_close($curl);
+    
+    $result = json_decode($body, true);
+    
+    if (!isset($result['code']) || $result['code'] !== 200) {
+        throw new Exception($result['message'] ?? 'Failed to send command to device');
+    }
+    
+    // Update device state in database after successful command
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    // Update state based on command type
+    switch($cmd['name']) {
+        case 'turn':
+            $stmt = $pdo->prepare("UPDATE devices SET powerState = ? WHERE device = ?");
+            $stmt->execute([$cmd['value'], $device]);
+            break;
+            
+        case 'brightness':
+            $stmt = $pdo->prepare("UPDATE devices SET brightness = ?, powerState = 'on' WHERE device = ?");
+            $stmt->execute([(int)$cmd['value'], $device]);
+            break;
+    }
+    
+    return [
+        'success' => true,
+        'message' => 'Command sent successfully'
+    ];
+}
+
+    public function updateDeviceDatabase($device) {
+        $pdo = new PDO(
+            "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+            $this->dbConfig['user'],
+            $this->dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        
+        $stmt = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+        $stmt->execute([$device['device']]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $new_values = [
+            'device' => $device['device'],
+            'model' => $device['model'],
+            'device_name' => $device['deviceName'],
+            'controllable' => $device['controllable'] ? 1 : 0,
+            'retrievable' => $device['retrievable'] ? 1 : 0,
+            'supportCmds' => json_encode($device['supportCmds']),
+            'colorTemp_rangeMin' => null,
+            'colorTemp_rangeMax' => null,
+            'brand' => 'govee'
+        ];
+        
+        if (in_array('colorTem', $device['supportCmds']) && 
+            isset($device['properties']) && 
+            isset($device['properties']['colorTem']) && 
+            isset($device['properties']['colorTem']['range'])) {
+            
+            $new_values['colorTemp_rangeMin'] = $device['properties']['colorTem']['range']['min'];
+            $new_values['colorTemp_rangeMax'] = $device['properties']['colorTem']['range']['max'];
+        }
+        
+        if (!$current) {
+            $updates = [];
+            $params = [];
+            foreach ($new_values as $key => $value) {
+                if ($value !== null) {
+                    $updates[] = "$key = :$key";
+                    $params[":$key"] = $value;
+                }
+            }
+            
+            if (!empty($updates)) {
+                $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+            }
+            return true;
+        }
+        
+        $changes = [];
+        $updates = [];
+        $params = [':device' => $device['device']];
+        
+        foreach ($new_values as $key => $value) {
+            if ($value === null || !isset($current[$key])) {
+                continue;
+            }
+            
+            if ($key === 'supportCmds') {
+                $current_value = json_decode($current[$key], true);
+                $new_value = json_decode($value, true);
+                if ($current_value === null) $current_value = [];
+                if ($new_value === null) $new_value = [];
+                
+                if (count($current_value) !== count($new_value) || 
+                    count(array_diff($current_value, $new_value)) > 0 ||
+                    count(array_diff($new_value, $current_value)) > 0) {
+                    $changes[] = "$key changed";
+                    $updates[] = "$key = :$key";
+                    $params[":$key"] = $value;
+                }
+                continue;
+            }
+            
+            $current_value = $current[$key];
+            if ($current_value != $value) {
+                $changes[] = "$key changed from $current_value to $value";
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $value;
+            }
+        }
+        
+        if (!empty($updates)) {
+            $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+        
+        return false;
+    }
+
+    public function updateDeviceStateInDatabase($device, $device_states, $govee_device) {
+    $pdo = new PDO(
+        "mysql:host={$this->dbConfig['host']};dbname={$this->dbConfig['dbname']};charset=utf8mb4",
+        $this->dbConfig['user'],
+        $this->dbConfig['password'],
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    
+    try {
+        $pdo->beginTransaction(); // Start transaction
+        
+        $cursor = $pdo->prepare("SELECT * FROM devices WHERE device = ?");
+        $cursor->execute([$device['device']]);
+        $current = $cursor->fetch(PDO::FETCH_ASSOC);
+        
+        // Initialize new values
+        $new_values = [
+            'online' => false,  // Default to false
+            'powerState' => null,
+            'brightness' => null
+        ];
+        
+        // Update states from the properties array
+        if (isset($device_states[$device['device']])) {
+            foreach ($device_states[$device['device']] as $property) {
+                if (isset($property['online'])) {
+                    $new_values['online'] = $property['online'];
+                }
+                if (isset($property['powerState'])) {
+                    $new_values['powerState'] = $property['powerState'];
+                }
+                if (isset($property['brightness'])) {
+                    $new_values['brightness'] = $property['brightness'];
+                }
+            }
+        }
+        
+        $changes = [];
+        $updates = [];
+        $params = [];
+        
+        foreach ($new_values as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+            
+            if ($key === 'online') {
+                $value = $value ? 1 : 0;
+            }
+            
+            $updates[] = "$key = ?";
+            $params[] = $value;
+            $changes[] = "$key updated to $value";
+        }
+        
+        if ($updates) {
+            // Add device to params
+            $params[] = $device['device'];
+            
+            $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            
+            global $log;
+            $log->logInfoMsg("Updated Govee device {$device['device']}: " . implode(", ", $changes));
+        }
+        
+        $pdo->commit(); // Commit the transaction
+        return $device;
+        
+    } catch (Exception $e) {
+        $pdo->rollBack(); // Rollback on error
+        throw $e;
+    } finally {
+        $pdo = null; // Close connection
+    }
+}
+}
+
+================================================================================
+FILE: ../shared/hue_lib.php
+================================================================================
+
+<?php
+
+class HueCommandQueue {
+    private $pdo;
+    
+    public function __construct($dbConfig) {
+        $this->pdo = new PDO(
+            "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+            $dbConfig['user'],
+            $dbConfig['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+    }
+    
+    public function getNextBatch($limit = 5) {
+        $this->pdo->beginTransaction();
+        try {
+            // Add timeout check - reset commands stuck processing for >5 minutes
+            $stmt = $this->pdo->prepare("
+                UPDATE command_queue 
+                SET status = 'pending',
+                    processed_at = NULL
+                WHERE status = 'processing' 
+                AND processed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ");
+            $stmt->execute();
+    
+            // Get next batch of pending Hue commands
+            $stmt = $this->pdo->prepare("
+                SELECT id, device, model, command 
+                FROM command_queue
+                WHERE status = 'pending'
+                AND brand = 'hue'
+                ORDER BY created_at ASC
+                LIMIT :limit
+            ");
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $commands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Mark these commands as processing
+            if (!empty($commands)) {
+                $ids = array_column($commands, 'id');
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $stmt = $this->pdo->prepare("
+                    UPDATE command_queue
+                    SET status = 'processing',
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id IN ($placeholders)
+                ");
+                $stmt->execute($ids);
+            }
+            
+            $this->pdo->commit();
+            return $commands;
+            
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+    
+    public function markCommandComplete($id, $success = true, $errorMessage = null) {
+        $stmt = $this->pdo->prepare("
+            UPDATE command_queue
+            SET 
+                status = :status,
+                processed_at = CURRENT_TIMESTAMP,
+                error_message = :error_message
+            WHERE id = :id
+        ");
+        
+        $stmt->execute([
+            'status' => $success ? 'completed' : 'failed',
+            'error_message' => $errorMessage,
+            'id' => $id
+        ]);
+    }
+}
+
+class HueAPI {
+    private $bridgeIP;
+    private $apiKey;
+    private $commandQueue;
+    private $dbConfig;
+    private $pdo;
+    
+    public function __construct($bridgeIP, $apiKey, $dbConfig = null) {
+        $this->bridgeIP = $bridgeIP;
+        $this->apiKey = $apiKey;
+        $this->dbConfig = $dbConfig;
+        
+        if ($dbConfig) {
+            $this->pdo = new PDO(
+                "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4",
+                $dbConfig['user'],
+                $dbConfig['password'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+            
+            // Create devices table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS devices (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device VARCHAR(255) NOT NULL UNIQUE,
+                    model VARCHAR(255),
+                    device_name VARCHAR(255),
+                    controllable BOOLEAN DEFAULT 1,
+                    retrievable BOOLEAN DEFAULT 1,
+                    supportCmds TEXT,
+                    colorTemp_rangeMin INT,
+                    colorTemp_rangeMax INT,
+                    brand VARCHAR(50),
+                    online BOOLEAN DEFAULT 0,
+                    powerState VARCHAR(10),
+                    brightness INT,
+                    colorTemp INT,
+                    x10Code VARCHAR(10),
+                    room INT,
+                    deviceGroup INT,
+                    showInGroupOnly BOOLEAN DEFAULT 0,
+                    low INT DEFAULT 25,
+                    medium INT DEFAULT 50,
+                    high INT DEFAULT 75,
+                    preferredColorTem INT
+                )
+            ");
+            
+            // Create device_groups table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS device_groups (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    model VARCHAR(255),
+                    reference_device VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            
+            // Create command_queue table if it doesn't exist
+            $this->pdo->exec("
+                CREATE TABLE IF NOT EXISTS command_queue (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    device VARCHAR(255) NOT NULL,
+                    model VARCHAR(255),
+                    command TEXT,
+                    brand VARCHAR(50),
+                    status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    processed_at TIMESTAMP NULL,
+                    error_message TEXT
+                )
+            ");
+            
+            $this->commandQueue = new HueCommandQueue($dbConfig);
+        }
+    }
+
+    public function getDevices() {
+        global $log;
+        $log->logInfoMsg("Getting all devices from Hue Bridge");
+        $curl = curl_init();
+        
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_ENCODING => '',
+            CURLOPT_MAXREDIRS => 10,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_CUSTOMREQUEST => 'GET',
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_HTTPHEADER => array(
+                'hue-application-key: ' . $this->apiKey
+            )
+        ));
+        
+        $response = curl_exec($curl);
+        $statusCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        
+        if ($response === false) {
+            $error = curl_error($curl);
+            curl_close($curl);
+            throw new Exception('Failed to connect to Hue Bridge: ' . $error);
+        }
+        
+        curl_close($curl);
+        
+        return [
+            'body' => $response,
+            'statusCode' => $statusCode
+        ];
+    }
+    
+    public function processBatch($maxCommands = 5) {
+        $commands = $this->commandQueue->getNextBatch($maxCommands);
+        $results = [];
+        
+        foreach ($commands as $command) {
+            try {
+                // Send the command
+                $result = $this->sendCommand(
+                    $command['device'],
+                    json_decode($command['command'], true)
+                );
+                
+                $this->commandQueue->markCommandComplete($command['id'], true);
+                $results[] = [
+                    'command_id' => $command['id'],
+                    'result' => $result,
+                    'success' => true
+                ];
+                
+            } catch (Exception $e) {
+                $this->commandQueue->markCommandComplete(
+                    $command['id'],
+                    false,
+                    $e->getMessage()
+                );
+                $results[] = [
+                    'command_id' => $command['id'],
+                    'error' => $e->getMessage(),
+                    'success' => false
+                ];
+            }
+        }
+        
+        return [
+            'success' => true,
+            'processed' => count($results),
+            'results' => $results
+        ];
+    }
+    
+    public function sendCommand($device, $cmd) {
+        // Validate basic parameters
+        if (!$device) {
+            throw new Exception('Device ID is required');
+        }
+        
+        // Validate command structure
+        if (!is_array($cmd) || !isset($cmd['name'])) {
+            throw new Exception('Invalid command format');
+        }
+        
+        // Transform command based on type
+        $hueCmd = [];
+        
+        // Handle different command types
+        switch ($cmd['name']) {
+            case 'brightness':
+                if (!isset($cmd['value']) || !is_numeric($cmd['value'])) {
+                    throw new Exception('Brightness value must be a number');
+                }
+                // When setting brightness, include both on state and brightness
+                $hueCmd = [
+                    'on' => [
+                        'on' => true
+                    ],
+                    'dimming' => [
+                        'brightness' => (int)$cmd['value']
+                    ]
+                ];
+                break;
+                
+            case 'turn':
+                if (!isset($cmd['value']) || !in_array($cmd['value'], ['on', 'off'])) {
+                    throw new Exception('Turn command must specify "on" or "off"');
+                }
+                // When turning off, only include on state
+                $hueCmd = [
+                    'on' => [
+                        'on' => ($cmd['value'] === 'on')
+                    ]
+                ];
+                break;
+                
+            default:
+                throw new Exception('Unsupported command type: ' . $cmd['name']);
+        }
+
+        // Send command to Hue Bridge
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => "https://{$this->bridgeIP}/clip/v2/resource/light/{$device}",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'PUT',
+            CURLOPT_SSL_VERIFYHOST => 0,
+            CURLOPT_SSL_VERIFYPEER => 0,
+            CURLOPT_HTTPHEADER => array(
+                'hue-application-key: ' . $this->apiKey,
+                'Content-Type: application/json'
+            ),
+            CURLOPT_POSTFIELDS => json_encode($hueCmd)
+        ));
+
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        
+        if ($httpCode !== 200) {
+            throw new Exception("Failed to communicate with Hue bridge (HTTP $httpCode): $response");
+        }
+        
+        $result = json_decode($response, true);
+        
+        // Check for Hue API errors
+        if (is_array($result) && isset($result[0]['error'])) {
+            throw new Exception($result[0]['error']['description']);
+        }
+        
+        return [
+            'success' => true,
+            'message' => 'Command sent successfully'
+        ];
+    }
+
+    public function updateDeviceDatabase($device) {
+    global $log;
+    
+    $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
+    $stmt->execute([$device['id']]);
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Update the online status to use the device's reachable status
+    $new_values = [
+        'device' => $device['id'],
+        'model' => $device['type'],
+        'device_name' => $device['metadata']['name'],
+        'controllable' => 1,
+        'retrievable' => 1,
+        'supportCmds' => json_encode(['brightness', 'colorTem', 'color']),
+        'brand' => 'hue',
+        'online' => isset($device['status']) && isset($device['status']['reachable']) ? $device['status']['reachable'] : true,
+        'powerState' => $device['on']['on'] ? 'on' : 'off',
+        'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
+        'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
+    ];
+    
+    if (!$current) {
+        $log->logInfoMsg("New Hue device detected: {$device['id']}");
+        $updates = [];
+        $params = [];
+        foreach ($new_values as $key => $value) {
+            if ($value !== null) {
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $value;
+            }
+        }
+        
+        if (!empty($updates)) {
+            $sql = "INSERT INTO devices SET " . implode(", ", $updates);
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+        return $new_values;
+    }
+    
+    $changes = [];
+    $updates = [];
+    $params = [':device' => $device['id']];
+    
+    foreach ($new_values as $key => $value) {
+        if ($value === null && (!isset($current[$key]) || $current[$key] === null)) {
+            continue;
+        }
+        
+        if ($key === 'online') {
+            $current_value = (bool)$current[$key];
+            $new_value = (bool)$value;
+        } else {
+            $current_value = $current[$key];
+            $new_value = $value;
+        }
+        
+        if ($current_value !== $new_value) {
+            $changes[] = "$key changed from $current_value to $new_value";
+            $updates[] = "$key = :$key";
+            $params[":$key"] = $key === 'online' ? ($value ? 1 : 0) : $value;
+        }
+    }
+    
+    if (!empty($updates)) {
+        $sql = "UPDATE devices SET " . implode(", ", $updates) . " WHERE device = :device";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $log->logInfoMsg("Updated Hue device {$device['id']}: " . implode(", ", $changes));
+    }
+    
+    return $new_values;
+}
+}
+
+================================================================================
+FILE: ../shared/logger.php
+================================================================================
+
+<?php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
+
+date_default_timezone_set('America/Detroit');
+
+ini_set('error_reporting', E_ALL);
+ini_set('display_errors', true);
+
+function error_handler($errno, $errstr) {
+    global $last_error;
+    $last_error = $errstr;
+}
+
+set_error_handler('error_handler');
+
+class logger {
+    
+    public static $my_version = '1.0';
+    private $is_cli;
+	
+	public $config = array(
+		"mailer"		=> "smtp",
+		"host"			=> "xxxxxxxxxxxxxxxx",
+		"port"			=> 587,
+		"smtpauth"		=> true,
+		"smtpuser"		=> "xxxxxxxxxxxxxxxxxxx",
+		"smtppass"		=> "xxxxxxxxxxxxxxxxxxx",
+		"smtpsecure"	=> PHPMailer::ENCRYPTION_STARTTLS,
+		"to"			=> array("xxxxxxxxxxxxx"),
+		"logfolder"		=> "logs",
+		"loglife"		=> 7,
+		"appname"		=> "",
+        "mode"          => "dev"
+		);
+	
+	private $start_time;
+	private $log_dir;
+	private $pidrunning;
+	private $pidfilename;
+	
+    function __construct($appname, $cwd, $mode = "dev") {
+        $this->is_cli = (php_sapi_name() === 'cli');
+        
+        // Remember the current working directory, because PHP will forget this when the
+        // destructor runs
+        //
+        $this->config['logfolder'] = $cwd."/".$this->config['logfolder'];
+        $this->config['mode'] = $mode;
+        
+		$this->log_dir = $this->config['logfolder'];
+		if ( !file_exists($this->log_dir) ) {
+			// create directory/folder uploads.
+			if (!mkdir($this->log_dir, 0777, true)) {
+				$this->logErrorMsg("Failed to create log directory: ".$last_error, true, false);
+			}
+		}
+		
+		$this->config['appname'] = $appname;
+        $this->start_time = microtime(true);
+
+        $this->logInfoMsg("Starting execution at ".date("Y-m-d H:i:s"));
+        
+		$this->pidfilename = $this->log_dir.'/'.$this->config['appname'] . '.pid';
+		$this->pidrunning = false;
+		
+		// Only test for PID in CLI mode since Apache reuses PIDs
+		if ($this->is_cli) {
+            if(file_exists($this->pidfilename)) {
+                $pid = (int)trim(file_get_contents($this->pidfilename));
+                if(posix_kill($pid, 0)) {
+                    $this->pidrunning = true;
+                }
+            }
+           
+            if(!$this->pidrunning) {
+                $pid = getmypid();
+                file_put_contents($this->pidfilename, $pid);
+            } else {
+                $this->logInfoMsg("Ending execution at ".date("Y-m-d H:i:s")." after ".$exec_time." seconds");
+                exit();
+            }
+		}
+    }
+
+    // Rest of constructor and destructor remain the same...
+
+    public function logLDAPChanges($msg, $email = false) {
+        if ($this->config['mode'] == "dev") {
+            return;
+        }
+        
+        $fullmsg = "[".date("D M d H:i:s.u Y")."] [INFO] ".$msg;
+        $subject = "LDAP update notification from application: ".strtoupper($this->config['appname']);
+        
+        $this->logMsg($fullmsg, 'ldap_user_changes');
+        if ($email) mailMsg($subject, $fullmsg);
+        
+        if ($this->is_cli && $this->config['mode'] == "dev") {
+            echo "".$fullmsg."<br>\n";
+        }
+    }
+    
+    public function logSQLChanges($msg, $email = false) {
+        if ($this->config['mode'] == "dev") {
+            return;
+        }
+        
+        $fullmsg = "[".date("D M d H:i:s.u Y")."] [INFO] ".$msg;
+        $subject = "SQL update notification from application: ".strtoupper($this->config['appname']);
+        
+        $this->logMsg($fullmsg, 'sql_user_changes');
+        if ($email) mailMsg($subject, $fullmsg);
+        
+        if ($this->is_cli && $this->config['mode'] == "dev") {
+            echo "".$fullmsg."<br>\n";
+        }
+    }
+    
+    public function logInfoMsg($msg, $email = false) {
+        $fullmsg = "[".date("D M d H:i:s.u Y")."] [INFO] ".$msg;
+        $subject = "Info Notification from application: ".strtoupper($this->config['appname']);
+        
+        $this->logMsg($fullmsg);
+        if ($email) mailMsg($subject, $fullmsg);
+        
+        if ($this->is_cli && $this->config['mode'] == "dev") {
+            echo "".$fullmsg."<br>\n";
+        }
+    }
+    
+    public function logErrorMsg($msg, $email = true, $log = true) {
+        $fullmsg = "[".date("D M d H:i:s.u Y")."] [ERROR] ".$msg;
+        $subject = "Error Notification from application: ".strtoupper($this->config['appname']);
+        
+        if ($log) $this->logMsg($fullmsg);
+        if ($email) $this->mailMsg($subject, $fullmsg);
+        
+        if ($this->is_cli && $this->config['mode'] == "dev") {
+            echo "".$fullmsg."<br>\n";
+        }
+    }
+    
+    public function logAlertMsg($msg, $email = false) {
+        $fullmsg = "[".date("D M d H:i:s.u Y")."] [ALERT] ".$msg;
+        $subject = "Alert Notification from application: ".strtoupper($this->config['appname']);
+        
+        $this->logMsg($fullmsg);
+        if ($email) $this->mailMsg($subject, $fullmsg);
+        
+        if ($this->is_cli && $this->config['mode'] == "dev") {
+            echo "".$fullmsg."<br>\n";
+        }
+    }
+	
+	private function logPurge() {
+	    
+	    //echo "Log folder: ".$this->config['logfolder']."<br>\n";
+
+		if (file_exists($this->config['logfolder'])) {
+			foreach (new DirectoryIterator($this->config['logfolder']) as $fileInfo) {
+				if ($fileInfo->isDot()) {
+					continue;
+				}
+				
+				$age = time() - $fileInfo->getCTime();
+				$agedays = $age / 86400;
+				$maxage = $this->config['loglife'] * 86400;
+
+				if ($fileInfo->isFile() && ($age >= $maxage)) {
+			        $this->logInfoMsg("Purging log file: ".$fileInfo->getRealPath().", age is ".$agedays." days.");
+					unlink($fileInfo->getRealPath());
+				}
+			}
+		}
+	}
+	
+	public function mailData($recipientlist, $subject, $body, $attachmentlist ) {
+	    
+		//Instantiation and passing "true" enables exceptions
+		//
+		$mail = new PHPMailer(true);
+
+		try {
+			// Server settings
+			//
+			$mail->IsSMTP();
+			$mail->Mailer = $this->config['mailer'];
+			$mail->Host = $this->config['host'];
+			$mail->Port = $this->config['port'];
+			$mail->SMTPAuth = $this->config['smtpauth'];
+			$mail->Username = $this->config['smtpuser'];
+			$mail->Password = $this->config['smtppass'];
+			$mail->SMTPSecure = $this->config['smtpsecure'];
+
+			// Recipients
+			//
+			$mail->setFrom($this->config['smtpuser']);
+			
+			foreach($recipientlist as $recipent) {
+                $mail->addAddress($recipent);
+			}
+			
+			foreach($attachmentlist as $attachment) {
+                $mail->addAttachment($attachment);
+			}
+			
+			$mail->addReplyTo($this->config['smtpuser']);
+			
+			// Content
+			//
+			$mail->isHTML(true);
+			$mail->Subject = $subject;
+			$mail->Body = $body;
+
+			$mail->send();
+			
+		} catch (Exception $e) {
+			$this->logErrorMsg("Message could not be sent. Mailer Error: ".$mail->ErrorInfo, false);
+		}
+		
+	}
+	
+	private function mailMsg($subject, $message) {
+	    
+        if ( $this->config['mode'] == "dev") {
+            // Do not send emails when running in dev mode
+            //
+	    	return;
+		}
+		
+		//Instantiation and passing "true" enables exceptions
+		//
+		$mail = new PHPMailer(true);
+
+		try {
+			// Server settings
+			//
+			$mail->IsSMTP();
+			$mail->Mailer = $this->config['mailer'];
+			$mail->Host = $this->config['host'];
+			$mail->Port = $this->config['port'];
+			$mail->SMTPAuth = $this->config['smtpauth'];
+			$mail->Username = $this->config['smtpuser'];
+			$mail->Password = $this->config['smtppass'];
+			$mail->SMTPSecure = $this->config['smtpsecure'];
+
+			// Recipients
+			//
+			$mail->setFrom($this->config['smtpuser']);
+			
+			foreach($this->config['to'] as $recipent) {
+                $mail->addAddress($recipent);
+			}
+			
+			$mail->addReplyTo($this->config['smtpuser']);
+
+			// Content
+			//
+			$mail->isHTML(true);
+			$mail->Subject = $subject;
+			$mail->Body = $message;
+
+			$mail->send();
+			
+		} catch (Exception $e) {
+			$this->logErrorMsg("Message could not be sent. Mailer Error: ".$mail->ErrorInfo, false);
+		}
+	}
+	
+	private function logMsg( $message, $appoverride = "" ) {
+		global $last_error;
+		
+		$log_dir = $this->config['logfolder'];
+		if ($appoverride == "") {
+	    	$log_file_data = $log_dir.'/'.$this->config['appname'].'_' . date('d-M-Y') . '.log';
+		} else {
+	    	$log_file_data = $log_dir.'/'.$appoverride.'_'.date('d-M-Y') . '.log';
+		}
+		file_put_contents($log_file_data, $message . "\n", FILE_APPEND);
+	}
+}
+
+
+?>
+
+
