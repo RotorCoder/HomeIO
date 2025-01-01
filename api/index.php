@@ -429,27 +429,34 @@ $app->get('/room-temperature', function (Request $request, Response $response) u
         validateRequiredParams($request->getQueryParams(), ['room']);
         
         $pdo = getDatabaseConnection($config);
-        // Get temperature data by joining on MAC address
+        // Get all thermometers for the room, joining with thermometer_history for latest readings
         $stmt = $pdo->prepare("
-            SELECT t.temp, t.humidity, t.mac 
-            FROM rooms r
-            JOIN thermometers t ON t.mac = r.thermometer 
-            WHERE r.id = ? 
-            ORDER BY t.updated DESC 
-            LIMIT 1
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                th.temperature as temp,
+                th.humidity,
+                th.timestamp as updated
+            FROM thermometers t
+            LEFT JOIN thermometer_history th ON t.mac = th.mac
+            INNER JOIN (
+                SELECT mac, MAX(timestamp) as max_timestamp
+                FROM thermometer_history
+                GROUP BY mac
+            ) latest ON th.mac = latest.mac AND th.timestamp = latest.max_timestamp
+            WHERE t.room = ?
+            ORDER BY t.display_name, t.name
         ");
         $stmt->execute([$request->getQueryParams()['room']]);
         
-        $tempData = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$tempData) {
-            throw new Exception('No temperature data found for this room');
-        }
+        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // Instead of throwing an error, just return empty array
         return sendSuccessResponse($response, [
-            'temperature' => $tempData['temp'],
-            'humidity' => $tempData['humidity'],
-            'mac' => $tempData['mac']
+            'thermometers' => $thermometers
         ]);
+        
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
@@ -724,9 +731,11 @@ $app->get('/thermometer-history', function (Request $request, Response $response
 
         $pdo = getDatabaseConnection($config);
         
-        // First get the device name
+        // First get the device name and room info - updated query without JOIN
         $stmt = $pdo->prepare("
-            SELECT name FROM thermometers WHERE mac = ?
+            SELECT name, display_name, room
+            FROM thermometers 
+            WHERE mac = ?
         ");
         $stmt->execute([$mac]);
         $device = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -748,7 +757,7 @@ $app->get('/thermometer-history', function (Request $request, Response $response
         
         return sendSuccessResponse($response, [
             'history' => $stmt->fetchAll(PDO::FETCH_ASSOC),
-            'device_name' => $device ? $device['name'] : 'Unknown Device'
+            'device_name' => $device ? ($device['display_name'] ?: $device['name']) : 'Unknown Device'
         ]);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
@@ -803,6 +812,68 @@ $app->get('/all-thermometer-history', function (Request $request, Response $resp
         return sendSuccessResponse($response, [
             'history' => $formattedHistory
         ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/thermometer-list', function (Request $request, Response $response) use ($config) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        
+        // Updated query to use room from thermometers table
+        $stmt = $pdo->prepare("
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                t.model,
+                t.room as room_id,
+                r.room_name,
+                t.updated
+            FROM thermometers t
+            LEFT JOIN rooms r ON t.room = r.id
+            ORDER BY t.name
+        ");
+        $stmt->execute();
+        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get room list for dropdown
+        $roomStmt = $pdo->query("SELECT id, room_name FROM rooms WHERE id != 1 ORDER BY room_name");
+        $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return sendSuccessResponse($response, [
+            'thermometers' => $thermometers,
+            'rooms' => $rooms
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-thermometer', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['mac']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Update thermometer display name and room
+        $stmt = $pdo->prepare("
+            UPDATE thermometers 
+            SET display_name = ?,
+                room = ?
+            WHERE mac = ?
+        ");
+        
+        $stmt->execute([
+            $data['display_name'] ?: null,
+            $data['room'] ?: null,
+            $data['mac']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Thermometer updated successfully']);
         
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
