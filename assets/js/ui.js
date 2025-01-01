@@ -73,6 +73,10 @@ async function createTabs() {
                 room_icon = 'fa-bed';
             } else if (room.room_name.includes('Living')) {
                 room_icon = 'fa-couch';
+            } else if (room.room_name.includes('Outside')) {
+                room_icon = 'fa-globe';
+            } else if (room.room_name.includes('Garage')) {
+                room_icon = 'fa-car-side';
             } else {
                 room_icon = 'fa-house';
             }

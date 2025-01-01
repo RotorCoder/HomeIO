@@ -1,14 +1,14 @@
 <!-- templates/history-popup.php -->
 
-<div id="history-popup" style="display: none;">
-    <div class="config-popup">
-        <div class="header">
+<div id="history-popup" class="popup-overlay" style="display: none;">
+    <div class="popup-container">
+        <div class="popup-header">
             <h3 id="history-device-title">Temperature History</h3>
             <button onclick="hideHistoryPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div class="content">
+        <div class="popup-content">
             <div class="history-controls">
                 <select id="history-range" onchange="loadTempHistory()">
                     <option value="24">Last 24 Hours</option>

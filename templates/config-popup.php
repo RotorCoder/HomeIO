@@ -1,15 +1,15 @@
 <!-- templates/config-popup.php -->
 
-<div id="config-popup" style="display: none;">
-        <div class="config-popup">
-            <div class="header">
+<div id="config-popup" class="popup-overlay" style="display: none;">
+        <div class="popup-container">
+            <div class="popup-header">
                 <h3 id="config-device-title">Device Configuration</h3>
                 <button onclick="hideConfigMenu()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
-            <div class="content">
+            <div class="popup-content">
                 <form id="device-config-form">
                     <!-- Hidden inputs -->
                     <input type="hidden" id="config-device-id">
