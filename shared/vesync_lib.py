@@ -143,7 +143,7 @@ class VeSyncAPI:
                     online BOOLEAN DEFAULT 0,
                     powerState VARCHAR(10),
                     brightness INT,
-                    energy FLOAT,
+                    energy_today FLOAT,
                     power FLOAT,
                     voltage FLOAT
                 )
@@ -162,24 +162,28 @@ class VeSyncAPI:
         """Update device lists and status if interval has passed"""
         current_time = time.time()
         if current_time - self.last_update >= self.update_interval:
-            self.manager.update()
-            self.last_update = current_time
-
+            success = self.manager.update()  # This updates the device list and states
+            if success:
+                self.last_update = current_time
+            return success
+        return True
+    
     def get_devices(self) -> Dict[str, List]:
         """Get all devices organized by type"""
         self.update_devices()
-        return {
+        devices = {
             'outlets': self.manager.outlets,
             'switches': self.manager.switches,
             'bulbs': self.manager.bulbs,
             'fans': self.manager.fans
         }
-
+        return devices
+    
     def update_device_database(self, device) -> Dict:
         """Update device information in database"""
         if not self.dbConfig:
             return {}
-
+    
         cursor = self.pdo.cursor(dictionary=True)
         try:
             # Get current device data
@@ -195,17 +199,20 @@ class VeSyncAPI:
                 'retrievable': True,
                 'brand': 'vesync',
                 'online': device.connection_status == 'online',
-                'powerState': 'on' if device.device_status == 'on' else 'off'
+                'powerState': device.device_status
             }
-
+    
             # Add device-specific properties
-            if hasattr(device, 'brightness'):
-                new_values['brightness'] = device.brightness
+            if hasattr(device, 'details'):
+                if 'brightness' in device.details:
+                    new_values['brightness'] = device.details['brightness']
+            
+            # For outlets/switches with energy monitoring
             if hasattr(device, 'energy'):
-                new_values['energy'] = device.energy_today
-                new_values['power'] = device.power
-                new_values['voltage'] = device.voltage
-
+                new_values['energy_today'] = device.energy.get('today', 0)
+                new_values['power'] = device.energy.get('power', 0)
+                new_values['voltage'] = device.energy.get('voltage', 0)
+    
             if not current:
                 # Insert new device
                 columns = ', '.join(new_values.keys())
@@ -227,7 +234,7 @@ class VeSyncAPI:
                     SET {', '.join(updates)}
                     WHERE device = %s
                 """, values)
-
+    
             self.pdo.commit()
             return new_values
 
