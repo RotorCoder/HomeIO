@@ -90,7 +90,7 @@ async function loadTempHistory() {
                         borderColor: 'rgb(255, 99, 132)',
                         yAxisID: 'temp',
                         tension: 0.3,
-                        pointRadius: 3
+                        pointRadius: 3,
                     },
                     {
                         label: 'Humidity (%)',
@@ -132,8 +132,7 @@ async function loadTempHistory() {
                         ticks: {
                             callback: function(val, index) {
                                 return index % 2 === 0 ? this.getLabelForValue(val) : '';
-                            },
-                            color: 'red',
+                            }
                         }
                     },
                     y: {
@@ -149,11 +148,12 @@ async function loadTempHistory() {
                         position: 'right',
                         title: {
                             display: true,
-                            text: 'Temperature °F'
+                            text: 'Temperature °F',
+                            color: 'rgb(255, 99, 132)',
                         },
                         ticks: {
                             stepSize: 1
-                        }
+                        },
                     },
                     humidity: {
                         type: 'linear',
@@ -161,7 +161,8 @@ async function loadTempHistory() {
                         position: 'left',
                         title: {
                             display: true,
-                            text: 'Humidity %'
+                            text: 'Humidity %',
+                            color: 'rgb(54, 162, 235)',
                         },
                         grid: {
                             drawOnChartArea: false,

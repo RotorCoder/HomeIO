@@ -308,7 +308,7 @@ body {
 }
 
 .config-popup .content {
-    padding: 20px;
+    padding: 8px;
     margin-top: 70px;
     flex-grow: 1;
     overflow-y: auto;
