@@ -1,6 +1,6 @@
 HomeIO - PHP smart home mobile-friendly webapp (2024 Christmas vacation project)
 
-Controls Govee and Philips Hue devices (Govee's public API has very restrictive rate limiting. Switching to Hue due to the Hue bridge local API)
+Controls Govee, VeSync and Philips Hue devices (Govee's public API has very restrictive rate limiting. VeSync no longer sells bulbs or plugs. Switching to Hue due to the Hue bridge local API)
 
 Listens for x10 remote RF input through x10 Commander log (Using CM15A on Windows PC)
 
