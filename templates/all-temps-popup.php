@@ -18,6 +18,24 @@
             <div class="chart-container" style="position: relative; height: 400px; width: 100%;">
                 <canvas id="all-temps-chart"></canvas>
             </div>
+            <div class="thermometer-table" style="margin-top: 20px;">
+                <h4>Thermometer Management</h4>
+                <table class="therm-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Display Name</th>
+                            <th>Name</th>
+                            <th>MAC</th>
+                            <th>Model</th>
+                            <th>Room</th>
+                            <th>Last Updated</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="thermometer-list">
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>

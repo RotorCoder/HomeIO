@@ -51,10 +51,16 @@ async function createTabs() {
             try {
                 const response = await apiFetch(`api/room-temperature?room=${room.id}`);
                 const data = await response.json();
-                if (data.success && data.temperature) {
-                    tempInfo = `<span class="room-temp-info" onclick="showTempHistory('${data.mac}', '${room.room_name}')" style="cursor: pointer">
-                        ${data.temperature}°F ${data.humidity}%
-                    </span>`;
+                if (data.success && data.thermometers) {
+                    tempInfo = data.thermometers.map(therm => {
+                        const displayName = therm.display_name || therm.name || 'Unknown Sensor';
+                        return `<span class="room-temp-info" 
+                                     onclick="showTempHistory('${therm.mac}', '${displayName}')" 
+                                     title="${displayName}"
+                                     style="cursor: pointer; margin-left: 10px;">
+                            ${therm.temp}°F ${therm.humidity}%
+                        </span>`;
+                    }).join('');
                 }
             } catch (error) {
                 console.error('Error fetching temperature:', error);

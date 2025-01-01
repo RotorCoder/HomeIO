@@ -460,11 +460,13 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .room-temp-info {
     font-size: 1rem;
     color: #6b7280;
+    white-space: nowrap;
 }
 
 @media (min-width: 1024px) {
@@ -571,4 +573,42 @@ body {
 .history-table-container {
     border: 1px solid #ddd;
     border-radius: 4px;
+}
+
+.therm-table {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    width: 100%;
+}
+
+.therm-table th,
+.therm-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.therm-table th {
+    background-color: #f9fafb;
+    font-weight: 500;
+}
+
+.therm-table input,
+.therm-table select {
+    padding: 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+}
+
+.therm-table .save-btn {
+    padding: 4px 8px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.therm-table .save-btn:hover {
+    background: #15803d;
 }

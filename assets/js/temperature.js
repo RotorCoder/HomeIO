@@ -378,3 +378,99 @@ async function loadAllTempHistory() {
         showError('Failed to load temperature history: ' + error.message);
     }
 }
+
+async function loadThermometerList() {
+    try {
+        const response = await apiFetch('api/thermometer-list');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load thermometer list');
+        }
+
+        const tbody = document.getElementById('thermometer-list');
+        tbody.innerHTML = data.thermometers.map(therm => {
+            const roomOptions = data.rooms.map(room => 
+                `<option value="${room.id}" ${room.id == therm.room_id ? 'selected' : ''}>
+                    ${room.room_name}
+                </option>`
+            ).join('');
+
+            return `
+                <tr data-mac="${therm.mac}">
+                    <td>
+                        <input type="text" class="therm-display-name" 
+                               value="${therm.display_name || ''}" 
+                               style="width: 100%">
+                    </td>
+                    <td>${therm.name || ''}</td>
+                    <td>${therm.mac}</td>
+                    <td>${therm.model || ''}</td>
+                    <td>
+                        <select class="therm-room" style="width: 100%">
+                            <option value="">No Room</option>
+                            ${roomOptions}
+                        </select>
+                    </td>
+                    <td>${new Date(therm.updated).toLocaleString()}</td>
+                    <td>
+                        <button onclick="saveThermometer('${therm.mac}')" class="save-btn">
+                            Save
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error loading thermometer list:', error);
+        showError('Failed to load thermometer list: ' + error.message);
+    }
+}
+
+async function saveThermometer(mac) {
+    const row = document.querySelector(`tr[data-mac="${mac}"]`);
+    if (!row) return;
+
+    const displayName = row.querySelector('.therm-display-name').value;
+    const room = row.querySelector('.therm-room').value;
+
+    try {
+        const response = await apiFetch('api/update-thermometer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                mac: mac,
+                display_name: displayName,
+                room: room
+            })
+        });
+        
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to update thermometer');
+        }
+
+        // Reload both the list and the chart
+        await Promise.all([
+            loadThermometerList(),
+            loadAllTempHistory(),
+            loadInitialData()  // Also reload main UI to reflect changes
+        ]);
+
+    } catch (error) {
+        console.error('Error saving thermometer:', error);
+        showError('Failed to save thermometer: ' + error.message);
+    }
+}
+
+async function showAllTempHistory() {
+    const popup = document.getElementById('all-temps-popup');
+    popup.style.display = 'block';
+    await Promise.all([
+        loadAllTempHistory(),
+        loadThermometerList()
+    ]);
+}
