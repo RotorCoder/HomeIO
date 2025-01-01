@@ -120,10 +120,14 @@ async function createTabs() {
                     <i class="fas fa-sync-alt"></i>
                     <span>Refresh</span>
                 </button>
-                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
+                <button class="desktop-config-btn" onclick="showAllTempHistory()">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>All Temperature History</span>
+                </button>
                 <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
                     Show Unassigned Devices
                 </button>
+                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
             </div>
         </div>`;
     

@@ -14,6 +14,7 @@
     <link rel="manifest" href="assets/images/site.webmanifest">
     <link rel="stylesheet" href="assets/css/styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -24,6 +25,7 @@
     
     <?php include 'templates/config-popup.php'; ?>
     <?php include 'templates/history-popup.php'; ?>
+    <?php include 'templates/all-temps-popup.php'; ?>
     
     <script>
         const API_KEY = '<?php echo $config['homeio_api_key']; ?>';

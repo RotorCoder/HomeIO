@@ -755,4 +755,58 @@ $app->get('/thermometer-history', function (Request $request, Response $response
     }
 });
 
+$app->get('/all-thermometer-history', function (Request $request, Response $response) use ($config) {
+    try {
+        // Get hours parameter, default to 24 if not specified
+        $hours = isset($request->getQueryParams()['hours']) ? (int)$request->getQueryParams()['hours'] : 24;
+        
+        // Validate hours parameter
+        if (!in_array($hours, [24, 168, 720])) {
+            throw new Exception('Invalid hours parameter');
+        }
+
+        $pdo = getDatabaseConnection($config);
+        
+        // Get history for all thermometers with device names
+        $stmt = $pdo->prepare("
+            SELECT 
+                th.temperature,
+                th.humidity,
+                th.battery,
+                th.rssi,
+                DATE_FORMAT(th.timestamp, '%Y-%m-%d %H:%i') as timestamp,
+                COALESCE(t.display_name, t.name, d.device_name, th.mac) as device_name,
+                th.mac
+            FROM thermometer_history th
+            LEFT JOIN thermometers t ON th.mac = t.mac
+            LEFT JOIN devices d ON th.mac = d.device
+            WHERE th.timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+            ORDER BY th.timestamp ASC
+        ");
+        
+        $stmt->execute([$hours]);
+        $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Format data for response
+        $formattedHistory = array_map(function($record) {
+            return [
+                'device_name' => $record['device_name'],
+                'mac' => $record['mac'],
+                'temperature' => floatval($record['temperature']),
+                'humidity' => floatval($record['humidity']),
+                'battery' => intval($record['battery']),
+                'rssi' => intval($record['rssi']),
+                'timestamp' => $record['timestamp']
+            ];
+        }, $history);
+
+        return sendSuccessResponse($response, [
+            'history' => $formattedHistory
+        ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
 $app->run();
