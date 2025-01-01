@@ -1,4 +1,4 @@
-Combined Reference File - Created on Wed Jan  1 04:09:19 PM EST 2025
+Combined Reference File - Created on Wed Jan  1 05:01:33 PM EST 2025
 Root Path: /var/www/html/homeio
 
 ================================================================================
@@ -28,43 +28,6 @@ FILE: index.php
     <div class="error-message" id="error-message"></div>
     <div id="tabs" class="tabs"></div>
     <div id="tab-contents"></div>
-
-    <!-- Add the new config popup and button here -->
-    <div class="config-popup-desktop" id="config-popup-desktop">
-        <div class="config-content">
-            <div class="header">
-                <h2>Configuration</h2>
-                <button onclick="hideDesktopConfig()" class="close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="content">
-                <div class="auto-refresh-control">
-                    <label class="refresh-toggle">
-                        <input type="checkbox" id="desktop-auto-refresh-toggle">
-                        <span>Auto-refresh</span>
-                    </label>
-                    <p class="refresh-time" id="desktop-last-update"></p>
-                </div>
-                <button onclick="manualRefresh()" class="config-button">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
-                </button>
-                <button onclick="showAllTempHistory()" class="config-button">
-                    <i class="fas fa-temperature-high"></i>
-                    <span>All Temperature History</span>
-                </button>
-                <button onclick="showDefaultRoomDevices()" class="config-button">
-                    <span>Show Unassigned Devices</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
-        <i class="fas fa-cog"></i>
-        <span>Configuration</span>
-    </button>
 </div>
     
     <?php include 'templates/config-popup.php'; ?>
@@ -1189,15 +1152,15 @@ FILE: templates/all-temps-popup.php
 ================================================================================
 
 <!-- templates/all-temps-popup.php -->
-<div id="all-temps-popup" style="display: none;">
-    <div class="config-popup">
-        <div class="header">
+<div id="all-temps-popup" class="popup-overlay" style="display: none;">
+    <div class="popup-container">
+        <div class="popup-header">
             <h3>All Temperature History</h3>
-            <button onclick="hideAllTempsPopup()" style="background: none; border: none; cursor: pointer; font-size: 1.5rem; padding: 5px;">
+            <button onclick="hideAllTempsPopup()" class="close-popup-btn">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div class="content">
+        <div class="popup-content">
             <div class="history-controls">
                 <select id="all-temps-history-range" onchange="loadAllTempHistory()">
                     <option value="24">Last 24 Hours</option>
@@ -2773,6 +2736,10 @@ async function createTabs() {
                 room_icon = 'fa-bed';
             } else if (room.room_name.includes('Living')) {
                 room_icon = 'fa-couch';
+            } else if (room.room_name.includes('Outside')) {
+                room_icon = 'fa-globe';
+            } else if (room.room_name.includes('Garage')) {
+                room_icon = 'fa-car-side';
             } else {
                 room_icon = 'fa-house';
             }
@@ -2792,6 +2759,7 @@ async function createTabs() {
         }
     }
     
+    // Keep the config tab for mobile view only
     tabsHtml += `
         <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
             <i class="fas fa-xl fa-cog"></i>
@@ -2799,43 +2767,62 @@ async function createTabs() {
 
     contentsHtml += `
         <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            <div>
-                <button onclick="showDefaultRoomDevices()" class="mobile-config-btn">
-                    Show Unassigned Devices
+            <div class="auto-refresh-control" style="margin-bottom: 10px;">
+                <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+                    <span>Auto-refresh</span>
+                </label>
+                <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
+            </div>
+            <button onclick="manualRefresh()" class="config-button">
+                <i class="fas fa-sync-alt"></i>
+                <span>Refresh Govee Data</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-temperature-high"></i>
+                <span>Thermometers</span>
+            </button>
+            <button onclick="showDefaultRoomDevices()" class="config-button">
+                <i class="fas fa-plug"></i>
+                <span>All Devices</span>
+            </button>
+        </div>
+        <div class="config-popup-desktop" id="config-popup-desktop">
+        <div class="config-content">
+            <div class="header">
+                <h2>Configuration</h2>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="device-grid" id="room-config-devices"></div>
-        </div>`;
-
-    contentsHtml += `
-        <div class="config-section">
-            <h2 class="header" onclick="toggleConfigContent()">
-                <i class="fas fa-cog"></i>
-                Configuration
-                <i class="fas fa-chevron-down"></i>
-            </h2>
-            <div class="config-content" id="desktop-config-content">
-                <div class="auto-refresh-control" style="margin-bottom: 10px;">
-                    <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                        <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
+            <div class="content">
+                <div class="auto-refresh-control">
+                    <label class="refresh-toggle">
+                        <input type="checkbox" id="desktop-auto-refresh-toggle">
                         <span>Auto-refresh</span>
                     </label>
-                    <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
+                    <p class="refresh-time" id="desktop-last-update"></p>
                 </div>
-                <button id="refresh-button" class="refresh-button desktop-config-btn" onclick="manualRefresh()" style="margin-bottom: 10px;">
+                <button onclick="manualRefresh()" class="config-button">
                     <i class="fas fa-sync-alt"></i>
-                    <span>Refresh</span>
+                    <span>Refresh Govee Devices</span>
                 </button>
-                <button class="desktop-config-btn" onclick="showAllTempHistory()">
+                <button onclick="showAllTempHistory()" class="config-button">
                     <i class="fas fa-temperature-high"></i>
-                    <span>All Temperature History</span>
+                    <span>Thermometers</span>
                 </button>
-                <button onclick="showDefaultRoomDevices()" class="desktop-config-btn">
-                    Show Unassigned Devices
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <i class="fas fa-plug"></i>
+                    <span>All Devices</span>
                 </button>
-                <div id="timing-info" class="device-grid" style="margin-top: 10px;"></div>
             </div>
-        </div>`;
+        </div>
+    </div>
+
+    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
+        <i class="fas fa-cog"></i>
+        <span>Configuration</span>
+    </button>`;
     
     tabsContainer.innerHTML = tabsHtml;
     tabContents.innerHTML = contentsHtml;
@@ -2870,49 +2857,18 @@ function switchTab(roomId) {
     }
 }
 
-function toggleConfigContent() {
-    const configContent = document.getElementById('desktop-config-content');
-    const chevron = document.querySelector('.header .fa-chevron-down');
-    configContent.classList.toggle('show');
-    chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
-}
-
 function showDefaultRoomDevices() {
     const popup = document.createElement('div');
+    popup.className = 'popup-overlay';
     popup.innerHTML = `
-        <div class="popup-overlay" onclick="this.parentElement.remove()" style="
-            background: #F3F4F6;
-            padding: 20px;
-        ">
-            <div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                background: white;
-                padding: 20px;
-                border-bottom: 1px solid #e5e7eb;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                z-index: 1002;
-            ">
-                <h3 style="margin: 0;">Unassigned Devices</h3>
-                <button onclick="this.closest('.popup-overlay').parentElement.remove()" style="
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 1.5rem;
-                    padding: 5px;
-                ">
+        <div class="popup-container">
+            <div class="popup-header">
+                <h3>Unassigned Devices</h3>
+                <button onclick="this.closest('.popup-overlay').remove()" class="close-popup-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div style="
-                padding-top: 70px;
-                height: 100vh;
-                overflow-y: auto;
-            ">
+            <div class="popup-content">
                 <div class="device-grid" id="default-room-devices"></div>
             </div>
         </div>
@@ -3068,11 +3024,7 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
-.device-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
+
 
 .icon-wrapper {
     width: 40px;
@@ -3088,6 +3040,7 @@ body {
     color: #111827;
     font-size: 1rem;
     font-weight: 500;
+    margin: 0;
 }
 
 .device-details p {
@@ -3113,7 +3066,31 @@ body {
     height: 35%;
     margin: 10px;
     position: relative;
+    padding: 0.5rem;
+    background: white;
 }
+
+.config-btn {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    color: #6b7280;
+}
+
+.config-btn:hover {
+    color: #374151;
+}
+
+.device-details {
+    flex: 1;
+    padding-right: 2.5rem; /* Make room for config button */
+}
+
 
 .device-controls {
     display: flex;
@@ -3173,7 +3150,7 @@ body {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
+    z-index: 1001;
 }
 
 .config-popup-desktop .config-content {
@@ -3190,6 +3167,32 @@ body {
     overflow-y: auto;
 }
 
+.config-popup-desktop .header {
+    position: relative;  /* For absolute positioning of close button */
+    padding: 20px;
+}
+
+.config-popup-desktop .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 5px;
+}
+
+.config-popup-desktop .close-btn:hover {
+    color: #374151;
+}
+
+.config-popup-desktop .config-content {
+    /* Keep existing styles */
+    position: relative;  /* For absolute positioning context */
+}
+
 .config-button {
     background-color: #333;
     color: white;
@@ -3197,7 +3200,6 @@ body {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    width: 100%;
     margin: 5px 0;
     display: flex;
     align-items: center;
@@ -3244,6 +3246,23 @@ body {
     color: #374151;
 }
 
+.room-header {
+    font-size: 1.25rem;
+    margin: 1rem 0 .75rem 0;
+    padding: 0 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.room-temp-info {
+    font-size: 1rem;
+    color: #6b7280;
+    white-space: nowrap;
+    margin-left: auto; /* Push to right side */
+    padding-left: 10px;
+}
+
 /* Media Queries */
 @media (min-width: 1024px) {
     .tabs {
@@ -3277,20 +3296,7 @@ body {
         display: none !important;
     }
 
-    .room-header {
-        font-size: 1.25rem;
-        margin: 1rem 0 .75rem 0;
-        padding: 0 0.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .room-temp-info {
-        font-size: 1rem;
-        color: #6b7280;
-    }
-}
+}  
 
 /* Existing styles for history, temperature, etc. */
 .history-controls {
@@ -3301,6 +3307,21 @@ body {
     padding: 8px;
     border-radius: 4px;
     border: 1px solid #ddd;
+}
+
+.chart-container {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.thermometer-table {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
 }
 
 .history-table-container {
@@ -3364,6 +3385,61 @@ body {
 
 .status-change {
     animation: highlight 1s ease;
+}
+
+/* Add to styles.css */
+
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+}
+
+.popup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #F3F4F6;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+}
+
+.popup-header {
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1002;
+}
+
+.popup-content {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.close-popup-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.5rem;
+    padding: 5px;
+    color: #6b7280;
+}
+
+.close-popup-btn:hover {
+    color: #374151;
 }
 
 ================================================================================
