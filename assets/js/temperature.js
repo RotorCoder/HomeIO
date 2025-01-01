@@ -31,8 +31,8 @@ async function loadTempHistory() {
             
             thead.innerHTML = `
                 <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(255, 99, 132);">Temperature</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(54, 162, 235);">Humidity</th>
             `;
             
             tbody.innerHTML = [...historyData].reverse().map(record => {
