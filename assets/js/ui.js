@@ -103,7 +103,7 @@ async function createTabs() {
 
     contentsHtml += `
         <div class="config-section">
-            <h2 class="config-header" onclick="toggleConfigContent()">
+            <h2 class="room-header" onclick="toggleConfigContent()">
                 <i class="fas fa-cog"></i>
                 Configuration
                 <i class="fas fa-chevron-down"></i>
@@ -162,7 +162,7 @@ function switchTab(roomId) {
 
 function toggleConfigContent() {
     const configContent = document.getElementById('desktop-config-content');
-    const chevron = document.querySelector('.config-header .fa-chevron-down');
+    const chevron = document.querySelector('.room-header .fa-chevron-down');
     configContent.classList.toggle('show');
     chevron.style.transform = configContent.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0)';
 }
