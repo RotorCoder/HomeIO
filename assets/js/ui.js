@@ -155,40 +155,16 @@ function switchTab(roomId) {
 
 function showDefaultRoomDevices() {
     const popup = document.createElement('div');
+    popup.className = 'popup-overlay';
     popup.innerHTML = `
-        <div class="popup-overlay" onclick="this.parentElement.remove()" style="
-            background: #F3F4F6;
-            padding: 20px;
-        ">
-            <div style="
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                background: white;
-                padding: 20px;
-                border-bottom: 1px solid #e5e7eb;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                z-index: 1002;
-            ">
-                <h3 style="margin: 0;">Unassigned Devices</h3>
-                <button onclick="this.closest('.popup-overlay').parentElement.remove()" style="
-                    background: none;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 1.5rem;
-                    padding: 5px;
-                ">
+        <div class="popup-container">
+            <div class="popup-header">
+                <h3>Unassigned Devices</h3>
+                <button onclick="this.closest('.popup-overlay').remove()" class="close-popup-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div style="
-                padding-top: 70px;
-                height: 100vh;
-                overflow-y: auto;
-            ">
+            <div class="popup-content">
                 <div class="device-grid" id="default-room-devices"></div>
             </div>
         </div>
