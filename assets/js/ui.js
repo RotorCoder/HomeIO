@@ -65,15 +65,30 @@ async function createTabs() {
             } catch (error) {
                 console.error('Error fetching temperature:', error);
             }
+            
+            let room_icon;
+            if (room.room_name.includes('Office')) {
+                room_icon = 'fa-computer';
+            } else if (room.room_name.includes('Bed')) {
+                room_icon = 'fa-bed';
+            } else if (room.room_name.includes('Living')) {
+                room_icon = 'fa-couch';
+            } else if (room.room_name.includes('Outside')) {
+                room_icon = 'fa-globe';
+            } else if (room.room_name.includes('Garage')) {
+                room_icon = 'fa-car-side';
+            } else {
+                room_icon = 'fa-house';
+            }
 
             tabsHtml += `
                 <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
-                    <i class="fa-solid fa-xl ${room.icon}"></i>
+                    <i class="fa-solid fa-xl ${room_icon}"></i>
                 </button>`;
             contentsHtml += `
                 <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     <h2 class="room-header">
-                        <span><i class="fa-solid ${room.icon}"></i> ${room.room_name}</span>
+                        <span><i class="fa-solid ${room_icon}"></i> ${room.room_name}</span>
                         ${tempInfo ? `<span class="room-temp-info">${tempInfo}</span>` : ''}
                     </h2>
                     <div class="device-grid" id="room-${room.id}-devices"></div>
@@ -110,8 +125,41 @@ async function createTabs() {
             </button>
         </div>
         <div class="config-popup-desktop" id="config-popup-desktop">
-            <!-- Rest of the config popup HTML remains unchanged -->
-        </div>`;
+        <div class="config-content">
+            <div class="header">
+                <h2>Configuration</h2>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="content">
+                <div class="auto-refresh-control">
+                    <label class="refresh-toggle">
+                        <input type="checkbox" id="desktop-auto-refresh-toggle">
+                        <span>Auto-refresh</span>
+                    </label>
+                    <p class="refresh-time" id="desktop-last-update"></p>
+                </div>
+                <button onclick="manualRefresh()" class="config-button">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh Govee Devices</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>Thermometers</span>
+                </button>
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <i class="fas fa-plug"></i>
+                    <span>All Devices</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
+        <i class="fas fa-cog"></i>
+        <span>Configuration</span>
+    </button>`;
     
     tabsContainer.innerHTML = tabsHtml;
     tabContents.innerHTML = contentsHtml;
