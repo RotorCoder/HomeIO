@@ -880,4 +880,78 @@ $app->post('/update-thermometer', function (Request $request, Response $response
     }
 });
 
+$app->get('/all-devices', function (Request $request, Response $response) use ($config) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("
+            SELECT d.*, 
+                   r.room_name,
+                   g.name as group_name 
+            FROM devices d
+            LEFT JOIN rooms r ON d.room = r.id
+            LEFT JOIN device_groups g ON d.deviceGroup = g.id
+            ORDER BY d.brand, d.model, d.device_name
+        ");
+        $stmt->execute();
+        
+        // Get room list for dropdown
+        $roomStmt = $pdo->query("SELECT id, room_name FROM rooms ORDER BY room_name");
+        $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Get group list
+        $groupStmt = $pdo->query("SELECT id, name FROM device_groups ORDER BY name");
+        $groups = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return sendSuccessResponse($response, [
+            'devices' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'rooms' => $rooms,
+            'groups' => $groups
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-device-details', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $stmt = $pdo->prepare("
+            UPDATE devices 
+            SET x10Code = ?,
+                preferredName = ?,
+                room = ?,
+                low = ?,
+                medium = ?,
+                high = ?,
+                preferredPowerState = ?,
+                preferredBrightness = ?,
+                preferredColorTem = ?,
+                deviceGroup = ?
+            WHERE device = ?
+        ");
+        
+        $stmt->execute([
+            $data['x10Code'],
+            $data['preferredName'],
+            $data['room'],
+            $data['low'],
+            $data['medium'],
+            $data['high'],
+            $data['preferredPowerState'],
+            $data['preferredBrightness'],
+            $data['preferredColorTem'],
+            $data['deviceGroup'],
+            $data['device']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Device updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
 $app->run();

@@ -603,3 +603,50 @@ body {
     border-radius: 4px;
     margin-bottom: 1rem;
 }
+
+.device-table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+.device-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    table-layout: auto;
+}
+
+.device-table th,
+.device-table td {
+    padding: 8px;
+    border: 1px solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+    width: 1px;
+}
+
+.device-table th {
+    background-color: #f5f5f5;
+    font-weight: 500;
+}
+
+.device-table input,
+.device-table select {
+    width: auto;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.device-table .save-btn {
+    padding: 4px 8px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.device-table .save-btn:hover {
+    background: #15803d;
+}
