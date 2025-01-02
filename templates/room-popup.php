@@ -9,9 +9,8 @@
         </div>
         <div class="popup-content">
             <div class="room-table">
-                <h4>Room Configuration</h4>
                 <div class="device-table-container">
-                    <table class="room-table">
+                    <table class="therm-table">
                         <thead>
                             <tr>
                                 <th>Room Name</th>
@@ -22,16 +21,26 @@
                         </thead>
                         <tbody id="room-list">
                         </tbody>
+                        <tr>
+                            <td>
+                                <input type="text" id="new-room-name" placeholder="Room Name" style="width: auto; padding: 4px;">
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <i class="fa-solid fa-house"></i>
+                                    <input type="text" id="new-room-icon" placeholder="fa-house" style="width: auto; padding: 4px;">
+                                </div>
+                            </td>
+                            <td>
+                                <input type="number" id="new-room-order" placeholder="Tab Order" style="width: 80px; padding: 4px;">
+                            </td>
+                            <td>
+                                <button onclick="addNewRoom()" class="save-btn" style="padding: 4px 8px;">
+                                    <i class="fas fa-plus"></i> Add Room
+                                </button>
+                            </td>
+                        </tr>
                     </table>
-                </div>
-                <div class="add-room-form" style="margin-top: 20px;">
-                    <h4>Add New Room</h4>
-                    <div style="display: flex; gap: 10px; margin-top: 10px;">
-                        <input type="text" id="new-room-name" placeholder="Room Name" style="flex: 2;">
-                        <input type="text" id="new-room-icon" placeholder="fa-house" style="flex: 2;">
-                        <input type="number" id="new-room-order" placeholder="Tab Order" style="flex: 1;">
-                        <button onclick="addNewRoom()" class="save-btn" style="flex: 1;">Add Room</button>
-                    </div>
                 </div>
             </div>
         </div>

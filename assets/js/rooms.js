@@ -1,9 +1,13 @@
 // assets/js/rooms.js
 
-async function showRoomManagement() {
+function showRoomManagement() {
     const popup = document.getElementById('room-popup');
+    if (!popup) {
+        console.error('Room popup template not found');
+        return;
+    }
     popup.style.display = 'block';
-    await loadRoomList();
+    loadRoomList();
 }
 
 function hideRoomPopup() {
@@ -20,15 +24,19 @@ async function loadRoomList() {
         }
 
         const tbody = document.getElementById('room-list');
+        if (!tbody) {
+            console.error('Room list tbody element not found');
+            return;
+        }
+
         tbody.innerHTML = data.rooms.map(room => {
-            // Don't allow editing of default room (id 1)
             if (room.id === 1) {
                 return `
                     <tr>
                         <td>${room.room_name}</td>
-                        <td><i class="fa-solid ${room.icon}"></i></td>
+                        <td><i class="fa-solid ${room.icon}"></i> ${room.icon}</td>
                         <td>${room.tab_order}</td>
-                        <td>Default Room</td>
+                        <td>System Default</td>
                     </tr>
                 `;
             }
@@ -36,17 +44,20 @@ async function loadRoomList() {
             return `
                 <tr data-room-id="${room.id}">
                     <td>
-                        <input type="text" class="room-name" value="${room.room_name}">
+                        <input type="text" class="room-name" value="${room.room_name}" style="width: auto; padding: 4px;">
                     </td>
                     <td>
-                        <input type="text" class="room-icon" value="${room.icon}" placeholder="fa-icon-name">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid ${room.icon}"></i>
+                            <input type="text" class="room-icon" value="${room.icon}" style="width: auto; padding: 4px;">
+                        </div>
                     </td>
                     <td>
-                        <input type="number" class="room-order" value="${room.tab_order}">
+                        <input type="number" class="room-order" value="${room.tab_order}" style="width: 80px; padding: 4px;">
                     </td>
                     <td>
-                        <button onclick="saveRoom(${room.id})" class="save-btn">Save</button>
-                        <button onclick="deleteRoom(${room.id})" class="delete-btn">Delete</button>
+                        <button onclick="saveRoom(${room.id})" class="save-btn" style="padding: 4px 8px; margin-right: 5px;">Save</button>
+                        <button onclick="deleteRoom(${room.id})" class="delete-btn" style="padding: 4px 8px; background: #ef4444;">Delete</button>
                     </td>
                 </tr>
             `;
@@ -117,7 +128,7 @@ async function addNewRoom() {
             body: JSON.stringify({
                 room_name: roomName,
                 icon: icon,
-                tab_order: tabOrder
+                tab_order: parseInt(tabOrder)
             })
         });
         
@@ -128,6 +139,7 @@ async function addNewRoom() {
 
         // Clear form
         document.getElementById('new-room-name').value = '';
+        document.getElementById('new-room-icon').value = '';
         document.getElementById('new-room-order').value = '';
 
         // Reload room list and main UI
