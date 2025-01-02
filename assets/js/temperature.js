@@ -400,9 +400,9 @@ async function loadThermometerList() {
                                value="${therm.display_name || ''}" 
                                style="width: 100%">
                     </td>
-                    <td>${therm.name || ''}</td>
-                    <td>${therm.mac}</td>
                     <td>${therm.model || ''}</td>
+                    
+                    <td>${therm.mac}</td>
                     <td>
                         <select class="therm-room" style="width: 100%">
                             <option value="">No Room</option>

@@ -24,9 +24,9 @@
                     <thead>
                         <tr>
                             <th>Display Name</th>
-                            <th>Name</th>
-                            <th>MAC</th>
                             <th>Model</th>
+                            
+                            <th>MAC</th>
                             <th>Room</th>
                             <th>Last Updated</th>
                             <th>Actions</th>
