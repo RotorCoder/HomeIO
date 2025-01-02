@@ -381,41 +381,44 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.thermometer-table {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    margin-top: 20px;
-}
+
 
 .history-table-container {
     border: 1px solid #ddd;
     border-radius: 4px;
 }
 
+.thermometer-table {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
 .therm-table {
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
     width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    table-layout: auto;
 }
 
 .therm-table th,
 .therm-table td {
     padding: 8px;
+    border: 1px solid #ddd;
     text-align: left;
-    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+    width: 1px;
 }
 
 .therm-table th {
-    background-color: #f9fafb;
+    background-color: #f5f5f5;
     font-weight: 500;
 }
 
 .therm-table input,
 .therm-table select {
+    width: auto;
     padding: 4px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #ddd;
     border-radius: 4px;
 }
 
