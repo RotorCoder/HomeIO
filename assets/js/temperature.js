@@ -397,14 +397,13 @@ async function loadThermometerList() {
                 <tr data-mac="${therm.mac}">
                     <td>
                         <input type="text" class="therm-display-name" 
-                               value="${therm.display_name || ''}" 
-                               style="width: 100%">
+                               value="${therm.display_name || ''}">
                     </td>
                     <td>${therm.model || ''}</td>
                     
                     <td>${therm.mac}</td>
                     <td>
-                        <select class="therm-room" style="width: 100%">
+                        <select class="therm-room">
                             <option value="">No Room</option>
                             ${roomOptions}
                         </select>
