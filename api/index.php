@@ -424,6 +424,93 @@ $app->get('/rooms', function (Request $request, Response $response) use ($config
     }
 });
 
+$app->post('/update-room', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['id', 'room_name', 'icon', 'tab_order']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $stmt = $pdo->prepare("
+            UPDATE rooms 
+            SET room_name = ?,
+                icon = ?,
+                tab_order = ?
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([
+            $data['room_name'],
+            $data['icon'],
+            $data['tab_order'],
+            $data['id']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Room updated successfully']);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/add-room', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['room_name', 'icon', 'tab_order']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO rooms (room_name, icon, tab_order)
+            VALUES (?, ?, ?)
+        ");
+        
+        $stmt->execute([
+            $data['room_name'],
+            $data['icon'],
+            $data['tab_order']
+        ]);
+        
+        return sendSuccessResponse($response, [
+            'message' => 'Room added successfully',
+            'room_id' => $pdo->lastInsertId()
+        ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->delete('/delete-room', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['id']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // First check if room has any devices
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM devices WHERE room = ?");
+        $stmt->execute([$data['id']]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result['count'] > 0) {
+            throw new Exception('Cannot delete room with assigned devices');
+        }
+        
+        $stmt = $pdo->prepare("DELETE FROM rooms WHERE id = ? AND id != 1");
+        $stmt->execute([$data['id']]);
+        
+        if ($stmt->rowCount() === 0) {
+            throw new Exception('Room not found or cannot be deleted');
+        }
+        
+        return sendSuccessResponse($response, ['message' => 'Room deleted successfully']);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
 $app->get('/room-temperature', function (Request $request, Response $response) use ($config) {
     try {
         validateRequiredParams($request->getQueryParams(), ['room']);

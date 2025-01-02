@@ -26,6 +26,7 @@
     <?php include 'templates/config-popup.php'; ?>
     <?php include 'templates/history-popup.php'; ?>
     <?php include 'templates/all-temps-popup.php'; ?>
+    <?php include 'templates/room-popup.php'; ?>
     
     <script>
         const API_KEY = '<?php echo $config['homeio_api_key']; ?>';
@@ -37,5 +38,6 @@
     <script src="assets/js/config.js"></script>
     <script src="assets/js/temperature.js"></script>
     <script src="assets/js/main.js"></script>
+    <script src="assets/js/rooms.js"></script>
     </body>
 </html>
