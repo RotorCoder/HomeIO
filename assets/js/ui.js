@@ -123,6 +123,10 @@ async function createTabs() {
                 <i class="fas fa-plug"></i>
                 <span>All Devices</span>
             </button>
+            <button onclick="showRoomManagement()" class="config-button">
+                <i class="fas fa-door-open"></i>
+                <span>Room Management</span>
+            </button>
         </div>
         <div class="config-popup-desktop" id="config-popup-desktop">
         <div class="config-content">
@@ -151,6 +155,10 @@ async function createTabs() {
                 <button onclick="showDefaultRoomDevices()" class="config-button">
                     <i class="fas fa-plug"></i>
                     <span>All Devices</span>
+                </button>
+                <button onclick="showRoomManagement()" class="config-button">
+                    <i class="fas fa-door-open"></i>
+                    <span>Room Management</span>
                 </button>
             </div>
         </div>
