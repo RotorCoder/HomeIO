@@ -416,7 +416,7 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
 $app->get('/rooms', function (Request $request, Response $response) use ($config) {
     try {
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->query("SELECT id, room_name FROM rooms ORDER BY tab_order");
+        $stmt = $pdo->query("SELECT id, room_name, tab_order, icon FROM rooms ORDER BY tab_order");
         
         return sendSuccessResponse($response, ['rooms' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
     } catch (Exception $e) {
