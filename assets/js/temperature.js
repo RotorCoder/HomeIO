@@ -12,231 +12,7 @@ function hideHistoryPopup() {
     document.getElementById('history-popup').style.display = 'none';
 }
 
-async function loadTempHistory() {
-    const popup = document.getElementById('history-popup');
-    const mac = popup.dataset.mac;
-    const hours = document.getElementById('history-range').value;
-    
-    try {
-        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to load temperature history');
-        }
 
-        function updateTable(chartInstance, historyData) {
-            const tbody = document.querySelector('#history-table tbody');
-            const thead = document.querySelector('#history-table thead tr');
-            
-            thead.innerHTML = `
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(255, 99, 132);">Temperature</th>
-                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd; color: rgb(54, 162, 235);">Humidity</th>
-            `;
-            
-            tbody.innerHTML = [...historyData].reverse().map(record => {
-                const date = new Date(record.timestamp);
-                let formattedDate;
-                
-                if (hours === '24') {
-                    formattedDate = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-                } else {
-                    formattedDate = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-                }
-                
-                return `
-                    <tr>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature}°F</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity}%</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        const chartData = [...data.history].reverse();
-
-        if (chartData.length === 0) {
-            document.getElementById('temp-history-chart').innerHTML = 
-                '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
-            return;
-        }
-
-        const labels = chartData.map(record => {
-            const date = new Date(record.timestamp);
-            if (hours === '24') {
-                return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-            } else {
-                return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-            }
-        });
-
-        const canvas = document.getElementById('temp-history-chart');
-        const ctx = canvas.getContext('2d');
-
-        if (window.tempHistoryChart) {
-            window.tempHistoryChart.destroy();
-        }
-
-        window.tempHistoryChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'Temperature (°F)',
-                        data: chartData.map(record => record.temperature),
-                        borderColor: 'rgb(255, 99, 132)',
-                        yAxisID: 'temp',
-                        tension: 0.3,
-                        pointRadius: 3,
-                    },
-                    {
-                        label: 'Humidity (%)',
-                        data: chartData.map(record => record.humidity),
-                        borderColor: 'rgb(54, 162, 235)',
-                        yAxisID: 'humidity',
-                        tension: 0.3,
-                        pointRadius: 3
-                    },
-                    {
-                        label: 'Battery (%)',
-                        data: chartData.map(record => record.battery),
-                        borderColor: 'rgb(75, 192, 192)',
-                        yAxisID: 'battery',
-                        tension: 0.3,
-                        pointRadius: 3,
-                        hidden: true
-                    },
-                    {
-                        label: 'Signal Strength (dBm)',
-                        data: chartData.map(record => record.rssi),
-                        borderColor: 'rgb(153, 102, 255)',
-                        yAxisID: 'rssi',
-                        tension: 0.3,
-                        pointRadius: 3,
-                        hidden: true
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            callback: function(val, index) {
-                                return index % 2 === 0 ? this.getLabelForValue(val) : '';
-                            }
-                        }
-                    },
-                    y: {
-                        display: true,
-                        type: 'logarithmic',
-                        ticks: {
-                            display: false
-                        }
-                    },
-                    temp: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Temperature °F',
-                            color: 'rgb(255, 99, 132)',
-                        },
-                        ticks: {
-                            stepSize: 1
-                        },
-                    },
-                    humidity: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Humidity %',
-                            color: 'rgb(54, 162, 235)',
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                        ticks: {
-                            stepSize: 5
-                        }
-                    },
-                    battery: {
-                        type: 'linear',
-                        display: false,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Battery (%)'
-                        },
-                        min: 0,
-                        max: 100,
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                        ticks: {
-                            stepSize: 10
-                        }
-                    },
-                    rssi: {
-                        type: 'linear',
-                        display: false,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Signal Strength (dBm)'
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                        ticks: {
-                            stepSize: 5
-                        }
-                    }
-                },
-                plugins: {
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    legend: {
-                        onClick: (e, legendItem, legend) => {
-                            const index = legendItem.datasetIndex;
-                            const ci = legend.chart;
-                            const meta = ci.getDatasetMeta(index);
-
-                            meta.hidden = meta.hidden === null ? !ci.data.datasets[index].hidden : null;
-                            
-                            const scaleId = ci.data.datasets[index].yAxisID;
-                            const scale = ci.scales[scaleId];
-                            scale.display = !meta.hidden;
-                            
-                            ci.update();
-                            
-                            updateTable(ci, chartData);
-                        }
-                    }
-                }
-            }
-        });
-        
-        updateTable(window.tempHistoryChart, chartData);
-        
-    } catch (error) {
-        console.error('Error loading temperature history:', error);
-        showError('Failed to load temperature history: ' + error.message);
-    }
-}
 
 function toggleDataset(checkbox) {
     const chart = window.tempHistoryChart;
@@ -270,70 +46,155 @@ function hideAllTempsPopup() {
     document.getElementById('all-temps-popup').style.display = 'none';
 }
 
-async function loadAllTempHistory() {
-    const hours = document.getElementById('all-temps-history-range').value;
+// Helper function to calculate hourly averages
+function calculateHourlyAverages(data) {
+    const hourlyGroups = {};
+    
+    // First sort data by timestamp
+    data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    data.forEach(record => {
+        const date = new Date(record.timestamp);
+        // Set minutes and seconds to 0 to get exact hour
+        date.setMinutes(0, 0, 0);
+        const hourKey = date.getTime(); // Use timestamp as key
+        
+        if (!hourlyGroups[hourKey]) {
+            hourlyGroups[hourKey] = {
+                temps: [],
+                humidities: [],
+                timestamp: date
+            };
+        }
+        
+        // Group all readings within this hour
+        hourlyGroups[hourKey].temps.push(parseFloat(record.temperature));
+        hourlyGroups[hourKey].humidities.push(parseFloat(record.humidity));
+    });
+    
+    // Calculate averages for each hour
+    const hourlyData = Object.entries(hourlyGroups).map(([timestamp, data]) => ({
+        timestamp: new Date(parseInt(timestamp)),
+        temperature: data.temps.reduce((a, b) => a + b, 0) / data.temps.length,
+        humidity: data.humidities.reduce((a, b) => a + b, 0) / data.humidities.length
+    }));
+
+    // Sort by timestamp
+    hourlyData.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Fill in missing hours with null values to ensure gaps in data are visible
+    if (hourlyData.length > 1) {
+        const filledData = [];
+        const startTime = hourlyData[0].timestamp;
+        const endTime = hourlyData[hourlyData.length - 1].timestamp;
+        
+        for (let time = startTime; time <= endTime; time = new Date(time.setHours(time.getHours() + 1))) {
+            const existingData = hourlyData.find(d => d.timestamp.getTime() === time.getTime());
+            if (existingData) {
+                filledData.push(existingData);
+            } else {
+                filledData.push({
+                    timestamp: new Date(time),
+                    temperature: null,
+                    humidity: null
+                });
+            }
+        }
+        return filledData;
+    }
+
+    return hourlyData;
+}
+
+async function loadTempHistory() {
+    const popup = document.getElementById('history-popup');
+    const mac = popup.dataset.mac;
+    const hours = document.getElementById('history-range').value;
     
     try {
-        const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
+        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
         const data = await response.json();
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load temperature history');
         }
 
-        const canvas = document.getElementById('all-temps-chart');
-        const ctx = canvas.getContext('2d');
-        
-        // Create datasets for each device
-        const datasets = [];
-        const deviceData = {};
-
-        // Group data by device
-        data.history.forEach(record => {
-            if (!deviceData[record.device_name]) {
-                deviceData[record.device_name] = [];
-            }
-            deviceData[record.device_name].push(record);
-        });
-
-        // Create a dataset for each device
-        Object.entries(deviceData).forEach(([deviceName, records], index) => {
-            // Generate a color based on index
-            const hue = (index * 137.508) % 360; // Use golden angle approximation
-            const color = `hsl(${hue}, 70%, 50%)`;
-
-            datasets.push({
-                label: `${deviceName} Temperature`,
-                data: records.map(record => ({
-                    x: new Date(record.timestamp),
-                    y: record.temperature
-                })),
-                borderColor: color,
-                tension: 0.3,
-                pointRadius: 2
-            });
-
-            datasets.push({
-                label: `${deviceName} Humidity`,
-                data: records.map(record => ({
-                    x: new Date(record.timestamp),
-                    y: record.humidity
-                })),
-                borderColor: color,
-                borderDash: [5, 5],
-                tension: 0.3,
-                pointRadius: 2
-            });
-        });
-
-        if (window.allTempsChart) {
-            window.allTempsChart.destroy();
+        function updateTable(chartInstance, historyData) {
+            const tbody = document.querySelector('#history-table tbody');
+            const thead = document.querySelector('#history-table thead tr');
+            
+            thead.innerHTML = `
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Time</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Temperature</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Humidity</th>
+            `;
+            
+            tbody.innerHTML = [...historyData].reverse().map(record => {
+                const date = record.timestamp;
+                let formattedDate = date.toLocaleString([], {
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+                
+                return `
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature.toFixed(1)}°F</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity.toFixed(1)}%</td>
+                    </tr>
+                `;
+            }).join('');
         }
 
-        window.allTempsChart = new Chart(ctx, {
+        // Calculate hourly averages from raw data
+        const hourlyData = calculateHourlyAverages(data.history);
+
+        if (hourlyData.length === 0) {
+            document.getElementById('temp-history-chart').innerHTML = 
+                '<div style="text-align: center; padding: 20px;">No data available for selected time period</div>';
+            return;
+        }
+
+        const canvas = document.getElementById('temp-history-chart');
+        const ctx = canvas.getContext('2d');
+
+        if (window.tempHistoryChart) {
+            window.tempHistoryChart.destroy();
+        }
+
+        // Generate color for temperature and humidity lines
+        const hue = Math.floor(Math.random() * 360);
+        const tempColor = `hsl(${hue}, 70%, 50%)`;
+        const humidityColor = `hsl(${(hue + 120) % 360}, 70%, 50%)`;
+
+        window.tempHistoryChart = new Chart(ctx, {
             type: 'line',
             data: {
-                datasets: datasets
+                datasets: [
+                    {
+                        label: 'Temperature',
+                        data: hourlyData.map(record => ({
+                            x: record.timestamp,
+                            y: record.temperature
+                        })),
+                        borderColor: tempColor,
+                        tension: 0.3,
+                        pointRadius: 2
+                    },
+                    {
+                        label: 'Humidity',
+                        data: hourlyData.map(record => ({
+                            x: record.timestamp,
+                            y: record.humidity
+                        })),
+                        borderColor: humidityColor,
+                        borderDash: [5, 5],
+                        tension: 0.3,
+                        pointRadius: 2
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -361,7 +222,143 @@ async function loadAllTempHistory() {
                 plugins: {
                     tooltip: {
                         mode: 'index',
-                        intersect: false
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + (context.dataset.label === 'Temperature' ? '°F' : '%');
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12
+                        }
+                    }
+                }
+            }
+        });
+
+        updateTable(window.tempHistoryChart, hourlyData);
+        
+    } catch (error) {
+        console.error('Error loading temperature history:', error);
+        showError('Failed to load temperature history: ' + error.message);
+    }
+}
+
+async function loadAllTempHistory() {
+    const hours = document.getElementById('all-temps-history-range').value;
+    
+    try {
+        const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to load temperature history');
+        }
+
+        const canvas = document.getElementById('all-temps-chart');
+        const ctx = canvas.getContext('2d');
+
+        // Group data by device and calculate hourly averages
+        const deviceData = {};
+        data.history.forEach(record => {
+            if (!deviceData[record.device_name]) {
+                deviceData[record.device_name] = [];
+            }
+            deviceData[record.device_name].push(record);
+        });
+
+        // Calculate hourly averages for each device
+        const hourlyDeviceData = {};
+        Object.entries(deviceData).forEach(([deviceName, records]) => {
+            hourlyDeviceData[deviceName] = calculateHourlyAverages(records);
+        });
+        
+        // Create datasets for the chart
+        const datasets = [];
+        Object.entries(hourlyDeviceData).forEach(([deviceName, records], index) => {
+            const hue = (index * 137.508) % 360; // Use golden angle approximation
+            const color = `hsl(${hue}, 70%, 50%)`;
+
+            datasets.push({
+                label: `${deviceName} Temperature`,
+                data: records.map(record => ({
+                    x: record.timestamp,
+                    y: record.temperature
+                })),
+                borderColor: color,
+                tension: 0.3,
+                pointRadius: 2
+            });
+
+            datasets.push({
+                label: `${deviceName} Humidity`,
+                data: records.map(record => ({
+                    x: record.timestamp,
+                    y: record.humidity
+                })),
+                borderColor: color,
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 2
+            });
+        });
+
+        if (window.allTempsChart) {
+            window.allTempsChart.destroy();
+        }
+
+        window.allTempsChart = new Chart(ctx, {
+            type: 'line',
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            unit: hours === '24' ? 'hour' : 'day'
+                        },
+                        display: true
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Temperature (°F) / Humidity (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    label += context.parsed.y.toFixed(1) + (label.includes('Temperature') ? '°F' : '%');
+                                }
+                                return label;
+                            }
+                        }
                     },
                     legend: {
                         position: 'bottom',
