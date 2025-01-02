@@ -318,8 +318,6 @@ body {
     font-size: 1rem;
     color: #6b7280;
     white-space: nowrap;
-    margin-left: auto; /* Push to right side */
-    padding-left: 10px;
 }
 
 /* Media Queries */
@@ -340,6 +338,10 @@ body {
         display: block;
         margin: 10px 0;
     }
+    
+    .room-temp-info {
+        margin-right: 75%;
+    }
 }
 
 @media (max-width: 1023px) {
@@ -353,6 +355,10 @@ body {
 
     .config-popup-desktop {
         display: none !important;
+    }
+    
+    .room-temp-info {
+        margin-left: auto;
     }
 
 }  
