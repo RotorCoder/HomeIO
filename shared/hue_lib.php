@@ -319,6 +319,7 @@ class HueAPI {
 
     public function updateDeviceDatabase($device) {
     global $log;
+    $log->logInfoMsg("Raw Hue device data: " . json_encode($device, JSON_PRETTY_PRINT));
     
     $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
     $stmt->execute([$device['id']]);
