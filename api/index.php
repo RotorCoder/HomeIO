@@ -315,74 +315,82 @@ $app->get('/devices', function (Request $request, Response $response) use ($conf
             $pdo = getDatabaseConnection($config);
             
             if (!$quick) {
-    // Only update Govee on non-quick refreshes
-    $govee_timing = measureExecutionTime(function() use ($config, $log) {
-        $log->logInfoMsg("Starting Govee devices update (quick = false)");
-        try {
-            $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
-            $goveeDevices = $goveeApi->getDevices();
-            
-            if ($goveeDevices['statusCode'] !== 200) {
-                throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
+                // Only update Govee on non-quick refreshes
+                $govee_timing = measureExecutionTime(function() use ($config, $log) {
+                    $log->logInfoMsg("Starting Govee devices update (quick = false)");
+                    try {
+                        $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
+                        $goveeDevices = $goveeApi->getDevices();
+                        
+                        if ($goveeDevices['statusCode'] !== 200) {
+                            throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
+                        }
+                        
+                        $goveeData = json_decode($goveeDevices['body'], true);
+                        if (!isset($goveeData['data']) || !isset($goveeData['data']['devices'])) {
+                            throw new Exception('Invalid response format from Govee API');
+                        }
+                        
+                        foreach ($goveeData['data']['devices'] as $device) {
+                            // First update device info
+                            $goveeApi->updateDeviceDatabase($device);
+                            
+                            // Then get and update device state
+                            $log->logInfoMsg("Fetching state for device: " . $device['device']);
+                            $stateResponse = $goveeApi->getDeviceState($device);
+                            
+                            if ($stateResponse['statusCode'] !== 200) {
+                                $log->logErrorMsg("Failed to get state for device " . $device['device'] . ": HTTP " . $stateResponse['statusCode']);
+                                continue;
+                            }
+                            
+                            $stateData = json_decode($stateResponse['body'], true);
+                            if (!$stateData || !isset($stateData['data']) || !isset($stateData['data']['properties'])) {
+                                $log->logErrorMsg("Invalid state data for device " . $device['device']);
+                                continue;
+                            }
+                            
+                            $log->logInfoMsg("Updating state for device: " . $device['device']);
+                            $device_states = [$device['device'] => $stateData['data']['properties']];
+                            $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
+                        }
+                        
+                        $log->logInfoMsg("Govee update completed successfully");
+                    } catch (Exception $e) {
+                        $log->logErrorMsg("Govee update error: " . $e->getMessage());
+                        throw $e;
+                    }
+                });
+                $timing['govee'] = ['duration' => $govee_timing['duration']];
+                
+                
+                
             }
-            
-            $goveeData = json_decode($goveeDevices['body'], true);
-            if (!isset($goveeData['data']) || !isset($goveeData['data']['devices'])) {
-                throw new Exception('Invalid response format from Govee API');
-            }
-            
-            foreach ($goveeData['data']['devices'] as $device) {
-                // First update device info
-                $goveeApi->updateDeviceDatabase($device);
-                
-                // Then get and update device state
-                $log->logInfoMsg("Fetching state for device: " . $device['device']);
-                $stateResponse = $goveeApi->getDeviceState($device);
-                
-                if ($stateResponse['statusCode'] !== 200) {
-                    $log->logErrorMsg("Failed to get state for device " . $device['device'] . ": HTTP " . $stateResponse['statusCode']);
-                    continue;
-                }
-                
-                $stateData = json_decode($stateResponse['body'], true);
-                if (!$stateData || !isset($stateData['data']) || !isset($stateData['data']['properties'])) {
-                    $log->logErrorMsg("Invalid state data for device " . $device['device']);
-                    continue;
-                }
-                
-                $log->logInfoMsg("Updating state for device: " . $device['device']);
-                $device_states = [$device['device'] => $stateData['data']['properties']];
-                $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
-            }
-            
-            $log->logInfoMsg("Govee update completed successfully");
-        } catch (Exception $e) {
-            $log->logErrorMsg("Govee update error: " . $e->getMessage());
-            throw $e;
-        }
-    });
-    $timing['govee'] = ['duration' => $govee_timing['duration']];
-}
 
             // Always update Hue devices
             $hue_timing = measureExecutionTime(function() use ($config, $log) {
                 $log->logInfoMsg("Starting Hue devices update");
                 try {
                     $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
-                    $hueResponse = $hueApi->getDevices();
-                    
-                    if ($hueResponse['statusCode'] !== 200) {
-                        throw new Exception('Failed to get devices from Hue Bridge');
-                    }
-                    
-                    $devices = json_decode($hueResponse['body'], true);
-                    if (!$devices || !isset($devices['data'])) {
-                        throw new Exception('Failed to parse Hue Bridge response');
-                    }
-                    
-                    foreach ($devices['data'] as $device) {
-                        $hueApi->updateDeviceDatabase($device);
-                    }
+        $hueResponse = $hueApi->getDevices();
+        
+        $log->logInfoMsg("Hue API Response Status Code: " . $hueResponse['statusCode']);
+        
+        if ($hueResponse['statusCode'] !== 200) {
+            throw new Exception('Failed to get devices from Hue Bridge');
+        }
+        
+        $devices = json_decode($hueResponse['body'], true);
+        if (!$devices || !isset($devices['data'])) {
+            throw new Exception('Failed to parse Hue Bridge response');
+        }
+        
+        $log->logInfoMsg("Number of Hue devices found: " . count($devices['data']));
+        
+        foreach ($devices['data'] as $device) {
+            $log->logInfoMsg("Processing Hue device: " . $device['id'] . " Brightness: " . ($device['dimming']['brightness'] ?? 'none'));
+            $hueApi->updateDeviceDatabase($device);
+        }
                     
                     $log->logInfoMsg("Hue update completed successfully");
                 } catch (Exception $e) {
@@ -1038,6 +1046,57 @@ $app->post('/update-device-details', function (Request $request, Response $respo
         return sendSuccessResponse($response, ['message' => 'Device updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/update-vesync-devices', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $timing = [];
+        $result = measureExecutionTime(function() use ($config, $log, &$timing) {
+            // Initialize VeSync API
+            $vesyncApi = new VeSyncAPI(
+                $config['vesync_api']['user'], 
+                $config['vesync_api']['password'],
+                $config['db_config']
+            );
+
+            $api_timing = measureExecutionTime(function() use ($vesyncApi) {
+                if (!$vesyncApi->login()) {
+                    throw new Exception('Failed to login to VeSync API');
+                }
+                
+                $devices = $vesyncApi->get_devices();
+                if (!$devices) {
+                    throw new Exception('Failed to get devices from VeSync API');
+                }
+                
+                return $devices;
+            });
+            $timing['devices'] = ['duration' => $api_timing['duration']];
+
+            $states_timing = measureExecutionTime(function() use ($vesyncApi, $api_timing) {
+                $updated_devices = [];
+                foreach ($api_timing['result'] as $type => $devices) {
+                    foreach ($devices as $device) {
+                        $vesyncApi->update_device_database($device);
+                        $updated_devices[] = $device;
+                    }
+                }
+                return $updated_devices;
+            });
+            
+            $timing['states'] = ['duration' => $states_timing['duration']];
+            
+            return [
+                'devices' => $states_timing['result'],
+                'updated' => date('c'),
+                'timing' => $timing
+            ];
+        });
+        
+        return sendSuccessResponse($response, $result['result']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
     }
 });
 

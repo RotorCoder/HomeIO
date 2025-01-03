@@ -1,7 +1,7 @@
 // assets/js/main.js
 
 // Global constants
-const QUICK_UPDATE_INTERVAL = 2000000;     // 2 seconds for quick refresh
+const QUICK_UPDATE_INTERVAL = 2000;     // 2 seconds for quick refresh
 const VISIBLE_UPDATE_INTERVAL = 300000;  // 300 seconds for full refresh of tab devices
 const BACKGROUND_UPDATE_INTERVAL = 3000000;  // 3000 seconds for full refresh of all devices
 
