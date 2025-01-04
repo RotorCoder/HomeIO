@@ -86,11 +86,11 @@ async function createTabs() {
             </button>
             <button onclick="showDefaultRoomDevices()" class="config-button">
                 <i class="fas fa-plug"></i>
-                <span>All Devices</span>
+                <span>Devices</span>
             </button>
             <button onclick="showRoomManagement()" class="config-button">
                 <i class="fas fa-door-open"></i>
-                <span>Room Management</span>
+                <span>Rooms</span>
             </button>
         </div>
         <div class="config-popup-desktop" id="config-popup-desktop">
@@ -109,11 +109,11 @@ async function createTabs() {
                 </button>
                 <button onclick="showDefaultRoomDevices()" class="config-button">
                     <i class="fas fa-plug"></i>
-                    <span>All Devices</span>
+                    <span>Devices</span>
                 </button>
                 <button onclick="showRoomManagement()" class="config-button">
                     <i class="fas fa-door-open"></i>
-                    <span>Room Management</span>
+                    <span>Rooms</span>
                 </button>
             </div>
         </div>
@@ -360,13 +360,13 @@ function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
         <div class="config-content">
             <button class="config-button" onclick="showAllTempHistory()">
-                <i class="fas fa-temperature-high"></i>Temperature History
+                <i class="fas fa-temperature-high"></i>Temperature/Humidity
             </button>
             <button class="config-button" onclick="showRoomManagement()">
-                <i class="fas fa-home"></i>Room Management
+                <i class="fas fa-home"></i>Rooms
             </button>
             <button class="config-button" onclick="showDefaultRoomDevices()">
-                <i class="fas fa-list"></i>All Devices
+                <i class="fas fa-list"></i>Devices
             </button>
         </div>
     </div>`;
