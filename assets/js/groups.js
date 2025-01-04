@@ -3,7 +3,7 @@
 async function loadAvailableGroups(model) {
     try {
         const response = await apiFetch(`api/available-groups?model=${model}`);
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error);
@@ -44,13 +44,14 @@ async function deleteDeviceGroup(groupId) {
             body: JSON.stringify({ groupId: groupId })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to delete group');
         }
         
         hideConfigMenu();
-        updateDevices();
+        // Change this line to use loadInitialData instead of updateDevices
+        loadInitialData();
         
     } catch (error) {
         showError('Failed to delete group: ' + error.message);

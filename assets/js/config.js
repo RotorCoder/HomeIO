@@ -8,21 +8,17 @@ async function showConfigMenu(deviceId) {
         console.error('Required elements not found');
         return;
     }
-    // Set the device name in the header
-    const deviceName = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-    document.getElementById('config-device-title').textContent = deviceName;
+
+    document.getElementById('config-device-title').textContent = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
 
     const model = deviceElement.dataset.model;
     const groupId = deviceElement.dataset.groupId;
 
-    // Populate the basic form fields
     document.getElementById('config-device-id').value = deviceId;
     document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-    // Add brand field population
     document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
     document.getElementById('config-model').value = model;
     
-    // Reset group-related fields
     const groupActionSelect = document.getElementById('config-group-action');
     const groupNameInput = document.getElementById('config-group-name');
     if (groupActionSelect) {
@@ -56,7 +52,7 @@ async function showConfigMenu(deviceId) {
     try {
         // Load device config
         const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
-        const configData = await configResponse.json();
+        const configData = await configResponse;
         
         // Store config values
         const configValues = {
@@ -77,7 +73,6 @@ async function showConfigMenu(deviceId) {
             document.getElementById('config-x10-letter').value = letter;
             document.getElementById('config-x10-number').value = number;
         } else {
-            // Set to blank options if x10Code is null or empty
             document.getElementById('config-x10-letter').value = '';
             document.getElementById('config-x10-number').value = '';
         }
@@ -91,9 +86,8 @@ async function showConfigMenu(deviceId) {
             groupConfigElements.style.display = 'block';
             regularConfigElements.style.display = 'none';
             
-            // Get and display group members
             const groupResponse = await apiFetch(`api/group-devices?groupId=${groupId}`);
-            const groupData = await groupResponse.json();
+            const groupData = await groupResponse;
             
             if (groupData.success && groupData.devices) {
                 const membersHtml = groupData.devices.map(member => {
@@ -111,7 +105,6 @@ async function showConfigMenu(deviceId) {
                     `;
                 }).join('');
                 
-                // Add group settings
                 const settingsHtml = `
                     <div class="form-group">
                         <label>Low Brightness (%):</label>
@@ -136,7 +129,6 @@ async function showConfigMenu(deviceId) {
                 
                 groupConfigElements.innerHTML = settingsHtml;
 
-                // Update buttons for group devices
                 document.querySelector('.buttons').innerHTML = `
                     <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})">Delete Group</button>
                     <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
@@ -144,27 +136,22 @@ async function showConfigMenu(deviceId) {
                 `;
             }
         } else {
-            console.log('Showing regular config - no group ID');
             groupConfigElements.style.display = 'none';
             regularConfigElements.style.display = 'block';
             
-            // Set values for regular device
             document.getElementById('config-low').value = configValues.low;
             document.getElementById('config-medium').value = configValues.medium;
             document.getElementById('config-high').value = configValues.high;
             document.getElementById('config-color-temp').value = configValues.preferredColorTem;
             
-            // Regular device buttons
             document.querySelector('.buttons').innerHTML = `
                 <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
                 <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
             `;
             
-            // Load available groups for this model
             loadAvailableGroups(model);
         }
 
-        // Show the popup
         popup.style.display = 'block';
         
     } catch (error) {
@@ -217,7 +204,7 @@ async function saveDeviceConfig() {
             body: JSON.stringify(config)
         });
         
-        const configData = await configResponse.json();
+        const configData = await configResponse;
         if (!configData.success) {
             throw new Error(configData.error || 'Failed to update device configuration');
         }
@@ -254,14 +241,14 @@ async function saveDeviceConfig() {
                 body: JSON.stringify(groupData)
             });
             
-            const groupResult = await groupResponse.json();
+            const groupResult = await groupResponse;
             if (!groupResult.success) {
                 throw new Error(groupResult.error || 'Failed to update group');
             }
         }
         
         hideConfigMenu();
-        updateDevices();
+        loadInitialData();
         
     } catch (error) {
         showError('Failed to update configuration: ' + error.message);
@@ -283,7 +270,7 @@ function handleGroupActionChange() {
 async function loadAvailableGroups(model) {
     try {
         const response = await apiFetch(`api/available-groups?model=${model}`);
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error);
@@ -313,13 +300,13 @@ async function deleteDeviceGroup(groupId) {
             body: JSON.stringify({ groupId: groupId })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to delete group');
         }
         
         hideConfigMenu();
-        updateDevices();
+        loadInitialData();
         
     } catch (error) {
         showError('Failed to delete group: ' + error.message);
@@ -329,7 +316,7 @@ async function deleteDeviceGroup(groupId) {
 async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
     try {
         const response = await apiFetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
-        const data = await response.json();
+        const data = await response;
         return data;
     } catch (error) {
         console.error('Error checking X10 code:', error);

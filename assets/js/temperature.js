@@ -113,7 +113,7 @@ async function loadTempHistory() {
     
     try {
         const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load temperature history');
@@ -259,7 +259,7 @@ async function loadAllTempHistory() {
     
     try {
         const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load temperature history');
@@ -379,7 +379,7 @@ async function loadAllTempHistory() {
 async function loadThermometerList() {
     try {
         const response = await apiFetch('api/thermometer-list');
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load thermometer list');
@@ -444,7 +444,7 @@ async function saveThermometer(mac) {
             })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to update thermometer');
         }
