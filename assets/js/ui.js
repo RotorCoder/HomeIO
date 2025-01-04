@@ -6,51 +6,29 @@ function showError(message) {
     errorElement.style.display = 'block';
 }
 
-function setRefreshing(refreshing) {
-    isRefreshing = refreshing;
-    const refreshButton = document.getElementById('refresh-button');
-    
-    if (!refreshButton) {
-        console.warn('Refresh button not found');
-        return;
-    }
-    
-    refreshButton.disabled = refreshing;
-    
-    if (refreshing) {
-        refreshButton.innerHTML = `
-            <i class="fas fa-sync-alt refresh-indicator"></i>
-            <span>Updating...</span>
-        `;
-    } else {
-        refreshButton.innerHTML = `
-            <i class="fas fa-sync-alt"></i>
-            <span>Refresh</span>
-        `;
-    }
-}
 
-function updateLastRefreshTime(timestamp) {
-    const date = timestamp ? new Date(timestamp) : new Date();
-    const timeStr = date.toLocaleTimeString();
-    document.getElementById('last-update').textContent = `Last updated: ${timeStr}`;
-}
 
+// ui.js - Update UI related functions
 async function createTabs() {
-    const tabsContainer = document.getElementById('tabs');
-    const tabContents = document.getElementById('tab-contents');
-    
-    let tabsHtml = '';
-    let contentsHtml = '';
-    
-    const savedTab = localStorage.getItem('selectedTab');
-    
-    for (const room of rooms) {
+    try {
+        const tabsContainer = document.getElementById('tabs');
+        const tabContents = document.getElementById('tab-contents');
+        
+        if (!tabsContainer || !tabContents) {
+            throw new Error('Required DOM elements not found');
+        }
+        
+        let tabsHtml = '';
+        let contentsHtml = '';
+        
+        const savedTab = localStorage.getItem('selectedTab');
+        
+        for (const room of rooms) {
         if (room.id !== 1) {
             let tempInfo = '';
             try {
                 const response = await apiFetch(`api/room-temperature?room=${room.id}`);
-                const data = await response.json();
+                const data = await response;
                 if (data.success && data.thermometers) {
                     tempInfo = data.thermometers.map(therm => {
                         const displayName = therm.display_name || therm.name || 'Unknown Sensor';
@@ -96,7 +74,7 @@ async function createTabs() {
         }
     }
     
-    // Keep the config tab for mobile view only
+        // Keep the config tab for mobile view only
     tabsHtml += `
         <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
             <i class="fas fa-xl fa-cog"></i>
@@ -104,17 +82,7 @@ async function createTabs() {
 
     contentsHtml += `
         <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            <div class="auto-refresh-control" style="margin-bottom: 10px;">
-                <label class="refresh-toggle" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                    <input type="checkbox" id="auto-refresh-toggle" style="cursor: pointer;">
-                    <span>Auto-refresh</span>
-                </label>
-                <p class="refresh-time" id="last-update" style="margin: 5px 0;"></p>
-            </div>
-            <button onclick="manualRefresh()" class="config-button">
-                <i class="fas fa-sync-alt"></i>
-                <span>Refresh Govee Data</span>
-            </button>
+            
             <button onclick="showAllTempHistory()" class="config-button">
                 <i class="fas fa-temperature-high"></i>
                 <span>Thermometers</span>
@@ -137,17 +105,6 @@ async function createTabs() {
                 </button>
             </div>
             <div class="content">
-                <div class="auto-refresh-control">
-                    <label class="refresh-toggle">
-                        <input type="checkbox" id="desktop-auto-refresh-toggle">
-                        <span>Auto-refresh</span>
-                    </label>
-                    <p class="refresh-time" id="desktop-last-update"></p>
-                </div>
-                <button onclick="manualRefresh()" class="config-button">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Refresh Govee Devices</span>
-                </button>
                 <button onclick="showAllTempHistory()" class="config-button">
                     <i class="fas fa-temperature-high"></i>
                     <span>Thermometers</span>
@@ -168,17 +125,24 @@ async function createTabs() {
         <i class="fas fa-cog"></i>
         <span>Configuration</span>
     </button>`;
-    
-    tabsContainer.innerHTML = tabsHtml;
-    tabContents.innerHTML = contentsHtml;
-    
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.room));
-    });
-
-    if (savedTab) {
-        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
-        switchTab(savedTab);
+        
+        tabsHtml += generateConfigTab(savedTab);
+        contentsHtml += generateConfigContent(savedTab);
+        
+        tabsContainer.innerHTML = tabsHtml;
+        tabContents.innerHTML = contentsHtml;
+        
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.room));
+        });
+        
+        if (savedTab) {
+            switchTab(savedTab);
+        }
+        
+    } catch (error) {
+        console.error('Error creating tabs:', error);
+        showError('Failed to create interface: ' + error.message);
     }
 }
 
@@ -196,10 +160,6 @@ function switchTab(roomId) {
         content.classList.toggle('active', content.dataset.room === roomId);
     });
 
-    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-    if (autoRefreshToggle.checked) {
-        resetUpdateTimers();
-    }
 }
 
 function showDefaultRoomDevices() {
@@ -255,7 +215,7 @@ function showDefaultRoomDevices() {
 async function loadAllDevices() {
     try {
         const response = await apiFetch('api/all-devices');
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load devices');
@@ -352,7 +312,7 @@ async function saveDeviceDetails(deviceId) {
             body: JSON.stringify(data)
         });
         
-        const result = await response.json();
+        const result = await response;
         if (!result.success) {
             throw new Error(result.error || 'Failed to update device');
         }
@@ -371,46 +331,52 @@ function getCurrentRoomId() {
     return activeTab ? activeTab.dataset.room : null;
 }
 
-function manualRefresh() {
-    console.log(`[${new Date().toLocaleTimeString()}] Manual refresh requested`);
-    updateDevices();
-}
 
 function showDesktopConfig() {
     const popup = document.getElementById('config-popup-desktop');
     popup.style.display = 'block';
-    
-    // Sync checkbox state
-    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
-    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
-    desktopCheckbox.checked = mobileCheckbox.checked;
-    
-    // Sync last update time
-    const mobileTime = document.getElementById('last-update').textContent;
-    document.getElementById('desktop-last-update').textContent = mobileTime;
 }
 
 function hideDesktopConfig() {
     document.getElementById('config-popup-desktop').style.display = 'none';
 }
 
-// Update the existing toggleAutoRefresh function to sync both checkboxes
-function toggleAutoRefresh(enabled) {
-    const mobileCheckbox = document.getElementById('auto-refresh-toggle');
-    const desktopCheckbox = document.getElementById('desktop-auto-refresh-toggle');
-    
-    mobileCheckbox.checked = enabled;
-    desktopCheckbox.checked = enabled;
-    
-    if (backgroundUpdateInterval) clearInterval(backgroundUpdateInterval);
-    backgroundUpdateInterval = null;
-    
-    if (enabled) {
-        backgroundUpdateInterval = setInterval(() => {
-            updateDevices();
-        }, VISIBLE_UPDATE_INTERVAL);
-    }
-    
-    localStorage.setItem('autoRefreshEnabled', enabled);
-    resetUpdateTimers();
+
+function generateRoomTab(room, savedTab) {
+    return `<button class="tab ${savedTab === room.id ? 'active' : ''}" 
+            data-room="${room.id}">
+            <i class="fa-solid ${room.icon}"></i> ${room.room_name}
+        </button>`;
+}
+
+function generateRoomContent(room, tempInfo) {
+    return `<div class="tab-content ${room.id === 1 ? '' : ''}" data-room="${room.id}">
+        <div class="room-header">
+            ${room.room_name}${tempInfo}
+        </div>
+        <div id="room-${room.id}-devices" class="device-grid"></div>
+    </div>`;
+}
+
+function generateConfigTab(savedTab) {
+    return `<button class="tab ${savedTab === 'config' ? 'active' : ''}" 
+            data-room="config">
+            <i class="fas fa-lg fa-cog"></i>
+        </button>`;
+}
+
+function generateConfigContent() {
+    return `<div class="tab-content" data-room="config">
+        <div class="config-content">
+            <button class="config-button" onclick="showAllTempHistory()">
+                <i class="fas fa-temperature-high"></i>Temperature History
+            </button>
+            <button class="config-button" onclick="showRoomManagement()">
+                <i class="fas fa-home"></i>Room Management
+            </button>
+            <button class="config-button" onclick="showDefaultRoomDevices()">
+                <i class="fas fa-list"></i>All Devices
+            </button>
+        </div>
+    </div>`;
 }

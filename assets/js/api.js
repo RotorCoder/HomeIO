@@ -1,216 +1,157 @@
-// assets/js/api.js
+// api.js
 
 async function apiFetch(url, options = {}) {
-    const defaultOptions = {
-        headers: {
-            'X-API-Key': API_KEY
-        }
-    };
-    
-    const mergedOptions = {
-        ...defaultOptions,
-        ...options,
-        headers: {
-            ...defaultOptions.headers,
-            ...(options.headers || {})
-        }
-    };
-    
-    return fetch(url, mergedOptions);
+    try {
+        const defaultOptions = {
+            headers: {
+                'X-API-Key': API_KEY,
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        const mergedOptions = {
+            ...defaultOptions,
+            ...options,
+            headers: {
+                ...defaultOptions.headers,
+                ...(options.headers || {})
+            }
+        };
+        
+        const response = await fetch(url, mergedOptions);
+        return await response.json();
+    } catch (error) {
+        console.error('Fetch Error:', url, error);
+        throw error;
+    }
 }
 
 async function fetchRooms() {
     try {
-        const response = await apiFetch('api/rooms');
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error || 'Failed to fetch rooms');
+        const data = await apiFetch('api/rooms');
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to fetch rooms');
+        }
         rooms = data.rooms;
-        createTabs();
+        await createTabs();
     } catch (error) {
         console.error('Error fetching rooms:', error);
         showError('Failed to load rooms: ' + error.message);
+        throw error;
     }
 }
 
 async function loadInitialData() {
     try {
-        const response = await apiFetch('api/devices?quick=true');
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to load devices');
+        const response = await apiFetch('api/all-devices');
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to load devices');
         }
-
-        handleDevicesUpdate(data.devices);
-        updateLastRefreshTime(data.updated);
+        handleDevicesUpdate(response.devices);
         document.getElementById('error-message').style.display = 'none';
-        
     } catch (error) {
+        console.error('Initial data load error:', error);
         showError(error.message);
-    }
-}
-
-async function updateDevices() {
-    if (isRefreshing) return;
-    
-    setRefreshing(true);
-    console.log(`[${new Date().toLocaleTimeString()}] Starting full device update`);
-
-    try {
-        const goveeResponse = await apiFetch('api/update-govee-devices');
-        const goveeData = await goveeResponse.json();
-        
-        if (!goveeData.success) {
-            throw new Error('Failed to update Govee devices: ' + goveeData.error);
-        }
-
-        const response = await apiFetch('api/devices?quick=false');
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to update devices');
-        }
-
-        console.log(`[${new Date().toLocaleTimeString()}] Full update completed successfully`);
-        
-        if (data.devices && Array.isArray(data.devices)) {
-            console.log('Updating devices:', data.devices.length);
-            handleDevicesUpdate(data.devices);
-        }
-        
-        updateLastRefreshTime(data.updated);
-        document.getElementById('error-message').style.display = 'none';
-        
-    } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Full update error:`, error);
-        showError(error.message);
-    } finally {
-        setRefreshing(false);
-    }
-}
-
-async function updateBackgroundDevices() {
-    if (isRefreshing) return;
-    
-    const currentRoomId = getCurrentRoomId();
-    if (!currentRoomId) return;
-    
-    try {
-        const response = await apiFetch(`api/devices?exclude_room=${currentRoomId}`);
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to update background devices');
-        }
-
-        handleDevicesUpdate(data.devices);
-    } catch (error) {
-        console.error('Background update error:', error);
+        throw error;
     }
 }
 
 async function sendCommand(deviceId, command, value, model, groupId = null) {
     const previousState = {...deviceStates.get(deviceId)};
     let devicesToUpdate = [deviceId];
-    const deviceElement = document.getElementById(`device-${deviceId}`);
     
     try {
         if (groupId) {
             const response = await apiFetch(`api/group-devices?groupId=${groupId}`);
-            const data = await response.json();
-            if (data.success) {
-                devicesToUpdate = data.devices.map(d => d.device);
-            } else {
-                throw new Error('Failed to fetch group devices');
+            if (response.success) {
+                devicesToUpdate = response.devices.map(d => d.device);
             }
         }
 
         const dbUpdatePromises = devicesToUpdate.map(deviceId => 
             apiFetch('api/update-device-state', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({
                     device: deviceId,
                     command: command,
                     value: value
                 })
-            }).then(response => response.json())
+            })
         );
 
         const dbResults = await Promise.all(dbUpdatePromises);
         if (dbResults.some(result => !result.success)) {
-            throw new Error('Failed to update device state in database');
+            throw new Error('Failed to update device state preferences');
         }
 
         const newState = command === 'brightness' ? 
-            { ...previousState, powerState: 'on', brightness: value } :
-            { ...previousState, powerState: value };
+            { ...previousState, preferredPowerState: 'on', preferredBrightness: value } :
+            { ...previousState, preferredPowerState: value };
 
         devicesToUpdate.forEach(deviceId => {
             deviceStates.set(deviceId, {...newState});
             updateDeviceUI(deviceId, newState);
         });
 
-        const commandPromises = devicesToUpdate.map(deviceId => {
-            const deviceElem = document.getElementById(`device-${deviceId}`);
-            const cmd = {
-                name: command,
-                value: value
-            };
-            
-            return apiFetch('api/send-command', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    device: deviceId,
-                    model: model,
-                    cmd: cmd,
-                    brand: deviceStates.get(deviceId)?.brand || 'unknown'
-                })
-            }).then(async response => {
-                const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Command failed');
-                }
-                return data;
-            });
-        });
-
-        await Promise.all(commandPromises);
-
     } catch (error) {
         console.error('Command error:', error);
-        
-        try {
-            const revertPromises = devicesToUpdate.map(deviceId =>
-                apiFetch('api/update-device-state', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        device: deviceId,
-                        command: command,
-                        value: command === 'brightness' ? previousState.brightness : previousState.powerState
-                    })
-                })
-            );
-
-            await Promise.all(revertPromises);
-
-            devicesToUpdate.forEach(deviceId => {
-                deviceStates.set(deviceId, previousState);
-                updateDeviceUI(deviceId, previousState);
-            });
-
-        } catch (revertError) {
-            console.error('Failed to revert state:', revertError);
-        }
-
-        showError('Command failed: ' + error.message);
+        devicesToUpdate.forEach(deviceId => {
+            deviceStates.set(deviceId, previousState);
+            updateDeviceUI(deviceId, previousState);
+        });
+        showError('Failed to send command: ' + error.message);
     }
 }
+
+let updateTimer = null;
+
+function startAutoUpdate() {
+    if (updateTimer) {
+        clearInterval(updateTimer);
+    }
+    updateTimer = setInterval(autoUpdate, 2000);
+}
+
+async function autoUpdate() {
+    try {
+        const [devicesResponse, roomsResponse] = await Promise.all([
+            apiFetch('api/all-devices'),
+            apiFetch('api/rooms')
+        ]);
+
+        if (!devicesResponse.success || !roomsResponse.success) {
+            throw new Error('Failed to fetch updates');
+        }
+
+        // Update devices
+        handleDevicesUpdate(devicesResponse.devices);
+
+        // Update rooms and temperatures
+        rooms = roomsResponse.rooms;
+        for (const room of rooms) {
+            if (room.id !== 1) {
+                const tempResponse = await apiFetch(`api/room-temperature?room=${room.id}`);
+                if (tempResponse.success && tempResponse.thermometers) {
+                    const tempInfo = tempResponse.thermometers.map(therm => {
+                        const displayName = therm.display_name || therm.name || 'Unknown Sensor';
+                        return `<span class="room-temp-info" 
+                                   onclick="showTempHistory('${therm.mac}', '${displayName}')" 
+                                   title="${displayName}">
+                            ${therm.temp}°F ${therm.humidity}%
+                        </span>`;
+                    }).join('');
+                    
+                    const tempElement = document.querySelector(`#room-${room.id} .room-temp-info`);
+                    if (tempElement) {
+                        tempElement.innerHTML = tempInfo;
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Auto-update error:', error);
+    }
+}
+
+// Initialize auto-update when page loads
+document.addEventListener('DOMContentLoaded', startAutoUpdate);

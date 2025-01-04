@@ -1,58 +1,49 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
-require $config['sharedpath'].'/hue_lib.php';
 require $config['sharedpath'].'/logger.php';
 
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
 try {
     $log->logInfoMsg("Starting Hue command processor");
-    $hueAPI = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key']);
-    $commandQueue = new HueCommandQueue($config['db_config']);
     
     // Main processing loop
     while (true) {
         try {
-            // Get next batch of commands
-            $commands = $commandQueue->getNextBatch(5);
+            // Call the API endpoint to process commands
+            $curl = curl_init();
+            curl_setopt_array($curl, [
+                CURLOPT_URL => "https://mittencoder.com/homeio/api/process-hue-commands?max=5",
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'X-API-Key: ' . $config['api_keys'][0],
+                    'Content-Type: application/json'
+                ]
+            ]);
             
-            if (!empty($commands)) {
-                $log->logInfoMsg("Processing " . count($commands) . " Hue commands");
-                
-                foreach ($commands as $command) {
-                    try {
-                        // Send the command
-                        $result = $hueAPI->sendCommand(
-                            $command['device'],
-                            json_decode($command['command'], true)
-                        );
-                        
-                        $commandQueue->markCommandComplete($command['id'], true);
-                        $log->logInfoMsg("Command {$command['id']} executed successfully");
-                        
-                    } catch (Exception $e) {
-                        $commandQueue->markCommandComplete(
-                            $command['id'],
-                            false,
-                            $e->getMessage()
-                        );
-                        $log->logInfoMsg("Command {$command['id']} failed: " . $e->getMessage());
-                    }
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            curl_close($curl);
+            
+            if ($httpCode === 200) {
+                $result = json_decode($response, true);
+                if ($result['success'] && $result['processed'] > 0) {
+                    $log->logInfoMsg("Processed {$result['processed']} Hue commands");
                 }
+            } else {
+                $log->logErrorMsg("API request failed with code $httpCode: $response");
             }
             
-            // Short sleep between checks since Hue uses local API
-            usleep(10000); // 50ms pause
+            // Short sleep between checks
+            usleep(10000); // 10ms pause
             
         } catch (Exception $e) {
-            $log->logInfoMsg("Error processing batch: " . $e->getMessage());
-            // Sleep a bit longer on error to prevent rapid error loops
+            $log->logErrorMsg("Error processing batch: " . $e->getMessage());
             sleep(5);
         }
     }
     
 } catch (Exception $e) {
-    $log->logInfoMsg("Fatal error: " . $e->getMessage());
+    $log->logErrorMsg("Fatal error: " . $e->getMessage());
     exit(5);
 }
-?>

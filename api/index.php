@@ -6,8 +6,11 @@ use Slim\Factory\AppFactory;
 require __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
-require $config['sharedpath'].'/govee_lib.php';
-require $config['sharedpath'].'/hue_lib.php';
+
+// Load brand-specific route handlers
+require __DIR__ . '/govee.php';
+require __DIR__ . '/hue.php';
+require __DIR__ . '/vesync.php';
 
 function validateApiKey($request, $handler) {
     global $config;
@@ -97,103 +100,19 @@ function hasDevicePendingCommand($pdo, $device) {
         SELECT COUNT(*) as count 
         FROM command_queue 
         WHERE device = ? 
-        AND status IN ('xpending', 'xprocessing')
+        AND status IN ('pending', 'processing')
     ");
     $stmt->execute([$device]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     return ($result['count'] > 0);
 }
 
-function getDevicesFromDatabase($pdo, $single_device = null, $room = null, $exclude_room = null) {
-    global $log;
-    $log->logInfoMsg("Getting devices from the database.");
-    
-    try {
-        $baseQuery = "SELECT devices.*, 
-                      -- Use preferred values for display if they exist
-                      COALESCE(devices.preferredPowerState, devices.powerState) as displayPowerState,
-                      COALESCE(devices.preferredBrightness, devices.brightness) as displayBrightness,
-                      rooms.room_name,
-                      device_groups.name as group_name,
-                      device_groups.id as group_id 
-                      FROM devices 
-                      LEFT JOIN rooms ON devices.room = rooms.id
-                      LEFT JOIN device_groups ON devices.deviceGroup = device_groups.id";
-        
-        if ($single_device) {
-            $stmt = $pdo->prepare($baseQuery . " WHERE devices.device = ?");
-            $stmt->execute([$single_device]);
-        } else {
-            $whereConditions = [];
-            $params = [];
-            
-            $whereConditions[] = "(devices.deviceGroup IS NULL OR 
-                                 devices.showInGroupOnly = 0 OR 
-                                 devices.device IN (SELECT reference_device FROM device_groups))";
-            
-            if ($room !== null) {
-                $whereConditions[] = "devices.room = ?";
-                $params[] = $room;
-            } elseif ($exclude_room !== null) {
-                $whereConditions[] = "devices.room != ?";
-                $params[] = $exclude_room;
-            }
-            
-            $query = $baseQuery;
-            if (!empty($whereConditions)) {
-                $query .= " WHERE " . implode(" AND ", $whereConditions);
-            }
-            
-            $stmt = $pdo->prepare($query);
-            $stmt->execute($params);
-        }
-        
-        $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Filter out devices with pending commands
-        $filteredDevices = array_filter($devices, function($device) use ($pdo) {
-            return !hasDevicePendingCommand($pdo, $device['device']);
-        });
-        
-        // Modify each device to use the display values for UI
-        foreach ($filteredDevices as &$device) {
-            // Use the displayPowerState and displayBrightness for UI
-            $device['powerState'] = $device['displayPowerState'];
-            $device['brightness'] = $device['displayBrightness'];
-            
-            // Remove the display fields to avoid confusion
-            unset($device['displayPowerState']);
-            unset($device['displayBrightness']);
-            
-            if (!empty($device['device']) && !empty($device['deviceGroup'])) {
-                $groupStmt = $pdo->prepare(
-                    "SELECT devices.device, devices.device_name, 
-                            COALESCE(devices.preferredPowerState, devices.powerState) as powerState,
-                            COALESCE(devices.preferredBrightness, devices.brightness) as brightness,
-                            devices.online, devices.brand
-                     FROM devices 
-                     WHERE devices.deviceGroup = ? AND devices.device != ?
-                     ORDER BY devices.device_name"
-                );
-                $groupStmt->execute([$device['deviceGroup'], $device['device']]);
-                
-                // Filter group members with pending commands
-                $groupMembers = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
-                $device['group_members'] = array_filter($groupMembers, function($member) use ($pdo) {
-                    return !hasDevicePendingCommand($pdo, $member['device']);
-                });
-            }
-        }
-        
-        return array_values($filteredDevices); // Re-index array after filtering
-        
-    } catch (PDOException $e) {
-        $log->logErrorMsg("Database error: " . $e->getMessage());
-        throw new Exception("Database error occurred");
-    } catch (Exception $e) {
-        $log->logErrorMsg("Error in getDevicesFromDatabase: " . $e->getMessage());
-        throw $e;
-    }
+
+// Helper function to get all devices in a group
+function getGroupDevices($pdo, $groupId) {
+    $stmt = $pdo->prepare("SELECT device FROM devices WHERE deviceGroup = ?");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
 // Create Slim app and configure middleware
@@ -206,7 +125,17 @@ $app->addErrorMiddleware(true, true, true);
 // Initialize logger
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
-// Routes
+// Initialize route handlers
+$goveeRoutes = new GoveeRoutes($app, $config, $log);
+$goveeRoutes->register();
+
+$hueRoutes = new HueRoutes($app, $config, $log);
+$hueRoutes->register();
+
+$vesyncRoutes = new VeSyncRoutes($app, $config, $log);
+$vesyncRoutes->register();
+
+// Common API Routes
 $app->get('/check-x10-code', function (Request $request, Response $response) use ($config, $log) {
     try {
         validateRequiredParams($request->getQueryParams(), ['x10Code']);
@@ -228,6 +157,7 @@ $app->get('/check-x10-code', function (Request $request, Response $response) use
     }
 });
 
+// Device group routes
 $app->post('/delete-device-group', function (Request $request, Response $response) use ($config, $log) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
@@ -237,7 +167,7 @@ $app->post('/delete-device-group', function (Request $request, Response $respons
         $pdo->beginTransaction();
         
         try {
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE deviceGroup = ?");
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL WHERE deviceGroup = ?");
             $stmt->execute([$data['groupId']]);
             
             $stmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
@@ -283,144 +213,41 @@ $app->get('/group-devices', function (Request $request, Response $response) use 
     }
 });
 
-$app->get('/device-config', function (Request $request, Response $response) use ($config) {
+$app->post('/update-device-group', function (Request $request, Response $response) use ($config) {
     try {
-        validateRequiredParams($request->getQueryParams(), ['device']);
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device', 'action']);
         
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code FROM devices WHERE device = ?");
-        $stmt->execute([$request->getQueryParams()['device']]);
         
-        $config = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$config) {
-            throw new Exception('Device not found');
+        if ($data['action'] === 'create') {
+            validateRequiredParams($data, ['groupName', 'model']);
+            
+            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, reference_device) VALUES (?, ?, ?)");
+            $stmt->execute([$data['groupName'], $data['model'], $data['device']]);
+            $groupId = $pdo->lastInsertId();
+            
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ? WHERE device = ?");
+            $stmt->execute([$groupId, $data['device']]);
+            
+        } else if ($data['action'] === 'join') {
+            validateRequiredParams($data, ['groupId']);
+            
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ? WHERE device = ?");
+            $stmt->execute([$data['groupId'], $data['device']]);
+            
+        } else if ($data['action'] === 'leave') {
+            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL WHERE device = ?");
+            $stmt->execute([$data['device']]);
         }
         
-        return sendSuccessResponse($response, $config);
+        return sendSuccessResponse($response, ['message' => 'Device group updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
 });
 
-$app->get('/devices', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        $timing = [];
-        $result = measureExecutionTime(function() use ($request, $config, $log, &$timing) {
-            $single_device = $request->getQueryParams()['device'] ?? null;
-            $room = $request->getQueryParams()['room'] ?? null;
-            $exclude_room = $request->getQueryParams()['exclude_room'] ?? null;
-            $quick = isset($request->getQueryParams()['quick']) ? 
-                ($request->getQueryParams()['quick'] === 'true') : false;
-
-            $pdo = getDatabaseConnection($config);
-            
-            if (!$quick) {
-                // Only update Govee on non-quick refreshes
-                $govee_timing = measureExecutionTime(function() use ($config, $log) {
-                    $log->logInfoMsg("Starting Govee devices update (quick = false)");
-                    try {
-                        $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
-                        $goveeDevices = $goveeApi->getDevices();
-                        
-                        if ($goveeDevices['statusCode'] !== 200) {
-                            throw new Exception('Failed to update Govee devices: HTTP ' . $goveeDevices['statusCode']);
-                        }
-                        
-                        $goveeData = json_decode($goveeDevices['body'], true);
-                        if (!isset($goveeData['data']) || !isset($goveeData['data']['devices'])) {
-                            throw new Exception('Invalid response format from Govee API');
-                        }
-                        
-                        foreach ($goveeData['data']['devices'] as $device) {
-                            // First update device info
-                            $goveeApi->updateDeviceDatabase($device);
-                            
-                            // Then get and update device state
-                            $log->logInfoMsg("Fetching state for device: " . $device['device']);
-                            $stateResponse = $goveeApi->getDeviceState($device);
-                            
-                            if ($stateResponse['statusCode'] !== 200) {
-                                $log->logErrorMsg("Failed to get state for device " . $device['device'] . ": HTTP " . $stateResponse['statusCode']);
-                                continue;
-                            }
-                            
-                            $stateData = json_decode($stateResponse['body'], true);
-                            if (!$stateData || !isset($stateData['data']) || !isset($stateData['data']['properties'])) {
-                                $log->logErrorMsg("Invalid state data for device " . $device['device']);
-                                continue;
-                            }
-                            
-                            $log->logInfoMsg("Updating state for device: " . $device['device']);
-                            $device_states = [$device['device'] => $stateData['data']['properties']];
-                            $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
-                        }
-                        
-                        $log->logInfoMsg("Govee update completed successfully");
-                    } catch (Exception $e) {
-                        $log->logErrorMsg("Govee update error: " . $e->getMessage());
-                        throw $e;
-                    }
-                });
-                $timing['govee'] = ['duration' => $govee_timing['duration']];
-                
-                
-                
-            }
-
-            // Always update Hue devices
-            $hue_timing = measureExecutionTime(function() use ($config, $log) {
-                $log->logInfoMsg("Starting Hue devices update");
-                try {
-                    $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
-        $hueResponse = $hueApi->getDevices();
-        
-        $log->logInfoMsg("Hue API Response Status Code: " . $hueResponse['statusCode']);
-        
-        if ($hueResponse['statusCode'] !== 200) {
-            throw new Exception('Failed to get devices from Hue Bridge');
-        }
-        
-        $devices = json_decode($hueResponse['body'], true);
-        if (!$devices || !isset($devices['data'])) {
-            throw new Exception('Failed to parse Hue Bridge response');
-        }
-        
-        $log->logInfoMsg("Number of Hue devices found: " . count($devices['data']));
-        
-        foreach ($devices['data'] as $device) {
-            $log->logInfoMsg("Processing Hue device: " . $device['id'] . " Brightness: " . ($device['dimming']['brightness'] ?? 'none'));
-            $hueApi->updateDeviceDatabase($device);
-        }
-                    
-                    $log->logInfoMsg("Hue update completed successfully");
-                } catch (Exception $e) {
-                    $log->logErrorMsg("Hue update error: " . $e->getMessage());
-                }
-            });
-            $timing['hue'] = ['duration' => $hue_timing['duration']];
-
-            // Get all devices from database
-            $devices_timing = measureExecutionTime(function() use ($pdo, $single_device, $room, $exclude_room) {
-                return getDevicesFromDatabase($pdo, $single_device, $room, $exclude_room);
-            });
-            
-            $timing['devices'] = ['duration' => $devices_timing['duration']];
-            $timing['database'] = ['duration' => $devices_timing['duration']];
-            
-            return [
-                'devices' => $devices_timing['result'],
-                'updated' => date('c'),
-                'timing' => $timing,
-                'quick' => $quick
-            ];
-        });
-        
-        return sendSuccessResponse($response, $result['result']);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
-    }
-});
-
+// Room routes
 $app->get('/rooms', function (Request $request, Response $response) use ($config) {
     try {
         $pdo = getDatabaseConnection($config);
@@ -519,44 +346,128 @@ $app->delete('/delete-room', function (Request $request, Response $response) use
     }
 });
 
-$app->get('/room-temperature', function (Request $request, Response $response) use ($config) {
+// Device configuration and state routes
+$app->get('/device-config', function (Request $request, Response $response) use ($config) {
     try {
-        validateRequiredParams($request->getQueryParams(), ['room']);
+        validateRequiredParams($request->getQueryParams(), ['device']);
         
         $pdo = getDatabaseConnection($config);
-        // Get all thermometers for the room, joining with thermometer_history for latest readings
-        $stmt = $pdo->prepare("
-            SELECT 
-                t.mac,
-                t.name,
-                t.display_name,
-                th.temperature as temp,
-                th.humidity,
-                th.timestamp as updated
-            FROM thermometers t
-            LEFT JOIN thermometer_history th ON t.mac = th.mac
-            INNER JOIN (
-                SELECT mac, MAX(timestamp) as max_timestamp
-                FROM thermometer_history
-                GROUP BY mac
-            ) latest ON th.mac = latest.mac AND th.timestamp = latest.max_timestamp
-            WHERE t.room = ?
-            ORDER BY t.display_name, t.name
-        ");
-        $stmt->execute([$request->getQueryParams()['room']]);
+        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code FROM devices WHERE device = ?");
+        $stmt->execute([$request->getQueryParams()['device']]);
         
-        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $config = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$config) {
+            throw new Exception('Device not found');
+        }
         
-        // Instead of throwing an error, just return empty array
-        return sendSuccessResponse($response, [
-            'thermometers' => $thermometers
-        ]);
-        
+        return sendSuccessResponse($response, $config);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
 });
 
+$app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device']);
+        
+        $pdo = getDatabaseConnection($config);
+        $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+        
+        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ? WHERE device = ?");
+        $stmt->execute([
+            $data['room'],
+            $data['low'],
+            $data['medium'],
+            $data['high'],
+            $data['preferredColorTem'],
+            $x10Code,
+            $data['device']
+        ]);
+        
+        return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-device-state', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['device', 'command', 'value']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Check if device is part of a group
+        $stmt = $pdo->prepare("SELECT deviceGroup FROM devices WHERE device = ?");
+        $stmt->execute([$data['device']]);
+        $deviceGroup = $stmt->fetchColumn();
+        
+        $devicesToUpdate = [];
+        if ($deviceGroup) {
+            // If device is part of a group, get all devices in the group
+            $devicesToUpdate = getGroupDevices($pdo, $deviceGroup);
+        } else {
+            // Otherwise just update the single device
+            $devicesToUpdate = [$data['device']];
+        }
+        
+        foreach ($devicesToUpdate as $deviceId) {
+            // Get current device state
+            $stmt = $pdo->prepare("SELECT powerState, brightness FROM devices WHERE device = ?");
+            $stmt->execute([$deviceId]);
+            $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            switch($data['command']) {
+                case 'turn':
+                    $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
+                    $stmt->execute([$data['value'], $deviceId]);
+                    
+                    if ($currentState['powerState'] !== $data['value']) {
+                        $shouldQueueCommand = true;
+                    }
+                    break;
+                    
+                case 'brightness':
+                    $brightness = (int)$data['value'];
+                    $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
+                    $stmt->execute([$brightness, $deviceId]);
+                    
+                    if ($currentState['brightness'] !== $brightness) {
+                        $shouldQueueCommand = true;
+                    }
+                    break;
+                
+                default:
+                    throw new Exception('Invalid command type');
+            }
+            
+            if ($shouldQueueCommand) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO command_queue 
+                    (device, model, command, brand) 
+                    SELECT device, model, :command, brand
+                    FROM devices
+                    WHERE device = :device
+                ");
+                
+                $stmt->execute([
+                    'command' => json_encode([
+                        'name' => $data['command'],
+                        'value' => $data['value']
+                    ]),
+                    'device' => $deviceId
+                ]);
+            }
+        }
+        
+        return sendSuccessResponse($response, ['message' => 'Device state preferences updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+// Command handling
 $app->post('/send-command', function (Request $request, Response $response) use ($config, $log) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
@@ -586,235 +497,97 @@ $app->post('/send-command', function (Request $request, Response $response) use 
     }
 });
 
-$app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
+// Thermometer routes
+$app->get('/room-temperature', function (Request $request, Response $response) use ($config) {
     try {
-        $data = json_decode($request->getBody()->getContents(), true);
-        validateRequiredParams($data, ['device']);
+        validateRequiredParams($request->getQueryParams(), ['room']);
         
         $pdo = getDatabaseConnection($config);
-        $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+        $stmt = $pdo->prepare("
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                th.temperature as temp,
+                th.humidity,
+                th.timestamp as updated
+            FROM thermometers t
+            LEFT JOIN thermometer_history th ON t.mac = th.mac
+            INNER JOIN (
+                SELECT mac, MAX(timestamp) as max_timestamp
+                FROM thermometer_history
+                GROUP BY mac
+            ) latest ON th.mac = latest.mac AND th.timestamp = latest.max_timestamp
+            WHERE t.room = ?
+            ORDER BY t.display_name, t.name
+        ");
+        $stmt->execute([$request->getQueryParams()['room']]);
         
-        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ? WHERE device = ?");
-        $stmt->execute([
-            $data['room'],
-            $data['low'],
-            $data['medium'],
-            $data['high'],
-            $data['preferredColorTem'],
-            $x10Code,
-            $data['device']
+        return sendSuccessResponse($response, [
+            'thermometers' => $stmt->fetchAll(PDO::FETCH_ASSOC)
         ]);
         
-        return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
 });
 
-$app->post('/update-device-group', function (Request $request, Response $response) use ($config) {
+$app->get('/thermometer-list', function (Request $request, Response $response) use ($config) {
     try {
-        $data = json_decode($request->getBody()->getContents(), true);
-        validateRequiredParams($data, ['device', 'action']);
-        
         $pdo = getDatabaseConnection($config);
         
-        if ($data['action'] === 'create') {
-            validateRequiredParams($data, ['groupName', 'model']);
-            
-            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, reference_device) VALUES (?, ?, ?)");
-            $stmt->execute([$data['groupName'], $data['model'], $data['device']]);
-            $groupId = $pdo->lastInsertId();
-            
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 0 WHERE device = ?");
-            $stmt->execute([$groupId, $data['device']]);
-            
-        } else if ($data['action'] === 'join') {
-            validateRequiredParams($data, ['groupId']);
-            
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ?, showInGroupOnly = 1 WHERE device = ?");
-            $stmt->execute([$data['groupId'], $data['device']]);
-            
-        } else if ($data['action'] === 'leave') {
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL, showInGroupOnly = 0 WHERE device = ?");
-            $stmt->execute([$data['device']]);
-        }
+        $stmt = $pdo->prepare("
+            SELECT 
+                t.mac,
+                t.name,
+                t.display_name,
+                t.model,
+                t.room as room_id,
+                r.room_name,
+                t.updated
+            FROM thermometers t
+            LEFT JOIN rooms r ON t.room = r.id
+            ORDER BY t.name
+        ");
+        $stmt->execute();
+        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        return sendSuccessResponse($response, ['message' => 'Device group updated successfully']);
+        $roomStmt = $pdo->query("SELECT id, room_name FROM rooms WHERE id != 1 ORDER BY room_name");
+        $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return sendSuccessResponse($response, [
+            'thermometers' => $thermometers,
+            'rooms' => $rooms
+        ]);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
 });
 
-$app->post('/update-device-state', function (Request $request, Response $response) use ($config, $log) {
+$app->post('/update-thermometer', function (Request $request, Response $response) use ($config) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
-        validateRequiredParams($data, ['device', 'command', 'value']);
+        validateRequiredParams($data, ['mac']);
         
         $pdo = getDatabaseConnection($config);
         
-        // Get current device state
-        $stmt = $pdo->prepare("SELECT powerState, brightness, preferredPowerState, preferredBrightness FROM devices WHERE device = ?");
-        $stmt->execute([$data['device']]);
-        $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $pdo->prepare("
+            UPDATE thermometers 
+            SET display_name = ?,
+                room = ?
+            WHERE mac = ?
+        ");
         
-        $shouldQueueCommand = false;
+        $stmt->execute([
+            $data['display_name'] ?: null,
+            $data['room'] ?: null,
+            $data['mac']
+        ]);
         
-        switch($data['command']) {
-            case 'turn':
-                // Update preferred power state
-                $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
-                $stmt->execute([$data['value'], $data['device']]);
-                
-                // Queue command only if current state doesn't match preferred state
-                if ($currentState['powerState'] !== $data['value']) {
-                    $shouldQueueCommand = true;
-                }
-                break;
-                
-            case 'brightness':
-                $brightness = (int)$data['value'];
-                // Update preferred brightness
-                $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
-                $stmt->execute([$brightness, $data['device']]);
-                
-                // Queue command only if current brightness doesn't match preferred brightness
-                if ($currentState['brightness'] !== $brightness) {
-                    $shouldQueueCommand = true;
-                }
-                break;
-            
-            default:
-                throw new Exception('Invalid command type');
-        }
+        return sendSuccessResponse($response, ['message' => 'Thermometer updated successfully']);
         
-        // Queue command if needed
-        if ($shouldQueueCommand) {
-            $stmt = $pdo->prepare("
-                INSERT INTO command_queue 
-                (device, model, command, brand) 
-                SELECT 
-                    device,
-                    model,
-                    :command,
-                    brand
-                FROM devices
-                WHERE device = :device
-            ");
-            
-            $stmt->execute([
-                'command' => json_encode([
-                    'name' => $data['command'],
-                    'value' => $data['value']
-                ]),
-                'device' => $data['device']
-            ]);
-        }
-        
-        return sendSuccessResponse($response, ['message' => 'Device state preferences updated successfully']);
     } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
-    }
-});
-
-$app->get('/update-govee-devices', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        $timing = [];
-        $result = measureExecutionTime(function() use ($config, $log, &$timing) {
-            $goveeApi = new GoveeAPI($config['govee_api_key'], $config['db_config']);
-            
-            $api_timing = measureExecutionTime(function() use ($goveeApi) {
-                $goveeResponse = $goveeApi->getDevices();
-                if ($goveeResponse['statusCode'] !== 200) {
-                    throw new Exception('Failed to get devices from Govee API');
-                }
-                
-                $result = json_decode($goveeResponse['body'], true);
-                if ($result['code'] !== 200) {
-                    throw new Exception($result['message']);
-                }
-                
-                return $result;
-            });
-            $timing['devices'] = ['duration' => $api_timing['duration']];
-            
-            $states_timing = measureExecutionTime(function() use ($goveeApi, $api_timing) {
-                $govee_devices = $api_timing['result']['data']['devices'];
-                $device_states = array();
-                $updated_devices = array();
-                
-                foreach ($govee_devices as $device) {
-                    $goveeApi->updateDeviceDatabase($device);
-                    
-                    $stateResponse = $goveeApi->getDeviceState($device);
-                    if ($stateResponse['statusCode'] === 200) {
-                        $state_result = json_decode($stateResponse['body'], true);
-                        if ($state_result['code'] === 200) {
-                            $device_states[$device['device']] = $state_result['data']['properties'];
-                            $updated_devices[] = $goveeApi->updateDeviceStateInDatabase($device, $device_states, $device);
-                        }
-                    }
-                }
-                
-                return $updated_devices;
-            });
-            
-            $timing['states'] = ['duration' => $states_timing['duration']];
-            
-            return [
-                'devices' => $states_timing['result'],
-                'updated' => date('c'),
-                'timing' => $timing
-            ];
-        });
-        
-        return sendSuccessResponse($response, $result['result']);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
-    }
-});
-
-$app->get('/update-hue-devices', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        $timing = [];
-        $result = measureExecutionTime(function() use ($config, &$timing) {
-            // Initialize HueAPI
-            $hueApi = new HueAPI($config['hue_bridge_ip'], $config['hue_api_key'], $config['db_config']);
-            
-            $api_timing = measureExecutionTime(function() use ($hueApi) {
-                $hueResponse = $hueApi->getDevices();
-                if ($hueResponse['statusCode'] !== 200) {
-                    throw new Exception('Failed to get devices from Hue Bridge');
-                }
-                
-                $devices = json_decode($hueResponse['body'], true);
-                if (!$devices || !isset($devices['data'])) {
-                    throw new Exception('Failed to parse Hue Bridge response');
-                }
-                
-                return $devices;
-            });
-            $timing['devices'] = ['duration' => $api_timing['duration']];
-            
-            $states_timing = measureExecutionTime(function() use ($hueApi, $api_timing) {
-                $updated_devices = array();
-                foreach ($api_timing['result']['data'] as $device) {
-                    $updated_devices[] = $hueApi->updateDeviceDatabase($device);
-                }
-                return $updated_devices;
-            });
-            
-            $timing['states'] = ['duration' => $states_timing['duration']];
-            
-            return [
-                'devices' => $states_timing['result'],
-                'updated' => date('c'),
-                'timing' => $timing
-            ];
-        });
-        
-        return sendSuccessResponse($response, $result['result']);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
+        return sendErrorResponse($response, $e);
     }
 });
 
@@ -826,7 +599,7 @@ $app->get('/thermometer-history', function (Request $request, Response $response
 
         $pdo = getDatabaseConnection($config);
         
-        // First get the device name and room info - updated query without JOIN
+        // Get device name and room info
         $stmt = $pdo->prepare("
             SELECT name, display_name, room
             FROM thermometers 
@@ -835,7 +608,7 @@ $app->get('/thermometer-history', function (Request $request, Response $response
         $stmt->execute([$mac]);
         $device = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        // Then get the history
+        // Get the history
         $stmt = $pdo->prepare("
             SELECT 
                 temperature,
@@ -913,80 +686,20 @@ $app->get('/all-thermometer-history', function (Request $request, Response $resp
     }
 });
 
-$app->get('/thermometer-list', function (Request $request, Response $response) use ($config) {
-    try {
-        $pdo = getDatabaseConnection($config);
-        
-        // Updated query to use room from thermometers table
-        $stmt = $pdo->prepare("
-            SELECT 
-                t.mac,
-                t.name,
-                t.display_name,
-                t.model,
-                t.room as room_id,
-                r.room_name,
-                t.updated
-            FROM thermometers t
-            LEFT JOIN rooms r ON t.room = r.id
-            ORDER BY t.name
-        ");
-        $stmt->execute();
-        $thermometers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Get room list for dropdown
-        $roomStmt = $pdo->query("SELECT id, room_name FROM rooms WHERE id != 1 ORDER BY room_name");
-        $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return sendSuccessResponse($response, [
-            'thermometers' => $thermometers,
-            'rooms' => $rooms
-        ]);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e);
-    }
-});
-
-$app->post('/update-thermometer', function (Request $request, Response $response) use ($config) {
-    try {
-        $data = json_decode($request->getBody()->getContents(), true);
-        validateRequiredParams($data, ['mac']);
-        
-        $pdo = getDatabaseConnection($config);
-        
-        // Update thermometer display name and room
-        $stmt = $pdo->prepare("
-            UPDATE thermometers 
-            SET display_name = ?,
-                room = ?
-            WHERE mac = ?
-        ");
-        
-        $stmt->execute([
-            $data['display_name'] ?: null,
-            $data['room'] ?: null,
-            $data['mac']
-        ]);
-        
-        return sendSuccessResponse($response, ['message' => 'Thermometer updated successfully']);
-        
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e);
-    }
-});
-
+// All devices route
 $app->get('/all-devices', function (Request $request, Response $response) use ($config) {
     try {
         $pdo = getDatabaseConnection($config);
         $stmt = $pdo->prepare("
-            SELECT d.*, 
-                   r.room_name,
-                   g.name as group_name 
-            FROM devices d
-            LEFT JOIN rooms r ON d.room = r.id
-            LEFT JOIN device_groups g ON d.deviceGroup = g.id
-            ORDER BY d.brand, d.model, d.device_name
-        ");
+    SELECT d.*, 
+           r.room_name,
+           g.name as group_name,
+           g.reference_device
+    FROM devices d
+    LEFT JOIN rooms r ON d.room = r.id
+    LEFT JOIN device_groups g ON d.deviceGroup = g.id
+    ORDER BY d.brand, d.model, d.device_name
+");
         $stmt->execute();
         
         // Get room list for dropdown
@@ -1014,89 +727,48 @@ $app->post('/update-device-details', function (Request $request, Response $respo
         
         $pdo = getDatabaseConnection($config);
         
-        $stmt = $pdo->prepare("
-            UPDATE devices 
-            SET x10Code = ?,
-                preferredName = ?,
-                room = ?,
-                low = ?,
-                medium = ?,
-                high = ?,
-                preferredPowerState = ?,
-                preferredBrightness = ?,
-                preferredColorTem = ?,
-                deviceGroup = ?
-            WHERE device = ?
-        ");
+        // Build update query dynamically based on provided fields
+        $updates = [];
+        $params = [];
+
+        // Map fields to database columns
+        $fieldMappings = [
+            'x10Code' => 'x10Code',
+            'preferredName' => 'preferredName',
+            'room' => 'room',
+            'low' => 'low',
+            'medium' => 'medium', 
+            'high' => 'high',
+            'preferredPowerState' => 'preferredPowerState',
+            'preferredBrightness' => 'preferredBrightness',
+            'preferredColorTem' => 'preferredColorTem',
+            'deviceGroup' => 'deviceGroup'
+        ];
+
+        foreach ($fieldMappings as $requestField => $dbField) {
+            if (isset($data[$requestField])) {
+                // Handle empty string values
+                if ($data[$requestField] === '') {
+                    $updates[] = "$dbField = NULL";
+                } else {
+                    $updates[] = "$dbField = :$dbField";
+                    $params[":$dbField"] = $data[$requestField];
+                }
+            }
+        }
+
+        // Add device parameter
+        $params[':device'] = $data['device'];
         
-        $stmt->execute([
-            $data['x10Code'],
-            $data['preferredName'],
-            $data['room'],
-            $data['low'],
-            $data['medium'],
-            $data['high'],
-            $data['preferredPowerState'],
-            $data['preferredBrightness'],
-            $data['preferredColorTem'],
-            $data['deviceGroup'],
-            $data['device']
-        ]);
+        if (!empty($updates)) {
+            $sql = "UPDATE devices SET " . implode(', ', $updates) . " WHERE device = :device";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
         
         return sendSuccessResponse($response, ['message' => 'Device updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
-    }
-});
-
-$app->get('/update-vesync-devices', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        $timing = [];
-        $result = measureExecutionTime(function() use ($config, $log, &$timing) {
-            // Initialize VeSync API
-            $vesyncApi = new VeSyncAPI(
-                $config['vesync_api']['user'], 
-                $config['vesync_api']['password'],
-                $config['db_config']
-            );
-
-            $api_timing = measureExecutionTime(function() use ($vesyncApi) {
-                if (!$vesyncApi->login()) {
-                    throw new Exception('Failed to login to VeSync API');
-                }
-                
-                $devices = $vesyncApi->get_devices();
-                if (!$devices) {
-                    throw new Exception('Failed to get devices from VeSync API');
-                }
-                
-                return $devices;
-            });
-            $timing['devices'] = ['duration' => $api_timing['duration']];
-
-            $states_timing = measureExecutionTime(function() use ($vesyncApi, $api_timing) {
-                $updated_devices = [];
-                foreach ($api_timing['result'] as $type => $devices) {
-                    foreach ($devices as $device) {
-                        $vesyncApi->update_device_database($device);
-                        $updated_devices[] = $device;
-                    }
-                }
-                return $updated_devices;
-            });
-            
-            $timing['states'] = ['duration' => $states_timing['duration']];
-            
-            return [
-                'devices' => $states_timing['result'],
-                'updated' => date('c'),
-                'timing' => $timing
-            ];
-        });
-        
-        return sendSuccessResponse($response, $result['result']);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
     }
 });
 

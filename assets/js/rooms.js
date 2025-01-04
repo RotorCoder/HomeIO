@@ -17,7 +17,7 @@ function hideRoomPopup() {
 async function loadRoomList() {
     try {
         const response = await apiFetch('api/rooms');
-        const data = await response.json();
+        const data = await response;
         
         if (!data.success) {
             throw new Error(data.error || 'Failed to load rooms');
@@ -91,7 +91,7 @@ async function saveRoom(roomId) {
             })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to update room');
         }
@@ -132,7 +132,7 @@ async function addNewRoom() {
             })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to add room');
         }
@@ -142,12 +142,9 @@ async function addNewRoom() {
         document.getElementById('new-room-icon').value = '';
         document.getElementById('new-room-order').value = '';
 
-        // Reload room list and main UI
-        await Promise.all([
-            loadRoomList(),
-            fetchRooms(),
-            createTabs()
-        ]);
+        // Reload everything using loadInitialData instead of updateDevices
+        await loadInitialData();
+        await loadRoomList();  // Reload the room management popup list
 
     } catch (error) {
         console.error('Error adding room:', error);
@@ -171,7 +168,7 @@ async function deleteRoom(roomId) {
             })
         });
         
-        const data = await response.json();
+        const data = await response;
         if (!data.success) {
             throw new Error(data.error || 'Failed to delete room');
         }

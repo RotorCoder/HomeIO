@@ -1,6 +1,3 @@
-<!-- index.php -->
-
-<?php require_once __DIR__ . '/config/config.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,19 +14,20 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
 <body>
+    <?php require_once __DIR__ . '/config/config.php'; ?>
     <div class="container">
-    <div class="error-message" id="error-message"></div>
-    <div id="tabs" class="tabs"></div>
-    <div id="tab-contents"></div>
-</div>
+        <div class="error-message" id="error-message"></div>
+        <div id="tabs" class="tabs"></div>
+        <div id="tab-contents"></div>
+    </div>
     
-    <?php include 'templates/config-popup.php'; ?>
-    <?php include 'templates/history-popup.php'; ?>
-    <?php include 'templates/all-temps-popup.php'; ?>
-    <?php include 'templates/room-popup.php'; ?>
+    <?php require __DIR__ . '/templates/config-popup.php'; ?>
+    <?php require __DIR__ . '/templates/history-popup.php'; ?>
+    <?php require __DIR__ . '/templates/all-temps-popup.php'; ?>
+    <?php require __DIR__ . '/templates/room-popup.php'; ?>
     
     <script>
-        const API_KEY = '<?php echo $config['homeio_api_key']; ?>';
+        const API_KEY = <?php echo json_encode($config['homeio_api_key']); ?>;
     </script>
     <script src="assets/js/api.js"></script>
     <script src="assets/js/ui.js"></script>
@@ -39,5 +37,5 @@
     <script src="assets/js/temperature.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/rooms.js"></script>
-    </body>
+</body>
 </html>
