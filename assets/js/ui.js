@@ -10,20 +10,15 @@ function showError(message) {
 
 // ui.js - Update UI related functions
 async function createTabs() {
-    try {
-        const tabsContainer = document.getElementById('tabs');
-        const tabContents = document.getElementById('tab-contents');
-        
-        if (!tabsContainer || !tabContents) {
-            throw new Error('Required DOM elements not found');
-        }
-        
-        let tabsHtml = '';
-        let contentsHtml = '';
-        
-        const savedTab = localStorage.getItem('selectedTab');
-        
-        for (const room of rooms) {
+    const tabsContainer = document.getElementById('tabs');
+    const tabContents = document.getElementById('tab-contents');
+    
+    let tabsHtml = '';
+    let contentsHtml = '';
+    
+    const savedTab = localStorage.getItem('selectedTab');
+    
+    for (const room of rooms) {
         if (room.id !== 1) {
             let tempInfo = '';
             try {
@@ -74,7 +69,7 @@ async function createTabs() {
         }
     }
     
-        // Keep the config tab for mobile view only
+    // Keep the config tab for mobile view only
     tabsHtml += `
         <button class="tab ${!savedTab ? 'active' : ''}" data-room="config">
             <i class="fas fa-xl fa-cog"></i>
@@ -82,7 +77,9 @@ async function createTabs() {
 
     contentsHtml += `
         <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            
+            <h2 class="room-header">
+                <span><i class="fas fa-cog"></i> Configuration</span>
+            </h2>
             <button onclick="showAllTempHistory()" class="config-button">
                 <i class="fas fa-temperature-high"></i>
                 <span>Thermometers</span>
@@ -98,12 +95,13 @@ async function createTabs() {
         </div>
         <div class="config-popup-desktop" id="config-popup-desktop">
         <div class="config-content">
-            <div class="header">
-                <h2>Configuration</h2>
+            
+            <h2 class="room-header">
+                <span><i class="fas fa-cog"></i> Configuration</span>
                 <button onclick="hideDesktopConfig()" class="close-btn">
                     <i class="fas fa-times"></i>
                 </button>
-            </div>
+            </h2>
             <div class="content">
                 <button onclick="showAllTempHistory()" class="config-button">
                     <i class="fas fa-temperature-high"></i>
@@ -125,24 +123,17 @@ async function createTabs() {
         <i class="fas fa-cog"></i>
         <span>Configuration</span>
     </button>`;
-        
-        tabsHtml += generateConfigTab(savedTab);
-        contentsHtml += generateConfigContent(savedTab);
-        
-        tabsContainer.innerHTML = tabsHtml;
-        tabContents.innerHTML = contentsHtml;
-        
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => switchTab(tab.dataset.room));
-        });
-        
-        if (savedTab) {
-            switchTab(savedTab);
-        }
-        
-    } catch (error) {
-        console.error('Error creating tabs:', error);
-        showError('Failed to create interface: ' + error.message);
+    
+    tabsContainer.innerHTML = tabsHtml;
+    tabContents.innerHTML = contentsHtml;
+    
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.room));
+    });
+
+    if (savedTab) {
+        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
+        switchTab(savedTab);
     }
 }
 
