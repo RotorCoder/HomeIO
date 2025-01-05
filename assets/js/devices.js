@@ -44,22 +44,23 @@ function handleDevicesUpdate(devices) {
     // Handle individual devices first
     devices.forEach(device => {
         // Skip devices that will be shown in groups
-        if (device.group_id) return;
+        if (!device.group_id || device.show_in_room === 1) {
         
-        const deviceHtml = createDeviceCard(device);
-        if (device.room) {
-            const roomGrid = document.getElementById(`room-${device.room}-devices`);
-            if (roomGrid) {
-                roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
+            const deviceHtml = createDeviceCard(device);
+            if (device.room) {
+                const roomGrid = document.getElementById(`room-${device.room}-devices`);
+                if (roomGrid) {
+                    roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
+                }
             }
+            
+            deviceStates.set(device.device, {
+                online: device.online ?? false,
+                preferredPowerState: device.preferredPowerState || 'off',
+                preferredBrightness: device.preferredBrightness,
+                brand: device.brand
+            });
         }
-        
-        deviceStates.set(device.device, {
-            online: device.online ?? false,
-            preferredPowerState: device.preferredPowerState || 'off',
-            preferredBrightness: device.preferredBrightness,
-            brand: device.brand
-        });
     });
 
     // Add logging to debug
