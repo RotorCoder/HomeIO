@@ -26,7 +26,9 @@ function handleDevicesUpdate(devices) {
     // First, get all rooms that have updates
     const updatedRooms = new Set();
     devices.forEach(device => {
-        if (device.room) updatedRooms.add(device.room);
+        if (device.room_ids) {
+            device.room_ids.split(',').forEach(roomId => updatedRooms.add(roomId));
+        }
     });
     
     // Clear affected room containers
@@ -45,13 +47,17 @@ function handleDevicesUpdate(devices) {
     devices.forEach(device => {
         // Skip devices that will be shown in groups
         if (!device.group_id || device.show_in_room === 1) {
-        
             const deviceHtml = createDeviceCard(device);
-            if (device.room) {
-                const roomGrid = document.getElementById(`room-${device.room}-devices`);
-                if (roomGrid) {
-                    roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
-                }
+            
+            // Add device to all its assigned rooms
+            if (device.room_ids) {
+                const roomIds = device.room_ids.split(',');
+                roomIds.forEach(roomId => {
+                    const roomGrid = document.getElementById(`room-${roomId}-devices`);
+                    if (roomGrid) {
+                        roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
+                    }
+                });
             }
             
             deviceStates.set(device.device, {
@@ -63,37 +69,30 @@ function handleDevicesUpdate(devices) {
         }
     });
 
-    // Add logging to debug
-if (window.apiResponse && window.apiResponse.groups) {
-    console.log('Groups from API:', window.apiResponse.groups);
-    window.apiResponse.groups.forEach(group => {
-        // Find first device in group to get capabilities
-        const groupDevices = JSON.parse(group.devices || '[]');
-        console.log('Group devices:', group.id, groupDevices);
-        
-        if (groupDevices.length === 0) {
-            console.log('No devices in group:', group.id);
-            return;
-        }
+    // Handle groups
+    if (window.apiResponse && window.apiResponse.groups) {
+        window.apiResponse.groups.forEach(group => {
+            const groupDevices = JSON.parse(group.devices || '[]');
+            
+            if (groupDevices.length === 0) {
+                return;
+            }
 
-        // Get all devices in this group
-        const groupDeviceObjects = groupDevices
-            .map(deviceId => deviceMap.get(deviceId))
-            .filter(d => d); // Remove any undefined devices
+            const groupDeviceObjects = groupDevices
+                .map(deviceId => deviceMap.get(deviceId))
+                .filter(d => d);
 
-        if (groupDeviceObjects.length === 0) {
-            console.log('No valid devices found for group:', group.id);
-            return;
-        }
+            if (groupDeviceObjects.length === 0) {
+                return;
+            }
 
-        const primaryDevice = groupDeviceObjects[0];
-
-            // Create group device object
+            const primaryDevice = groupDeviceObjects[0];
             const groupDevice = {
                 device: group.id,
                 device_name: group.name,
                 model: 'group',
-                room: group.room,
+                room_ids: group.room_ids,
+                room_names: group.room_names,
                 online: groupDevices.some(deviceId => {
                     const device = deviceMap.get(deviceId);
                     return device && device.online;
@@ -108,16 +107,18 @@ if (window.apiResponse && window.apiResponse.groups) {
                 isGroup: true
             };
 
-            // Create and add group card
-            const groupHtml = createDeviceCard(groupDevice);
-            if (groupDevice.room) {
-                const roomGrid = document.getElementById(`room-${groupDevice.room}-devices`);
-                if (roomGrid) {
-                    roomGrid.insertAdjacentHTML('beforeend', groupHtml);
-                }
+            // Add group to all its assigned rooms
+            if (groupDevice.room_ids) {
+                const roomIds = groupDevice.room_ids.split(',');
+                const groupHtml = createDeviceCard(groupDevice);
+                roomIds.forEach(roomId => {
+                    const roomGrid = document.getElementById(`room-${roomId}-devices`);
+                    if (roomGrid) {
+                        roomGrid.insertAdjacentHTML('beforeend', groupHtml);
+                    }
+                });
             }
 
-            // Update group state
             deviceStates.set(group.id, {
                 online: groupDevice.online,
                 preferredPowerState: groupDevice.preferredPowerState,

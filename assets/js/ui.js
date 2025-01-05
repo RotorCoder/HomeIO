@@ -214,17 +214,21 @@ async function loadAllDevices() {
 
         const tbody = document.getElementById('all-devices-list');
         tbody.innerHTML = data.devices.map(device => {
-            const roomOptions = data.rooms.map(room => 
-                `<option value="${room.id}" ${room.id == device.room ? 'selected' : ''}>
+            // Create multi-select for rooms
+            const roomOptions = data.rooms.map(room => {
+                const isSelected = device.room_ids && device.room_ids.split(',').includes(room.id.toString());
+                return `<option value="${room.id}" ${isSelected ? 'selected' : ''}>
                     ${room.room_name}
-                </option>`
-            ).join('');
+                </option>`;
+            }).join('');
 
-            const groupOptions = data.groups.map(group => 
-                `<option value="${group.id}" ${group.id == device.deviceGroup ? 'selected' : ''}>
+            // Create multi-select for groups
+            const groupOptions = data.groups.map(group => {
+                const isSelected = group.devices && JSON.parse(group.devices).includes(device.device);
+                return `<option value="${group.id}" ${isSelected ? 'selected' : ''}>
                     ${group.name}
-                </option>`
-            ).join('');
+                </option>`;
+            }).join('');
 
             return `
                 <tr data-device="${device.device}">
@@ -233,16 +237,16 @@ async function loadAllDevices() {
                     <td>${device.brand}</td>
                     <td>${device.model}</td>
                     <td>
-                        <select class="room">
-                            <option value="">No Room</option>
+                        <select class="rooms" multiple size="3">
                             ${roomOptions}
                         </select>
+                        <small>Hold Ctrl/Cmd to select multiple</small>
                     </td>
                     <td>
-                        <select class="group">
-                            <option value="">No Group</option>
+                        <select class="groups" multiple size="3">
                             ${groupOptions}
                         </select>
+                        <small>Hold Ctrl/Cmd to select multiple</small>
                     </td>
                     <td><input type="text" class="x10-code" value="${device.x10Code || ''}"></td>
                     <td>${device.online ? 'Yes' : 'No'}</td>
@@ -280,12 +284,20 @@ async function saveDeviceDetails(deviceId) {
     const row = document.querySelector(`tr[data-device="${deviceId}"]`);
     if (!row) return;
 
+    // Get selected rooms
+    const selectedRooms = Array.from(row.querySelector('.rooms').selectedOptions)
+        .map(option => parseInt(option.value));
+
+    // Get selected groups
+    const selectedGroups = Array.from(row.querySelector('.groups').selectedOptions)
+        .map(option => parseInt(option.value));
+
     const data = {
         device: deviceId,
         preferredName: row.querySelector('.pref-name').value,
         x10Code: row.querySelector('.x10-code').value,
-        room: row.querySelector('.room').value,
-        deviceGroup: row.querySelector('.group').value,
+        rooms: selectedRooms,
+        groups: selectedGroups,
         preferredPowerState: row.querySelector('.pref-power').value,
         preferredBrightness: row.querySelector('.pref-bright').value,
         preferredColorTem: row.querySelector('.pref-color').value,
@@ -306,6 +318,42 @@ async function saveDeviceDetails(deviceId) {
         const result = await response;
         if (!result.success) {
             throw new Error(result.error || 'Failed to update device');
+        }
+
+        // Add device to selected groups
+        if (selectedGroups.length > 0) {
+            for (const groupId of selectedGroups) {
+                await apiFetch('api/update-device-group', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        device: deviceId,
+                        action: 'join',
+                        groupId: groupId
+                    })
+                });
+            }
+        }
+
+        // Remove device from unselected groups
+        const allGroupOptions = Array.from(row.querySelector('.groups').options);
+        const unselectedGroups = allGroupOptions
+            .filter(option => !option.selected)
+            .map(option => parseInt(option.value));
+
+        if (unselectedGroups.length > 0) {
+            await apiFetch('api/update-device-group', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    device: deviceId,
+                    action: 'leave'
+                })
+            });
         }
 
         // Reload the devices to show updated data

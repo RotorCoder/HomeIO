@@ -1,5 +1,13 @@
 // assets/js/config.js
 
+function hideConfigMenu() {
+    const popup = document.getElementById('config-popup');
+    if (popup) {
+        popup.style.display = 'none';
+    }
+}
+
+// Update the showConfigMenu function in config.js
 async function showConfigMenu(deviceId) {
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const popup = document.getElementById('config-popup');
@@ -19,28 +27,9 @@ async function showConfigMenu(deviceId) {
     document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
     document.getElementById('config-model').value = model;
     
-    const groupActionSelect = document.getElementById('config-group-action');
-    const groupNameInput = document.getElementById('config-group-name');
-    if (groupActionSelect) {
-        groupActionSelect.value = 'none';
-    }
-    if (groupNameInput) {
-        groupNameInput.value = '';
-    }
-
-    // Reset group containers visibility
-    const groupNameContainer = document.getElementById('group-name-container');
-    const existingGroupsContainer = document.getElementById('existing-groups-container');
-    if (groupNameContainer) {
-        groupNameContainer.style.display = 'none';
-    }
-    if (existingGroupsContainer) {
-        existingGroupsContainer.style.display = 'none';
-    }
-    
-    // Populate rooms dropdown
-    const roomSelect = document.getElementById('config-room');
-    roomSelect.innerHTML = rooms.map(room => 
+    // Update rooms multiselect
+    const roomsSelect = document.getElementById('config-rooms');
+    roomsSelect.innerHTML = rooms.map(room => 
         `<option value="${room.id}">${room.room_name}</option>`
     ).join('');
 
@@ -54,102 +43,26 @@ async function showConfigMenu(deviceId) {
         const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
         const configData = await configResponse;
         
-        // Store config values
-        const configValues = {
-            room: configData.success ? configData.room : '',
-            low: configData.success ? configData.low : '',
-            medium: configData.success ? configData.medium : '',
-            high: configData.success ? configData.high : '',
-            preferredColorTem: configData.success ? configData.preferredColorTem : '',
-            x10Code: configData.success ? configData.x10Code : ''
-        };
-
-        // Set room value
-        document.getElementById('config-room').value = configValues.room;
-
-        if (configValues.x10Code && configValues.x10Code.trim()) {
-            const letter = configValues.x10Code.charAt(0).toLowerCase();
-            const number = configValues.x10Code.substring(1);
-            document.getElementById('config-x10-letter').value = letter;
-            document.getElementById('config-x10-number').value = number;
-        } else {
-            document.getElementById('config-x10-letter').value = '';
-            document.getElementById('config-x10-number').value = '';
-        }
-
-        // Handle group vs regular device display
-        const groupConfigElements = document.getElementById('group-config-elements');
-        const regularConfigElements = document.getElementById('regular-config-elements');
-        
-        if (groupId) {
-            console.log('Showing group members for group:', groupId);
-            groupConfigElements.style.display = 'block';
-            regularConfigElements.style.display = 'none';
-            
-            const groupResponse = await apiFetch(`api/group-devices?groupId=${groupId}`);
-            const groupData = await groupResponse;
-            
-            if (groupData.success && groupData.devices) {
-                const membersHtml = groupData.devices.map(member => {
-                    const memberName = member.device_name || member.device;
-                    const displayName = memberName;
-                        
-                    return `
-                        <div class="group-member" data-full-name="${memberName}">
-                            <span class="member-name">${displayName}</span>
-                            <span class="member-status">
-                                ${member.powerState === 'on' ? 'On' : 'Off'} 
-                                (${member.online ? 'Online' : 'Offline'})
-                            </span>
-                        </div>
-                    `;
-                }).join('');
-                
-                const settingsHtml = `
-                    <div class="form-group">
-                        <label>Low Brightness (%):</label>
-                        <input type="number" id="config-low" min="1" max="100" value="${configValues.low}">
-                    </div>
-                    <div class="form-group">
-                        <label>Medium Brightness (%):</label>
-                        <input type="number" id="config-medium" min="1" max="100" value="${configValues.medium}">
-                    </div>
-                    <div class="form-group">
-                        <label>High Brightness (%):</label>
-                        <input type="number" id="config-high" min="1" max="100" value="${configValues.high}">
-                    </div>
-                    <div class="form-group">
-                        <label>Preferred Color Temperature:</label>
-                        <input type="number" id="config-color-temp" min="2000" max="9000" value="${configValues.preferredColorTem}">
-                    </div>
-                    <div class="group-members">
-                        <h4>Group Members:</h4>
-                        ${membersHtml}
-                    </div>`;
-                
-                groupConfigElements.innerHTML = settingsHtml;
-
-                document.querySelector('.buttons').innerHTML = `
-                    <button type="button" class="delete-btn" onclick="deleteDeviceGroup(${groupId})">Delete Group</button>
-                    <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
-                    <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
-                `;
+        if (configData.success) {
+            // Set selected rooms
+            if (configData.rooms) {
+                Array.from(roomsSelect.options).forEach(option => {
+                    option.selected = configData.rooms.includes(parseInt(option.value));
+                });
             }
-        } else {
-            groupConfigElements.style.display = 'none';
-            regularConfigElements.style.display = 'block';
-            
-            document.getElementById('config-low').value = configValues.low;
-            document.getElementById('config-medium').value = configValues.medium;
-            document.getElementById('config-high').value = configValues.high;
-            document.getElementById('config-color-temp').value = configValues.preferredColorTem;
-            
-            document.querySelector('.buttons').innerHTML = `
-                <button type="button" class="cancel-btn" onclick="hideConfigMenu()">Cancel</button>
-                <button type="button" class="save-btn" onclick="saveDeviceConfig()">Save</button>
-            `;
-            
-            loadAvailableGroups(model);
+
+            // Set other configuration values
+            document.getElementById('config-low').value = configData.low || '';
+            document.getElementById('config-medium').value = configData.medium || '';
+            document.getElementById('config-high').value = configData.high || '';
+            document.getElementById('config-color-temp').value = configData.preferredColorTem || '';
+
+            if (configData.x10Code && configData.x10Code.trim()) {
+                const letter = configData.x10Code.charAt(0).toLowerCase();
+                const number = configData.x10Code.substring(1);
+                document.getElementById('config-x10-letter').value = letter;
+                document.getElementById('config-x10-number').value = number;
+            }
         }
 
         popup.style.display = 'block';
@@ -160,17 +73,8 @@ async function showConfigMenu(deviceId) {
     }
 }
 
-function hideConfigMenu() {
-    const popup = document.getElementById('config-popup');
-    if (popup) {
-        popup.style.display = 'none';
-    }
-}
-
+// Update the saveDeviceConfig function
 async function saveDeviceConfig() {
-    console.log('saveDeviceConfig called');
-    console.log('Current group action:', window.groupAction);
-
     const deviceId = document.getElementById('config-device-id').value;
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const model = document.getElementById('config-model').value;
@@ -188,9 +92,13 @@ async function saveDeviceConfig() {
             document.getElementById('group-config-elements') : 
             document.getElementById('regular-config-elements');
             
+        // Get selected rooms
+        const selectedRooms = Array.from(document.getElementById('config-rooms').selectedOptions)
+            .map(option => parseInt(option.value));
+
         const config = {
             device: deviceId,
-            room: document.getElementById('config-room').value,
+            rooms: selectedRooms,
             low: parseInt(formContainer.querySelector('input[id$="config-low"]').value) || 0,
             medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
             high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
@@ -204,47 +112,8 @@ async function saveDeviceConfig() {
             body: JSON.stringify(config)
         });
         
-        const configData = await configResponse;
-        if (!configData.success) {
-            throw new Error(configData.error || 'Failed to update device configuration');
-        }
-        
-        const groupAction = document.getElementById('config-group-action').value;
-        if (!groupId && groupAction && groupAction !== 'none') {
-            console.log('Processing group action:', groupAction);
-            
-            const groupData = {
-                device: deviceId,
-                model: model,
-                action: groupAction
-            };
-            
-            if (groupAction === 'create') {
-                const groupName = document.getElementById('config-group-name').value;
-                if (!groupName) {
-                    throw new Error('Group name is required');
-                }
-                groupData.groupName = groupName;
-            } else if (groupAction === 'join') {
-                const groupId = document.getElementById('config-existing-groups').value;
-                if (!groupId) {
-                    throw new Error('Group selection is required');
-                }
-                groupData.groupId = groupId;
-            }
-
-            console.log('Sending group update with data:', groupData);
-
-            const groupResponse = await apiFetch('api/update-device-group', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(groupData)
-            });
-            
-            const groupResult = await groupResponse;
-            if (!groupResult.success) {
-                throw new Error(groupResult.error || 'Failed to update group');
-            }
+        if (!configResponse.success) {
+            throw new Error(configResponse.error || 'Failed to update device configuration');
         }
         
         hideConfigMenu();

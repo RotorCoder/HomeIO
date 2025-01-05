@@ -659,3 +659,24 @@ body {
 .device-table .save-btn:hover {
     background: #15803d;
 }
+
+.device-table select[multiple] {
+    min-width: 150px;
+    max-width: 300px;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background-color: white;
+}
+
+.device-table small {
+    display: block;
+    color: #666;
+    font-size: 0.8em;
+    margin-top: 2px;
+}
+
+.device-table td {
+    vertical-align: top;
+    padding: 8px;
+}
