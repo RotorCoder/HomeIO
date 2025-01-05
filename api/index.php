@@ -108,11 +108,11 @@ function hasDevicePendingCommand($pdo, $device) {
 }
 
 
-// Helper function to get all devices in a group
 function getGroupDevices($pdo, $groupId) {
-    $stmt = $pdo->prepare("SELECT device FROM devices WHERE deviceGroup = ?");
+    $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
     $stmt->execute([$groupId]);
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $result ? json_decode($result['devices'], true) : [];
 }
 
 // Create Slim app and configure middleware
@@ -157,28 +157,17 @@ $app->get('/check-x10-code', function (Request $request, Response $response) use
     }
 });
 
-// Device group routes
 $app->post('/delete-device-group', function (Request $request, Response $response) use ($config, $log) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
         validateRequiredParams($data, ['groupId']);
         
         $pdo = getDatabaseConnection($config);
-        $pdo->beginTransaction();
         
-        try {
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL WHERE deviceGroup = ?");
-            $stmt->execute([$data['groupId']]);
-            
-            $stmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
-            $stmt->execute([$data['groupId']]);
-            
-            $pdo->commit();
-            return sendSuccessResponse($response, ['message' => 'Group deleted successfully']);
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+        $stmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
+        $stmt->execute([$data['groupId']]);
+        
+        return sendSuccessResponse($response, ['message' => 'Group deleted successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e, $log);
     }
@@ -223,22 +212,60 @@ $app->post('/update-device-group', function (Request $request, Response $respons
         if ($data['action'] === 'create') {
             validateRequiredParams($data, ['groupName', 'model']);
             
-            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, reference_device) VALUES (?, ?, ?)");
-            $stmt->execute([$data['groupName'], $data['model'], $data['device']]);
-            $groupId = $pdo->lastInsertId();
-            
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ? WHERE device = ?");
-            $stmt->execute([$groupId, $data['device']]);
+            // Create new group with initial device
+            $stmt = $pdo->prepare("INSERT INTO device_groups (name, model, devices) VALUES (?, ?, ?)");
+            $stmt->execute([
+                $data['groupName'], 
+                $data['model'],
+                json_encode([$data['device']])
+            ]);
             
         } else if ($data['action'] === 'join') {
             validateRequiredParams($data, ['groupId']);
             
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = ? WHERE device = ?");
-            $stmt->execute([$data['groupId'], $data['device']]);
+            // Get current devices in group
+            $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
+            $stmt->execute([$data['groupId']]);
+            $group = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$group) {
+                throw new Exception('Group not found');
+            }
+            
+            // Add device to group's device list
+            $devices = json_decode($group['devices'], true) ?? [];
+            if (!in_array($data['device'], $devices)) {
+                $devices[] = $data['device'];
+            }
+            
+            // Update group with new device list
+            $stmt = $pdo->prepare("UPDATE device_groups SET devices = ? WHERE id = ?");
+            $stmt->execute([json_encode($devices), $data['groupId']]);
             
         } else if ($data['action'] === 'leave') {
-            $stmt = $pdo->prepare("UPDATE devices SET deviceGroup = NULL WHERE device = ?");
-            $stmt->execute([$data['device']]);
+            // Find all groups containing this device
+            $stmt = $pdo->prepare("SELECT id, devices FROM device_groups");
+            $stmt->execute();
+            
+            while ($group = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $devices = json_decode($group['devices'], true) ?? [];
+                
+                // Remove device from group if present
+                if (($key = array_search($data['device'], $devices)) !== false) {
+                    unset($devices[$key]);
+                    $devices = array_values($devices); // Reindex array
+                    
+                    // Update group with new device list
+                    $updateStmt = $pdo->prepare("UPDATE device_groups SET devices = ? WHERE id = ?");
+                    $updateStmt->execute([json_encode($devices), $group['id']]);
+                    
+                    // If group is empty, delete it
+                    if (empty($devices)) {
+                        $deleteStmt = $pdo->prepare("DELETE FROM device_groups WHERE id = ?");
+                        $deleteStmt->execute([$group['id']]);
+                    }
+                }
+            }
         }
         
         return sendSuccessResponse($response, ['message' => 'Device group updated successfully']);
@@ -460,6 +487,69 @@ $app->post('/update-device-state', function (Request $request, Response $respons
         }
         
         return sendSuccessResponse($response, ['message' => 'Device state preferences updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+$app->post('/queue-command', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['type', 'id', 'command', 'value']);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        $devicesToUpdate = [];
+        switch($data['type']) {
+            case 'group':
+                $devicesToUpdate = getGroupDevices($pdo, $data['id']);
+                break;
+            case 'device':    
+                $devicesToUpdate = [$data['id']];
+                break;
+            default:
+                    throw new Exception('Invalid device type');
+        }
+        
+        foreach ($devicesToUpdate as $deviceId) {
+        
+            switch($data['command']) {
+                
+                case 'brightness':
+                    $brightness = (int)$data['value'];
+                    $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
+                    $stmt->execute([$brightness, $deviceId]);
+                    break;
+                
+                case 'turn':
+                    $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
+                    $stmt->execute([$data['value'], $deviceId]);
+                    break;
+                
+                default:
+                    throw new Exception('Invalid command type');
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO command_queue 
+                (device, model, command, brand) 
+                SELECT device, model, :command, brand
+                FROM devices
+                WHERE device = :device
+            ");
+            
+            $stmt->execute([
+                'command' => json_encode([
+                    'name' => $data['command'],
+                    'value' => $data['value']
+                ]),
+                'device' => $deviceId
+            ]);
+            
+        }
+        
+        
+        return sendSuccessResponse($response, ['message' => 'Device command queued successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e, $log);
     }
@@ -692,10 +782,10 @@ $app->get('/all-devices', function (Request $request, Response $response) use ($
     SELECT d.*, 
            r.room_name,
            g.name as group_name,
-           g.reference_device
+           g.devices as group_devices
     FROM devices d
     LEFT JOIN rooms r ON d.room = r.id
-    LEFT JOIN device_groups g ON d.deviceGroup = g.id
+    LEFT JOIN device_groups g ON JSON_CONTAINS(g.devices, JSON_QUOTE(d.device))
     ORDER BY d.brand, d.model, d.device_name
 ");
         $stmt->execute();

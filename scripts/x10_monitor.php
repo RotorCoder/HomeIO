@@ -7,6 +7,16 @@ require $config['sharedpath'].'/logger.php';
 
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
+// Global variables
+$lastCommand = [
+    'device' => '',
+    'command' => '',
+    'timestamp' => 0
+];
+
+$pdo = null; // Global PDO connection
+
+// Initialize PDO 
 try {
     $pdo = new PDO(
         "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
@@ -84,33 +94,49 @@ try {
     exit(1);
 }
 
-// Store last command info for deduplication
-$lastCommand = [
-    'device' => '',
-    'command' => '',
-    'timestamp' => 0
-];
-
-function getDeviceConfig($device) {
-    global $config, $log;
-    
-    $log->logInfoMsg("Getting Device: " . $device);
+function getDeviceConfig($type, $id) {
+    global $config, $log, $pdo;
     
     try {
-        $pdo = new PDO(
-            "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
-            $config['db_config']['user'],
-            $config['db_config']['password'],
-            array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
-        );
-        
-        $stmt = $pdo->prepare("SELECT preferredPowerState, preferredBrightness, low, medium, high FROM devices WHERE device = ?");
-        $stmt->execute([$device]);
-        $founddevice = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $log->logInfoMsg("Device Found: " . $founddevice);
-        //var_dump($founddevice);
-        return($founddevice);
+        if ($type === 'group') {
+            // Get the devices array from device_groups
+            $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
+            $stmt->execute([$id]);
+            $group = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($group && !empty($group['devices'])) {
+                // Parse the JSON array and get the first device ID
+                $devices = json_decode($group['devices'], true);
+                if (!empty($devices)) {
+                    $firstDevice = $devices[0];
+                    
+                    // Get settings from the first device
+                    $stmt = $pdo->prepare("SELECT preferredPowerState, preferredBrightness, low, medium, high FROM devices WHERE device = ?");
+                    $stmt->execute([$firstDevice]);
+                    $config = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($config) {
+                        $log->logInfoMsg("Config found for group $id using first device $firstDevice: " . json_encode($config));
+                        return $config;
+                    }
+                }
+            }
+            $log->logInfoMsg("No config found for group $id");
+            return null;
+            
+        } else {
+            // Regular device lookup remains unchanged
+            $stmt = $pdo->prepare("SELECT preferredPowerState, preferredBrightness, low, medium, high FROM devices WHERE device = ?");
+            $stmt->execute([$id]);
+            
+            $config = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($config) {
+                $log->logInfoMsg("Config found for device $id: " . json_encode($config));
+            } else {
+                $log->logInfoMsg("No config found for device $id");
+            }
+            return $config;
+        }
         
     } catch (Exception $e) {
         $log->logInfoMsg("Database error: " . $e->getMessage());
@@ -119,49 +145,44 @@ function getDeviceConfig($device) {
 }
 
 function getX10DeviceMapping($x10Code) {
-    global $config, $log;
+    global $config, $log, $pdo;
     try {
-        $pdo = new PDO(
-            "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
-            $config['db_config']['user'],
-            $config['db_config']['password'],
-            array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
-        );
+        $x10Code = strtolower(trim($x10Code));
+        $log->logInfoMsg("Looking up X10 code: $x10Code");
         
-        $stmt = $pdo->prepare("
-            SELECT d.*, dg.id as group_id 
-            FROM devices d
-            LEFT JOIN device_groups dg ON d.device = dg.reference_device
-            WHERE d.x10Code = ?
-        ");
+        // First check individual devices
+        $stmt = $pdo->prepare("SELECT device, model FROM devices WHERE x10Code = ?");
         $stmt->execute([$x10Code]);
         $device = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($device) {
-            $result = [
-                'device' => $device['device'],
-                'model' => $device['model'],
-                'brand' => $device['brand']
+            $log->logInfoMsg("Found device for X10 code: $x10Code");
+            return [
+                'type' => 'device',
+                'id' => $device['device'],
+                'model' => $device['model']
             ];
-            
-            $log->logInfoMsg("Low: ".$device['device']." - ".$device['model']." - ".$device['brand']);
-            
-            if ($device['group_id']) {
-                $groupStmt = $pdo->prepare("
-                    SELECT device, model, brand  -- Added brand to the group members query
-                    FROM devices 
-                    WHERE deviceGroup = ?
-                ");
-                $groupStmt->execute([$device['group_id']]);
-                $result['group_members'] = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
-            }
-            
-            return $result;
         }
         
+        // If not found in devices, check device_groups table
+        $stmt = $pdo->prepare("SELECT id, name, model FROM device_groups WHERE x10Code = ?");
+        $stmt->execute([$x10Code]);
+        $group = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($group) {
+            $log->logInfoMsg("Found group for X10 code: $x10Code");
+            return [
+                'type' => 'group',
+                'id' => $group['id'],
+                'model' => $group['model']
+            ];
+        }
+        
+        $log->logInfoMsg("No mapping found for X10 code: $x10Code");
         return null;
+        
     } catch (Exception $e) {
-        $log->logInfoMsg("Database error: " . $e->getMessage());
+        $log->logInfoMsg("Database error in getX10DeviceMapping: " . $e->getMessage());
         return null;
     }
 }
@@ -208,84 +229,78 @@ function queueDeviceCommand($x10Code, $command) {
     
     $deviceMapping = getX10DeviceMapping($x10Code);
     if (!$deviceMapping) {
-        $log->logInfoMsg("ERROR: No device mapping found for X10 code: $x10Code");
+        $log->logInfoMsg("ERROR: No device/group mapping found for X10 code: $x10Code");
         return;
     }
 
-    $devices = [];
-    if (isset($deviceMapping['group_members'])) {
-        $devices = $deviceMapping['group_members'];
-    } else {
-        $devices = [$deviceMapping];
+    // Get device or group configuration using first device's settings
+    $deviceConfig = getDeviceConfig($deviceMapping['type'], $deviceMapping['id']);
+    if (!$deviceConfig) {
+        $log->logInfoMsg("ERROR: Could not get configuration for {$deviceMapping['type']} {$deviceMapping['id']}");
+        return;
     }
 
-    foreach ($devices as $device) {
-        $deviceConfig = getDeviceConfig($device['device']);
-        if (!$deviceConfig) {
-            $log->logInfoMsg("ERROR: Could not get device configuration for " . $device['device']);
-            continue;
-        }
+    // Translate X10 command to API command
+    $apiCommand = '';
+    $apiValue = '';
+    
+    if ($command === 'Bright' || $command === 'Dim') {
+        $apiCommand = 'brightness';
+        $apiValue = getNextpreferredBrightnessLevel(
+            $deviceConfig['preferredBrightness'], 
+            $deviceConfig, 
+            $command
+        );
         
-        if ($command === 'Bright' || $command === 'Dim') {
-            $nextpreferredBrightness = getNextpreferredBrightnessLevel($deviceConfig['preferredBrightness'], $deviceConfig, $command);
-            
-            if ($nextpreferredBrightness == $deviceConfig['preferredBrightness']) {
-                $log->logInfoMsg("Skipping preferredBrightness command for " . $device['device'] . " - already at " . 
-                    ($command === 'Bright' ? "maximum" : "minimum") . " level");
-                continue;
-            }
-            
-            $cmd = [
-                'name' => 'preferredBrightness',
-                'value' => $nextpreferredBrightness
-            ];
-        } else {
-            $cmd = [
-                'name' => 'turn',
-                'value' => (strtolower($command) === 'on' ? 'on' : 'off')
-            ];
+        // Skip if no brightness change needed
+        if ($apiValue == $deviceConfig['preferredBrightness']) {
+            $log->logInfoMsg("Skipping brightness command - already at " . 
+                ($command === 'Bright' ? "maximum" : "minimum") . " level");
+            return;
         }
-        
-        try {
-            // Prepare the command data
-            $commandData = [
-                'device' => $device['device'],
-                'model' => $device['model'],
-                'cmd' => $cmd,
-                'brand' => $device['brand']
-            ];
+    } else {
+        $apiCommand = 'turn';
+        $apiValue = (strtolower($command) === 'on' ? 'on' : 'off');
+    }
 
-            // Use the API endpoint with proper headers
-            $ch = curl_init('https://mittencoder.com/homeio/api/send-command');
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'X-API-Key: ' . $config['homeio_api_key']  // Add the API key header
-            ]);
+    try {
+        // Prepare the command data
+        $commandData = [
+            'type' => $deviceMapping['type'],
+            'id' => $deviceMapping['id'],
+            'command' => $apiCommand,
+            'value' => $apiValue
+        ];
 
-            $result = curl_exec($ch);
-            if ($result === false) {
-                throw new Exception("CURL error: " . curl_error($ch));
-            }
+        $ch = curl_init('https://mittencoder.com/homeio/api/queue-command');
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-API-Key: ' . $config['homeio_api_key']
+        ]);
 
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+        $result = curl_exec($ch);
+        if ($result === false) {
+            throw new Exception("CURL error: " . curl_error($ch));
+        }
 
-            if ($httpCode === 200) {
-                $response = json_decode($result, true);
-                if ($response && isset($response['success']) && $response['success']) {
-                    $log->logInfoMsg("Command queued successfully for device " . $device['device'] . " - " . $commandData['cmd']['name'] . " - " . $commandData['cmd']['value']);
-                } else {
-                    throw new Exception("API returned success=false: " . ($response['error'] ?? 'Unknown error'));
-                }
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200) {
+            $response = json_decode($result, true);
+            if ($response && isset($response['success']) && $response['success']) {
+                $log->logInfoMsg("Command queued successfully for {$deviceMapping['type']} {$deviceMapping['id']} - $apiCommand - $apiValue");
             } else {
-                throw new Exception("HTTP error code: " . $httpCode . ", Response: " . $result);
+                throw new Exception("API returned success=false: " . ($response['error'] ?? 'Unknown error'));
             }
-        } catch (Exception $e) {
-            $log->logInfoMsg("ERROR queueing command for " . $device['device'] . ": " . $e->getMessage());
+        } else {
+            throw new Exception("HTTP error code: " . $httpCode . ", Response: " . $result);
         }
+    } catch (Exception $e) {
+        $log->logInfoMsg("ERROR queueing command: " . $e->getMessage());
     }
 }
 
@@ -326,6 +341,7 @@ try {
     
     $tempDir = __DIR__ . '/temp';
     $positionFile = $tempDir . '/x10_log_last_position.txt';
+    $logFile = $config['x10_log_file'];  // Store the log file path
     
     // Ensure temp directory exists with correct permissions
     if (!file_exists($tempDir)) {
@@ -340,10 +356,10 @@ try {
     }
     
     // Initialize state with current file position and inode
-    if (file_exists($config['x10_log_file'])) {
-        clearstatcache(true, $config['x10_log_file']);
-        $initialPosition = filesize($config['x10_log_file']);
-        $initialInode = fileinode($config['x10_log_file']);
+    if (file_exists($logFile)) {  // Use stored path
+        clearstatcache(true, $logFile);  // Clear the file status cache
+        $initialPosition = filesize($logFile);
+        $initialInode = fileinode($logFile);
         
         $initialState = [
             'position' => $initialPosition,
@@ -359,15 +375,15 @@ try {
 
     while (true) {
         try {
-            $lastPosition = (int)file_get_contents($positionFile);
+            clearstatcache(true, $logFile);  // Clear cache before each check
             
-            if (!file_exists($config['x10_log_file'])) {
+            if (!file_exists($logFile)) {
                 $log->logInfoMsg("Log file not found, waiting...");
                 sleep(1);
                 continue;
             }
 
-            $handle = fopen($config['x10_log_file'], 'r');
+            $handle = fopen($logFile, 'r');
             if (!$handle) {
                 $log->logInfoMsg("Could not open log file, waiting...");
                 sleep(1);
@@ -375,9 +391,8 @@ try {
             }
 
             // Check if file has been truncated or rotated
-            clearstatcache(true, $config['x10_log_file']);
-            $currentSize = filesize($config['x10_log_file']);
-            $currentInode = fileinode($config['x10_log_file']);
+            $currentSize = filesize($logFile);
+            $currentInode = fileinode($logFile);
             
             // Store these in a state file along with the position
             $stateData = is_file($positionFile) ? json_decode(file_get_contents($positionFile), true) : [];
@@ -399,9 +414,11 @@ try {
                 if (strpos(strtolower($line), 'bszaction:"recvrf"') !== false) {
                     if (strpos(strtolower($line), 'bszparm3:0') !== false && strpos(strtolower($line), 'dim') === false && strpos(strtolower($line), 'bright') === false) {
                         if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
-                            $x10Code = strtolower($matches[1]);
+                            $x10Code = strtolower(trim($matches[1]));
                             $command = $matches[2];
                             $timestamp = substr($line, 0, 19);
+                            
+                            $log->logInfoMsg("Extracted X10 code: $x10Code");  // Add debug logging
                             
                             if (!isDuplicate($x10Code, $command, $timestamp)) {
                                 $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
@@ -411,16 +428,16 @@ try {
                     }
                 }
                 if (strpos(strtolower($line), 'bszaction:"recvplc"') !== false) {
-                    if (strpos(strtolower($line), 'dim') !== false || strpos(strtolower($line), 'bright') !== false) {
-                        if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
-                            $x10Code = strtolower($matches[1]);
-                            $command = $matches[2];
-                            $timestamp = substr($line, 0, 19);
-                            
-                            if (!isDuplicate($x10Code, $command, $timestamp)) {
-                                $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
-                                queueDeviceCommand($x10Code, $command);
-                            }
+                    if (preg_match('/bszParm1:([a-z][0-9]+),\s*bszParm2:(\w+),/', $line, $matches)) {
+                        $x10Code = strtolower(trim($matches[1]));
+                        $command = $matches[2];
+                        $timestamp = substr($line, 0, 19);
+                        
+                        $log->logInfoMsg("Extracted X10 code: $x10Code");  // Add debug logging
+                        
+                        if (!isDuplicate($x10Code, $command, $timestamp)) {
+                            $log->logInfoMsg("Received X10 command: $timestamp - Code $x10Code $command");
+                            queueDeviceCommand($x10Code, $command);
                         }
                     }
                 }
@@ -434,7 +451,7 @@ try {
             fclose($handle);
 
             // Small sleep to prevent excessive CPU usage
-            usleep(10000); // 250ms pause
+            usleep(10000); // 10ms pause
 
         } catch (Exception $e) {
             $log->logInfoMsg("Error in processing loop: " . $e->getMessage());
