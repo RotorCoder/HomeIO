@@ -10,12 +10,18 @@ python3 /var/www/html/homeio/scripts/vesync_processor.py
 php /var/www/html/homeio/scripts/govee_processor.php
 php /var/www/html/homeio/scripts/hue_processor.php
 php /var/www/html/homeio/scripts/x10_monitor.php
+
+php /var/www/html/homeio/scripts/govee_updater.php
+php /var/www/html/homeio/scripts/hue_updater.php
  
 //edit the services
 sudo nano /etc/systemd/system/vesync-processor.service
 sudo nano /etc/systemd/system/govee-processor.service
 sudo nano /etc/systemd/system/hue-processor.service
 sudo nano /etc/systemd/system/x10-monitor.service
+
+sudo nano /etc/systemd/system/govee-updater.service
+sudo nano /etc/systemd/system/hue-updater.service
 
 //reload the services (after modifying a /etc/systemd/system/*.service file)
 sudo systemctl daemon-reload
@@ -25,7 +31,10 @@ sudo service vesync-processor restart
 sudo service govee-processor restart
 sudo service hue-processor restart
 sudo service x10-monitor restart
-sudo service vesync-processor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service x10-monitor restart
+
+sudo service govee-updater restart
+sudo service hue-updater restart
+sudo service vesync-processor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service x10-monitor restart && sudo service govee-updater restart && sudo service hue-updater restart
 
 //monitor a service
 sudo service vesync-processor status
@@ -33,29 +42,18 @@ sudo service govee-processor status
 sudo service hue-processor status
 sudo service x10-monitor status
 
+sudo service govee-updater status
+sudo service hue-updater status
+
 //stop a service
 sudo service vesync-processor stop
 sudo service govee-processor stop
 sudo service hue-processor stop
 sudo service x10-monitor stop
-sudo service vesync-processor stop && sudo service govee-processor stop && sudo service hue-processor stop && sudo service x10-monitor stop
 
-//contents of etc/systemd/system/vesync_processor.service
-[Unit]
-Description=VeSync Command Processor
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=www-data
-Group=www-data
-ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_processor.py
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-//file end
+sudo service govee-updater stop
+sudo service hue-updater stop
+sudo service vesync-processor stop && sudo service govee-processor stop && sudo service hue-processor stop && sudo service x10-monitor stop && sudo service govee-updater stop & sudo service hue-updater stop
 
 //contents of etc/systemd/system/govee-processor.service
 [Unit]
@@ -74,9 +72,26 @@ RestartSec=3
 WantedBy=multi-user.target
 //file end
 
+//contents of etc/systemd/system/govee-updater.service
+[Unit]
+Description=Govee Device Updater
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/govee_updater.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
 //contents of etc/systemd/system/hue-processor.service
 [Unit]
-Description=Govee Command Processor
+Description=Hue Command Processor
 After=network.target mysql.service
 
 [Service]
@@ -91,9 +106,43 @@ RestartSec=3
 WantedBy=multi-user.target
 //file end
 
+//contents of etc/systemd/system/hue-updater.service
+[Unit]
+Description=Hue Device Updater
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/hue_updater.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
+//contents of etc/systemd/system/vesync_processor.service
+[Unit]
+Description=VeSync Command Processor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_processor.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
 //contents of etc/systemd/system/x10_monitor.service
 [Unit]
-Description=Govee Command Processor
+Description=X10 Command Monitor
 After=network.target mysql.service
 
 [Service]
