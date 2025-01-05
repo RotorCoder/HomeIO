@@ -40,8 +40,11 @@
                     <div id="config-error-message" class="config-error-message" style="display: none;"></div>
     
                     <div class="form-group">
-                        <label>Room:</label>
-                        <select id="config-room"></select>
+                        <label>Rooms:</label>
+                        <select id="config-rooms" multiple>
+                            <!-- Room options will be populated by JavaScript -->
+                        </select>
+                        <small>Hold Ctrl (Windows) or Command (Mac) to select multiple rooms</small>
                     </div>
     
                     <!-- Regular device settings -->

@@ -397,6 +397,7 @@ $app->delete('/delete-room', function (Request $request, Response $response) use
     }
 });
 
+// Replace the existing device-config endpoint with this:
 $app->get('/device-config', function (Request $request, Response $response) use ($config) {
     try {
         validateRequiredParams($request->getQueryParams(), ['device']);
@@ -423,7 +424,6 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         if ($group) {
             // Return group configuration
             return sendSuccessResponse($response, [
-                'room' => $group['room'],
                 'x10Code' => $group['x10Code'],
                 'low' => $group['low'],
                 'medium' => $group['medium'],
@@ -434,21 +434,30 @@ $app->get('/device-config', function (Request $request, Response $response) use 
             ]);
         }
         
-        // If not a group, get device configuration
-        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code, show_in_room FROM devices WHERE device = ?");
+        // Get device configuration
+        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, x10Code, show_in_room FROM devices WHERE device = ?");
         $stmt->execute([$deviceId]);
+        $deviceConfig = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        $config = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$config) {
+        if (!$deviceConfig) {
             throw new Exception('Device not found');
         }
-        
-        return sendSuccessResponse($response, $config);
+
+        // Get rooms this device belongs to
+        $roomStmt = $pdo->prepare("SELECT id FROM rooms WHERE JSON_CONTAINS(devices, ?)");
+        $roomStmt->execute([json_encode($deviceId)]);
+        $rooms = $roomStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        return sendSuccessResponse($response, array_merge(
+            $deviceConfig,
+            ['rooms' => $rooms]
+        ));
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
 });
 
+// Replace the existing update-device-config endpoint with this:
 $app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
@@ -465,12 +474,10 @@ $app->post('/update-device-config', function (Request $request, Response $respon
             // Update group configuration
             $stmt = $pdo->prepare("
                 UPDATE device_groups 
-                SET room = ?,
-                    x10Code = ?
+                SET x10Code = ?
                 WHERE id = ?
             ");
             $stmt->execute([
-                $data['room'],
                 (!empty($data['x10Code'])) ? $data['x10Code'] : null,
                 $data['device']
             ]);
@@ -497,14 +504,13 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                 $data['device']
             ]);
         } else {
-            // Original device update logic
+            // Update device configuration
             $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
             $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1;
             
             $stmt = $pdo->prepare("
                 UPDATE devices 
-                SET room = ?,
-                    low = ?,
+                SET low = ?,
                     medium = ?,
                     high = ?,
                     preferredColorTem = ?,
@@ -513,7 +519,6 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                 WHERE device = ?
             ");
             $stmt->execute([
-                $data['room'],
                 $data['low'],
                 $data['medium'],
                 $data['high'],
@@ -522,6 +527,37 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                 $show_in_room,
                 $data['device']
             ]);
+
+            // Update room assignments
+            if (isset($data['rooms']) && is_array($data['rooms'])) {
+                // First remove device from all rooms
+                $stmt = $pdo->prepare("
+                    UPDATE rooms 
+                    SET devices = JSON_REMOVE(
+                        devices, 
+                        REPLACE(JSON_SEARCH(devices, 'one', ?), '\"', '')
+                    )
+                    WHERE JSON_CONTAINS(devices, ?)
+                ");
+                $stmt->execute([
+                    $data['device'],
+                    json_encode($data['device'])
+                ]);
+
+                // Then add to selected rooms
+                $stmt = $pdo->prepare("
+                    UPDATE rooms 
+                    SET devices = JSON_ARRAY_APPEND(
+                        COALESCE(devices, JSON_ARRAY()),
+                        '$',
+                        ?
+                    )
+                    WHERE id IN (" . implode(',', array_fill(0, count($data['rooms']), '?')) . ")
+                ");
+                $params = [$data['device']];
+                $params = array_merge($params, $data['rooms']);
+                $stmt->execute($params);
+            }
         }
         
         return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
@@ -893,13 +929,15 @@ $app->get('/all-devices', function (Request $request, Response $response) use ($
         // Get all devices
         $stmt = $pdo->prepare("
             SELECT d.*, 
-                   r.room_name,
+                   GROUP_CONCAT(DISTINCT r.room_name) as room_names,
+                   GROUP_CONCAT(DISTINCT r.id) as room_ids,
                    g.name as group_name,
                    g.devices as group_devices,
                    g.id as group_id
             FROM devices d
-            LEFT JOIN rooms r ON d.room = r.id
+            LEFT JOIN rooms r ON JSON_CONTAINS(r.devices, JSON_QUOTE(d.device))
             LEFT JOIN device_groups g ON JSON_CONTAINS(g.devices, JSON_QUOTE(d.device))
+            GROUP BY d.device
             ORDER BY d.brand, d.model, d.device_name
         ");
         $stmt->execute();
@@ -907,9 +945,12 @@ $app->get('/all-devices', function (Request $request, Response $response) use ($
         
         // Get all groups
         $stmt = $pdo->prepare("
-            SELECT g.*, r.room_name 
+            SELECT g.*, 
+                   GROUP_CONCAT(DISTINCT r.room_name) as room_names,
+                   GROUP_CONCAT(DISTINCT r.id) as room_ids
             FROM device_groups g
-            LEFT JOIN rooms r ON g.room = r.id
+            LEFT JOIN rooms r ON JSON_CONTAINS(r.devices, JSON_QUOTE(g.id))
+            GROUP BY g.id
             ORDER BY g.name
         ");
         $stmt->execute();
@@ -921,7 +962,7 @@ $app->get('/all-devices', function (Request $request, Response $response) use ($
 
         return sendSuccessResponse($response, [
             'devices' => $devices,
-            'groups' => $groups,  // Add groups to response
+            'groups' => $groups,
             'rooms' => $rooms
         ]);
     } catch (Exception $e) {
@@ -940,11 +981,10 @@ $app->post('/update-device-details', function (Request $request, Response $respo
         $updates = [];
         $params = [];
 
-        // Map fields to database columns
+        // Map fields to database columns (removed 'room' from the mappings)
         $fieldMappings = [
             'x10Code' => 'x10Code',
             'preferredName' => 'preferredName',
-            'room' => 'room',
             'low' => 'low',
             'medium' => 'medium', 
             'high' => 'high',
@@ -973,6 +1013,36 @@ $app->post('/update-device-details', function (Request $request, Response $respo
             $sql = "UPDATE devices SET " . implode(', ', $updates) . " WHERE device = :device";
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
+        }
+
+        // Handle room assignments if provided
+        if (isset($data['rooms']) && is_array($data['rooms'])) {
+            // First remove device from all rooms
+            $stmt = $pdo->prepare("
+                UPDATE rooms 
+                SET devices = JSON_REMOVE(
+                    devices, 
+                    REPLACE(JSON_SEARCH(devices, 'one', ?), '\"', '')
+                )
+                WHERE JSON_CONTAINS(devices, ?)
+            ");
+            $stmt->execute([$data['device'], json_encode($data['device'])]);
+
+            // Then add to selected rooms
+            if (!empty($data['rooms'])) {
+                $stmt = $pdo->prepare("
+                    UPDATE rooms 
+                    SET devices = JSON_ARRAY_APPEND(
+                        COALESCE(devices, JSON_ARRAY()),
+                        '$',
+                        ?
+                    )
+                    WHERE id IN (" . implode(',', array_fill(0, count($data['rooms']), '?')) . ")
+                ");
+                $params = [$data['device']];
+                $params = array_merge($params, $data['rooms']);
+                $stmt->execute($params);
+            }
         }
         
         return sendSuccessResponse($response, ['message' => 'Device updated successfully']);
