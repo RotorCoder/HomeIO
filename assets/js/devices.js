@@ -21,11 +21,6 @@ function getDeviceIcon(deviceName, preferredPowerState = 'off') {
 }
 
 function createDeviceCard(device) {
-    // Skip non-reference devices that are part of a group
-    if (device.deviceGroup && device.device !== device.reference_device) {
-        return '';
-    }
-
     const isOnline = device.online ?? false;
     const deviceClass = isOnline ? 'device-online' : 'device-offline';
     const preferredPowerState = device.preferredPowerState || 'off';
@@ -34,33 +29,31 @@ function createDeviceCard(device) {
     const supportedCmds = JSON.parse(device.supportCmds || '[]');
     
     const fullDeviceName = device.device_name;
-    const fullGroupName = device.group_name;
-    
-    const displayName = fullGroupName ? 
-        (fullGroupName.includes('-') ? fullGroupName.split('-')[1].trim() : fullGroupName) :
-        (fullDeviceName.includes('-') ? fullDeviceName.split('-')[1].trim() : fullDeviceName);
+    const displayName = fullDeviceName.includes('-') ? 
+        fullDeviceName.split('-')[1].trim() : 
+        fullDeviceName;
                     
     let controlButtons = '';
     if (isOnline) {
         if (supportedCmds.includes('brightness')) {
             controlButtons = `
                 <div class="device-controls">
-                    <button onclick="sendCommand('${device.device}', 'turn', 'off', '${device.model}', ${device.group_id || 'null'})" 
+                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'turn', 'off')" 
                             class="btn ${preferredPowerState === 'off' ? 'active' : ''}">Off</button>
-                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.low}, '${device.model}', ${device.group_id || 'null'})" 
+                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.low})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.low ? 'active' : ''}"
                             data-brightness="${device.low}">Low</button>
-                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.medium}, '${device.model}', ${device.group_id || 'null'})" 
+                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.medium})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.medium ? 'active' : ''}"
                             data-brightness="${device.medium}">Medium</button>
-                    <button onclick="sendCommand('${device.device}', 'brightness', ${device.high}, '${device.model}', ${device.group_id || 'null'})" 
+                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.high})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.high ? 'active' : ''}"
                             data-brightness="${device.high}">High</button>
                 </div>`;
         } else {
             controlButtons = `
                 <div class="device-controls">
-                    <button onclick="sendCommand('${device.device}', 'turn', '${preferredPowerState === 'off' ? 'on' : 'off'}', '${device.model}', ${device.group_id || 'null'})"
+                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'turn', '${preferredPowerState === 'off' ? 'on' : 'off'}')"
                             class="btn">${preferredPowerState === 'off' ? 'Turn On' : 'Turn Off'}</button>
                 </div>`;
         }
@@ -87,9 +80,7 @@ function createDeviceCard(device) {
             class="device-card ${deviceClass}" 
             data-supported-cmds='${device.supportCmds}'
             data-model="${device.model}"
-            data-full-device-name="${fullDeviceName}"
-            data-full-group-name="${fullGroupName || ''}"
-            ${device.deviceGroup ? `data-group-id="${device.deviceGroup}"` : ''}>
+            data-full-device-name="${fullDeviceName}">
             <div class="device-info">
                 <div class="device-icon">
                     <i class="${icon}" style="color: ${iconColor}"></i>

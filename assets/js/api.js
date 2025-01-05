@@ -56,49 +56,43 @@ async function loadInitialData() {
     }
 }
 
-async function sendCommand(deviceId, command, value, model, groupId = null) {
-    const previousState = {...deviceStates.get(deviceId)};
-    let devicesToUpdate = [deviceId];
+async function sendCommand(type, id, command, value) {
+    const deviceElement = document.getElementById(`device-${id}`);
+    if (!deviceElement) return;
+    
+    const previousState = {...deviceStates.get(id)};
     
     try {
-        if (groupId) {
-            const response = await apiFetch(`api/group-devices?groupId=${groupId}`);
-            if (response.success) {
-                devicesToUpdate = response.devices.map(d => d.device);
-            }
-        }
-
-        const dbUpdatePromises = devicesToUpdate.map(deviceId => 
-            apiFetch('api/update-device-state', {
-                method: 'POST',
-                body: JSON.stringify({
-                    device: deviceId,
-                    command: command,
-                    value: value
-                })
+        const response = await apiFetch('api/queue-command', {
+            method: 'POST',
+            body: JSON.stringify({
+                type,
+                id,
+                command,
+                value
             })
-        );
+        });
 
-        const dbResults = await Promise.all(dbUpdatePromises);
-        if (dbResults.some(result => !result.success)) {
+        if (!response.success) {
             throw new Error('Failed to update device state preferences');
         }
 
+        // Update local state for all affected devices
+        const affectedDevices = response.affectedDevices || [id];
         const newState = command === 'brightness' ? 
             { ...previousState, preferredPowerState: 'on', preferredBrightness: value } :
             { ...previousState, preferredPowerState: value };
 
-        devicesToUpdate.forEach(deviceId => {
+        affectedDevices.forEach(deviceId => {
             deviceStates.set(deviceId, {...newState});
             updateDeviceUI(deviceId, newState);
         });
 
     } catch (error) {
         console.error('Command error:', error);
-        devicesToUpdate.forEach(deviceId => {
-            deviceStates.set(deviceId, previousState);
-            updateDeviceUI(deviceId, previousState);
-        });
+        // Revert state for the original device
+        deviceStates.set(deviceId, previousState);
+        updateDeviceUI(deviceId, previousState);
         showError('Failed to send command: ' + error.message);
     }
 }
