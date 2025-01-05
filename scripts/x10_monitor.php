@@ -3,8 +3,8 @@
 // http://192.168.99.221:8086/?x10command=DEVICE~sendplc~%22A1%20OFF%22&time=1735508950088
 
 require_once __DIR__ . '/../config/config.php';
-require $config['sharedpath'].'/govee_lib.php';
 require $config['sharedpath'].'/logger.php';
+
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
 try {
@@ -25,13 +25,13 @@ try {
             controllable BOOLEAN DEFAULT 1,
             retrievable BOOLEAN DEFAULT 1,
             supportCmds TEXT,
-            colorTemp_rangeMin INT,
-            colorTemp_rangeMax INT,
+            preferredColorTemp_rangeMin INT,
+            preferredColorTemp_rangeMax INT,
             brand VARCHAR(50),
             online BOOLEAN DEFAULT 0,
-            powerState VARCHAR(10),
-            brightness INT,
-            colorTemp INT,
+            preferredPowerState VARCHAR(10),
+            preferredBrightness INT,
+            preferredColorTemp INT,
             x10Code VARCHAR(10),
             room INT,
             deviceGroup INT,
@@ -104,7 +104,7 @@ function getDeviceConfig($device) {
             array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION)
         );
         
-        $stmt = $pdo->prepare("SELECT powerState, brightness, low, medium, high FROM devices WHERE device = ?");
+        $stmt = $pdo->prepare("SELECT preferredPowerState, preferredBrightness, low, medium, high FROM devices WHERE device = ?");
         $stmt->execute([$device]);
         $founddevice = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -166,10 +166,10 @@ function getX10DeviceMapping($x10Code) {
     }
 }
 
-function getNextBrightnessLevel($currentBrightness, $deviceConfig, $command) {
+function getNextpreferredBrightnessLevel($currentpreferredBrightness, $deviceConfig, $command) {
     global $config, $log;
     
-    $current = (int)$currentBrightness;
+    $current = (int)$currentpreferredBrightness;
     $low = (int)$deviceConfig['low'];
     $medium = (int)$deviceConfig['medium'];
     $high = (int)$deviceConfig['high'];
@@ -227,17 +227,17 @@ function queueDeviceCommand($x10Code, $command) {
         }
         
         if ($command === 'Bright' || $command === 'Dim') {
-            $nextBrightness = getNextBrightnessLevel($deviceConfig['brightness'], $deviceConfig, $command);
+            $nextpreferredBrightness = getNextpreferredBrightnessLevel($deviceConfig['preferredBrightness'], $deviceConfig, $command);
             
-            if ($nextBrightness == $deviceConfig['brightness']) {
-                $log->logInfoMsg("Skipping brightness command for " . $device['device'] . " - already at " . 
+            if ($nextpreferredBrightness == $deviceConfig['preferredBrightness']) {
+                $log->logInfoMsg("Skipping preferredBrightness command for " . $device['device'] . " - already at " . 
                     ($command === 'Bright' ? "maximum" : "minimum") . " level");
                 continue;
             }
             
             $cmd = [
-                'name' => 'brightness',
-                'value' => $nextBrightness
+                'name' => 'preferredBrightness',
+                'value' => $nextpreferredBrightness
             ];
         } else {
             $cmd = [
