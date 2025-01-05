@@ -188,17 +188,41 @@ $app->get('/available-groups', function (Request $request, Response $response) u
     }
 });
 
-$app->get('/group-devices', function (Request $request, Response $response) use ($config, $log) {
+$app->get('/group-devices', function (Request $request, Response $response) use ($config) {
     try {
         validateRequiredParams($request->getQueryParams(), ['groupId']);
+        $groupId = $request->getQueryParams()['groupId'];
         
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT device, device_name, powerState, online FROM devices WHERE deviceGroup = ?");
-        $stmt->execute([$request->getQueryParams()['groupId']]);
+        
+        // First get the devices list from device_groups
+        $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
+        $stmt->execute([$groupId]);
+        $group = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$group) {
+            throw new Exception('Group not found');
+        }
+        
+        // Parse the JSON devices array
+        $deviceIds = json_decode($group['devices'], true);
+        if (!$deviceIds) {
+            return sendSuccessResponse($response, ['devices' => []]);
+        }
+        
+        // Now get the device details for each device in the group
+        $placeholders = str_repeat('?,', count($deviceIds) - 1) . '?';
+        $stmt = $pdo->prepare("
+            SELECT device, device_name, powerState, online 
+            FROM devices 
+            WHERE device IN ($placeholders)
+        ");
+        $stmt->execute($deviceIds);
         
         return sendSuccessResponse($response, ['devices' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        
     } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
+        return sendErrorResponse($response, $e);
     }
 });
 
@@ -373,14 +397,46 @@ $app->delete('/delete-room', function (Request $request, Response $response) use
     }
 });
 
-// Device configuration and state routes
 $app->get('/device-config', function (Request $request, Response $response) use ($config) {
     try {
         validateRequiredParams($request->getQueryParams(), ['device']);
+        $deviceId = $request->getQueryParams()['device'];
         
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code, favorite, show_in_room FROM devices WHERE device = ?");
-        $stmt->execute([$request->getQueryParams()['device']]);
+        
+        // First check if this is a group ID
+        $groupStmt = $pdo->prepare("
+            SELECT dg.*, d.low, d.medium, d.high, d.preferredColorTem 
+            FROM device_groups dg
+            LEFT JOIN (
+                SELECT d.* 
+                FROM devices d 
+                INNER JOIN device_groups dg2 ON JSON_CONTAINS(dg2.devices, JSON_QUOTE(d.device))
+                WHERE dg2.id = ?
+                LIMIT 1
+            ) d ON 1=1
+            WHERE dg.id = ?
+        ");
+        $groupStmt->execute([$deviceId, $deviceId]);
+        $group = $groupStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($group) {
+            // Return group configuration
+            return sendSuccessResponse($response, [
+                'room' => $group['room'],
+                'x10Code' => $group['x10Code'],
+                'low' => $group['low'],
+                'medium' => $group['medium'],
+                'high' => $group['high'],
+                'preferredColorTem' => $group['preferredColorTem'],
+                'show_in_room' => 1, // Groups are always shown
+                'isGroup' => true
+            ]);
+        }
+        
+        // If not a group, get device configuration
+        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code, show_in_room FROM devices WHERE device = ?");
+        $stmt->execute([$deviceId]);
         
         $config = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$config) {
@@ -399,22 +455,74 @@ $app->post('/update-device-config', function (Request $request, Response $respon
         validateRequiredParams($data, ['device']);
         
         $pdo = getDatabaseConnection($config);
-        $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
-        $favorite = isset($data['favorite']) ? ($data['favorite'] ? 1 : 0) : 0;
-        $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1; // Default to show
-        
-        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ?, favorite = ?, show_in_room = ? WHERE device = ?");
-        $stmt->execute([
-            $data['room'],
-            $data['low'],
-            $data['medium'],
-            $data['high'],
-            $data['preferredColorTem'],
-            $x10Code,
-            $favorite,
-            $show_in_room,
-            $data['device']
-        ]);
+
+        // First check if this is a group ID
+        $groupCheck = $pdo->prepare("SELECT id FROM device_groups WHERE id = ?");
+        $groupCheck->execute([$data['device']]);
+        $isGroup = $groupCheck->fetch(PDO::FETCH_ASSOC);
+
+        if ($isGroup) {
+            // Update group configuration
+            $stmt = $pdo->prepare("
+                UPDATE device_groups 
+                SET room = ?,
+                    x10Code = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $data['room'],
+                (!empty($data['x10Code'])) ? $data['x10Code'] : null,
+                $data['device']
+            ]);
+
+            // Update settings for all devices in the group
+            $deviceStmt = $pdo->prepare("
+                UPDATE devices 
+                SET low = ?,
+                    medium = ?,
+                    high = ?,
+                    preferredColorTem = ?
+                WHERE device IN (
+                    SELECT d.device
+                    FROM devices d
+                    INNER JOIN device_groups dg ON JSON_CONTAINS(dg.devices, JSON_QUOTE(d.device))
+                    WHERE dg.id = ?
+                )
+            ");
+            $deviceStmt->execute([
+                $data['low'],
+                $data['medium'],
+                $data['high'],
+                $data['preferredColorTem'],
+                $data['device']
+            ]);
+        } else {
+            // Original device update logic
+            $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+            $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1;
+            
+            $stmt = $pdo->prepare("
+                UPDATE devices 
+                SET room = ?,
+                    low = ?,
+                    medium = ?,
+                    high = ?,
+                    preferredColorTem = ?,
+                    x10Code = ?,
+                    show_in_room = ? 
+                WHERE device = ?
+            ");
+            $stmt->execute([
+                $data['room'],
+                $data['low'],
+                $data['medium'],
+                $data['high'],
+                $data['preferredColorTem'],
+                $x10Code,
+                $show_in_room,
+                $data['device']
+            ]);
+        }
         
         return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
     } catch (Exception $e) {

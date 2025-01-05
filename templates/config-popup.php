@@ -25,17 +25,6 @@
                             <input type="text" id="config-model" readonly style="width: 100%;">
                         </div>
                     </div>
-                    
-                    <div class="form-group" style="display: flex; gap: 10px;">
-                        <div style="flex: 1;">
-                            <label>Favorite:</label>
-                            <input type="checkbox" id="config-favorite" style="width: auto;">
-                        </div>
-                        <div style="flex: 1;">
-                            <label>Show in Room:</label>
-                            <input type="checkbox" id="config-show-in-room" style="width: auto;">
-                        </div>
-                    </div>
     
                     <div class="form-group" style="display: flex; gap: 10px;">
                         <div style="flex: 1;">

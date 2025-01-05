@@ -66,13 +66,6 @@ async function showConfigMenu(deviceId) {
 
         // Set room value
         document.getElementById('config-room').value = configValues.room;
-        document.getElementById('config-favorite').checked = configData.favorite === '1';
-        document.getElementById('config-show-in-room').checked = configData.show_in_room === '1';
-        const favoriteValue = parseInt(configData.favorite) || 0;
-        const showInRoomValue = parseInt(configData.show_in_room) || 0;
-        
-        document.getElementById('config-favorite').checked = favoriteValue === 1;
-        document.getElementById('config-show-in-room').checked = showInRoomValue === 1;
 
         if (configValues.x10Code && configValues.x10Code.trim()) {
             const letter = configValues.x10Code.charAt(0).toLowerCase();
@@ -198,8 +191,6 @@ async function saveDeviceConfig() {
         const config = {
             device: deviceId,
             room: document.getElementById('config-room').value,
-            favorite: document.getElementById('config-favorite').checked,
-            show_in_room: document.getElementById('config-show-in-room').checked,
             low: parseInt(formContainer.querySelector('input[id$="config-low"]').value) || 0,
             medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
             high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
