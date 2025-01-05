@@ -59,8 +59,18 @@ async function loadInitialData() {
 async function sendCommand(type, id, command, value) {
     const deviceElement = document.getElementById(`device-${id}`);
     if (!deviceElement) return;
-    
+
+    // Store previous state
     const previousState = {...deviceStates.get(id)};
+    
+    // Optimistically update UI with new state
+    const newState = command === 'brightness' ? 
+        { ...previousState, preferredPowerState: 'on', preferredBrightness: value, online: true } :
+        { ...previousState, preferredPowerState: value, online: true };
+        
+    // Update UI immediately
+    deviceStates.set(id, newState);
+    updateDeviceUI(id, newState);
     
     try {
         const response = await apiFetch('api/queue-command', {
@@ -77,22 +87,15 @@ async function sendCommand(type, id, command, value) {
             throw new Error('Failed to update device state preferences');
         }
 
-        // Update local state for all affected devices
-        const affectedDevices = response.affectedDevices || [id];
-        const newState = command === 'brightness' ? 
-            { ...previousState, preferredPowerState: 'on', preferredBrightness: value } :
-            { ...previousState, preferredPowerState: value };
-
-        affectedDevices.forEach(deviceId => {
-            deviceStates.set(deviceId, {...newState});
-            updateDeviceUI(deviceId, newState);
-        });
+        // Keep the successful state
+        deviceStates.set(id, newState);
+        updateDeviceUI(id, newState);
 
     } catch (error) {
         console.error('Command error:', error);
-        // Revert state for the original device
-        deviceStates.set(deviceId, previousState);
-        updateDeviceUI(deviceId, previousState);
+        // Revert to previous state on error
+        deviceStates.set(id, previousState);
+        updateDeviceUI(id, previousState);
         showError('Failed to send command: ' + error.message);
     }
 }

@@ -774,34 +774,43 @@ $app->get('/all-thermometer-history', function (Request $request, Response $resp
     }
 });
 
-// All devices route
 $app->get('/all-devices', function (Request $request, Response $response) use ($config) {
     try {
         $pdo = getDatabaseConnection($config);
+        
+        // Get all devices
         $stmt = $pdo->prepare("
-    SELECT d.*, 
-           r.room_name,
-           g.name as group_name,
-           g.devices as group_devices
-    FROM devices d
-    LEFT JOIN rooms r ON d.room = r.id
-    LEFT JOIN device_groups g ON JSON_CONTAINS(g.devices, JSON_QUOTE(d.device))
-    ORDER BY d.brand, d.model, d.device_name
-");
+            SELECT d.*, 
+                   r.room_name,
+                   g.name as group_name,
+                   g.devices as group_devices,
+                   g.id as group_id
+            FROM devices d
+            LEFT JOIN rooms r ON d.room = r.id
+            LEFT JOIN device_groups g ON JSON_CONTAINS(g.devices, JSON_QUOTE(d.device))
+            ORDER BY d.brand, d.model, d.device_name
+        ");
         $stmt->execute();
+        $devices = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get all groups
+        $stmt = $pdo->prepare("
+            SELECT g.*, r.room_name 
+            FROM device_groups g
+            LEFT JOIN rooms r ON g.room = r.id
+            ORDER BY g.name
+        ");
+        $stmt->execute();
+        $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Get room list for dropdown
         $roomStmt = $pdo->query("SELECT id, room_name FROM rooms ORDER BY room_name");
         $rooms = $roomStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Get group list
-        $groupStmt = $pdo->query("SELECT id, name FROM device_groups ORDER BY name");
-        $groups = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
-
         return sendSuccessResponse($response, [
-            'devices' => $stmt->fetchAll(PDO::FETCH_ASSOC),
-            'rooms' => $rooms,
-            'groups' => $groups
+            'devices' => $devices,
+            'groups' => $groups,  // Add groups to response
+            'rooms' => $rooms
         ]);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
