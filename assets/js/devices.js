@@ -20,6 +20,113 @@ function getDeviceIcon(deviceName, preferredPowerState = 'off') {
     return 'fa-solid fa-2x fa-plug';
 }
 
+function handleDevicesUpdate(devices) {
+    if (devices.length === 0) return;
+    
+    // First, get all rooms that have updates
+    const updatedRooms = new Set();
+    devices.forEach(device => {
+        if (device.room) updatedRooms.add(device.room);
+    });
+    
+    // Clear affected room containers
+    updatedRooms.forEach(roomId => {
+        const roomGrid = document.getElementById(`room-${roomId}-devices`);
+        if (roomGrid) roomGrid.innerHTML = '';
+    });
+
+    // Create map of devices by device ID for quick lookup
+    const deviceMap = new Map();
+    devices.forEach(device => {
+        deviceMap.set(device.device, device);
+    });
+
+    // Handle individual devices first
+    devices.forEach(device => {
+        // Skip devices that will be shown in groups
+        if (device.group_id) return;
+        
+        const deviceHtml = createDeviceCard(device);
+        if (device.room) {
+            const roomGrid = document.getElementById(`room-${device.room}-devices`);
+            if (roomGrid) {
+                roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
+            }
+        }
+        
+        deviceStates.set(device.device, {
+            online: device.online ?? false,
+            preferredPowerState: device.preferredPowerState || 'off',
+            preferredBrightness: device.preferredBrightness,
+            brand: device.brand
+        });
+    });
+
+    // Add logging to debug
+if (window.apiResponse && window.apiResponse.groups) {
+    console.log('Groups from API:', window.apiResponse.groups);
+    window.apiResponse.groups.forEach(group => {
+        // Find first device in group to get capabilities
+        const groupDevices = JSON.parse(group.devices || '[]');
+        console.log('Group devices:', group.id, groupDevices);
+        
+        if (groupDevices.length === 0) {
+            console.log('No devices in group:', group.id);
+            return;
+        }
+
+        // Get all devices in this group
+        const groupDeviceObjects = groupDevices
+            .map(deviceId => deviceMap.get(deviceId))
+            .filter(d => d); // Remove any undefined devices
+
+        if (groupDeviceObjects.length === 0) {
+            console.log('No valid devices found for group:', group.id);
+            return;
+        }
+
+        const primaryDevice = groupDeviceObjects[0];
+
+            // Create group device object
+            const groupDevice = {
+                device: group.id,
+                device_name: group.name,
+                model: 'group',
+                room: group.room,
+                online: groupDevices.some(deviceId => {
+                    const device = deviceMap.get(deviceId);
+                    return device && device.online;
+                }),
+                supportCmds: primaryDevice.supportCmds,
+                preferredPowerState: primaryDevice.preferredPowerState || 'off',
+                preferredBrightness: primaryDevice.preferredBrightness,
+                low: primaryDevice.low,
+                medium: primaryDevice.medium,
+                high: primaryDevice.high,
+                brand: primaryDevice.brand,
+                isGroup: true
+            };
+
+            // Create and add group card
+            const groupHtml = createDeviceCard(groupDevice);
+            if (groupDevice.room) {
+                const roomGrid = document.getElementById(`room-${groupDevice.room}-devices`);
+                if (roomGrid) {
+                    roomGrid.insertAdjacentHTML('beforeend', groupHtml);
+                }
+            }
+
+            // Update group state
+            deviceStates.set(group.id, {
+                online: groupDevice.online,
+                preferredPowerState: groupDevice.preferredPowerState,
+                preferredBrightness: groupDevice.preferredBrightness,
+                brand: groupDevice.brand
+            });
+        });
+    }
+}
+
 function createDeviceCard(device) {
     const isOnline = device.online ?? false;
     const deviceClass = isOnline ? 'device-online' : 'device-offline';
@@ -28,32 +135,32 @@ function createDeviceCard(device) {
     const icon = getDeviceIcon(device.device_name, preferredPowerState);
     const supportedCmds = JSON.parse(device.supportCmds || '[]');
     
-    const fullDeviceName = device.device_name;
-    const displayName = fullDeviceName.includes('-') ? 
-        fullDeviceName.split('-')[1].trim() : 
-        fullDeviceName;
+    // Don't split group names
+    const displayName = device.isGroup ? device.device_name : (
+        device.device_name.includes('-') ? device.device_name.split('-')[1].trim() : device.device_name
+    );
                     
     let controlButtons = '';
     if (isOnline) {
         if (supportedCmds.includes('brightness')) {
             controlButtons = `
                 <div class="device-controls">
-                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'turn', 'off')" 
+                    <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.deviceGroup || device.device}', 'turn', 'off')" 
                             class="btn ${preferredPowerState === 'off' ? 'active' : ''}">Off</button>
-                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.low})" 
+                    <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.deviceGroup || device.device}', 'brightness', ${device.low})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.low ? 'active' : ''}"
                             data-brightness="${device.low}">Low</button>
-                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.medium})" 
+                    <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.deviceGroup || device.device}', 'brightness', ${device.medium})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.medium ? 'active' : ''}"
                             data-brightness="${device.medium}">Medium</button>
-                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'brightness', ${device.high})" 
+                    <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.deviceGroup || device.device}', 'brightness', ${device.high})" 
                             class="btn ${preferredPowerState === 'on' && preferredBrightness == device.high ? 'active' : ''}"
                             data-brightness="${device.high}">High</button>
                 </div>`;
         } else {
             controlButtons = `
                 <div class="device-controls">
-                    <button onclick="sendCommand('${device.deviceGroup ? 'group' : 'device'}', '${device.deviceGroup ? device.deviceGroup : device.device}', 'turn', '${preferredPowerState === 'off' ? 'on' : 'off'}')"
+                    <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.deviceGroup || device.device}', 'turn', '${preferredPowerState === 'off' ? 'on' : 'off'}')"
                             class="btn">${preferredPowerState === 'off' ? 'Turn On' : 'Turn Off'}</button>
                 </div>`;
         }
@@ -75,69 +182,31 @@ function createDeviceCard(device) {
         iconColor = preferredPowerState === 'on' ? '#16a34a' : '#92400e';
     }
 
+    const deviceId = device.deviceGroup || device.device;
     return `
-        <div id="device-${device.device}" 
+        <div id="device-${deviceId}" 
             class="device-card ${deviceClass}" 
             data-supported-cmds='${device.supportCmds}'
             data-model="${device.model}"
-            data-full-device-name="${fullDeviceName}">
+            data-full-device-name="${device.device_name}"
+            ${device.isGroup ? 'data-group-id="' + device.deviceGroup + '"' : ''}>
             <div class="device-info">
                 <div class="device-icon">
                     <i class="${icon}" style="color: ${iconColor}"></i>
                 </div>
                 <div class="device-details">
-                    <h3>${displayName}</h3>
+                    <h3>${device.isGroup ? '👥 ' : ''}${displayName}</h3>
                     <p class="device-status">
                         ${statusText}
                     </p>
                 </div>
-                <button onclick="showConfigMenu('${device.device}')" class="config-btn">
+                <button onclick="showConfigMenu('${deviceId}')" class="config-btn">
                     <i class="fas fa-xl fa-cog"></i>
                 </button>
             </div>
             ${controlButtons}
         </div>
     `;
-}
-
-function handleDevicesUpdate(devices) {
-    if (devices.length === 0) return;
-    
-    const updatedRooms = new Set(devices.map(device => device.room));
-    updatedRooms.forEach(roomId => {
-        const roomGrid = document.getElementById(`room-${roomId}-devices`);
-        if (roomGrid) roomGrid.innerHTML = '';
-    });
-
-    // Create map of group IDs to their reference devices
-    const groupReferenceDevices = new Set(
-        devices
-            .filter(d => d.deviceGroup && d.group_name)
-            .map(d => d.reference_device)
-    );
-    
-    devices.forEach(device => {
-        // Skip non-reference devices that are part of a group
-        if (device.deviceGroup && device.device !== device.reference_device) {
-            return;
-        }
-        
-        const deviceHtml = createDeviceCard(device);
-        
-        if (device.room) {
-            const roomGrid = document.getElementById(`room-${device.room}-devices`);
-            if (roomGrid) {
-                roomGrid.insertAdjacentHTML('beforeend', deviceHtml);
-            }
-        }
-        
-        deviceStates.set(device.device, {
-            online: device.online ?? false,
-            preferredPowerState: device.preferredPowerState || 'off',
-            preferredBrightness: device.preferredBrightness,
-            brand: device.brand
-        });
-    });
 }
 
 function updateDeviceUI(deviceId, state) {
