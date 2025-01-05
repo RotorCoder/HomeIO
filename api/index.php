@@ -379,7 +379,7 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         validateRequiredParams($request->getQueryParams(), ['device']);
         
         $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code FROM devices WHERE device = ?");
+        $stmt = $pdo->prepare("SELECT room, low, medium, high, preferredColorTem, x10Code, favorite, show_in_room FROM devices WHERE device = ?");
         $stmt->execute([$request->getQueryParams()['device']]);
         
         $config = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -400,8 +400,10 @@ $app->post('/update-device-config', function (Request $request, Response $respon
         
         $pdo = getDatabaseConnection($config);
         $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
+        $favorite = isset($data['favorite']) ? ($data['favorite'] ? 1 : 0) : 0;
+        $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1; // Default to show
         
-        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ? WHERE device = ?");
+        $stmt = $pdo->prepare("UPDATE devices SET room = ?, low = ?, medium = ?, high = ?, preferredColorTem = ?, x10Code = ?, favorite = ?, show_in_room = ? WHERE device = ?");
         $stmt->execute([
             $data['room'],
             $data['low'],
@@ -409,6 +411,8 @@ $app->post('/update-device-config', function (Request $request, Response $respon
             $data['high'],
             $data['preferredColorTem'],
             $x10Code,
+            $favorite,
+            $show_in_room,
             $data['device']
         ]);
         
