@@ -63,7 +63,7 @@ class logger {
 		$this->config['appname'] = $appname;
         $this->start_time = microtime(true);
 
-        $this->logInfoMsg("Starting execution at ".date("Y-m-d H:i:s"));
+        //$this->logInfoMsg("Starting execution at ".date("Y-m-d H:i:s"));
         
 		$this->pidfilename = $this->log_dir.'/'.$this->config['appname'] . '.pid';
 		$this->pidrunning = false;
