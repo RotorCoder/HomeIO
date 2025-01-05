@@ -1,6 +1,6 @@
 <?php
 
-// http://192.168.99.221:8086/?x10command=DEVICE~sendplc~%22A1%20OFF%22&time=1735508950088
+//  http://192.168.99.221:8086/?x10command=DEVICE~sendplc~%22A1%20OFF%22&time=1735508950088
 
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
