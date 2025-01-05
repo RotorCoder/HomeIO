@@ -647,13 +647,19 @@ class GoveeRoutes {
         $stmt->execute([$device['device']]);
         $current = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        // CHANGE HERE: Use the actual supportCmds from the device data instead of hardcoding
+        $supportCmds = [];
+        if (isset($device['supportCmds']) && is_array($device['supportCmds'])) {
+            $supportCmds = $device['supportCmds'];
+        }
+        
         $new_values = [
             'device' => $device['device'],
             'model' => $device['model'],
             'device_name' => $device['deviceName'],
             'controllable' => 1,
             'retrievable' => 1,
-            'supportCmds' => json_encode(['brightness', 'turn']),
+            'supportCmds' => json_encode($supportCmds),  // Use the actual supportCmds
             'brand' => 'govee',
             'online' => 1,  // Govee API only returns online devices
             'powerState' => $state['powerState'] ?? null,
