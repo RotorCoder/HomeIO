@@ -414,7 +414,7 @@ $app->post('/update-device-state', function (Request $request, Response $respons
         
         foreach ($devicesToUpdate as $deviceId) {
             // Get current device state
-            $stmt = $pdo->prepare("SELECT powerState, brightness FROM devices WHERE device = ?");
+            $stmt = $pdo->prepare("SELECT preferredPowerState, preferredBrightness FROM devices WHERE device = ?");
             $stmt->execute([$deviceId]);
             $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
             

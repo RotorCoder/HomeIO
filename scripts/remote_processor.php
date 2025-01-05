@@ -8,12 +8,12 @@ $dbConfig = $config['db_config']; // Store DB config globally
 // Button mapping configuration
 $buttonConfig = [
     'GV5125615A' => [ // Second remote
-        2 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'brightness', 'value' => 100]], // High
-        1 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'brightness', 'value' => 100]], // High
-        4 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'brightness', 'value' => 50]],  // Medium
-        3 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'brightness', 'value' => 50]],  // Medium
-        6 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'turn', 'value' => 'off']],
-        5 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'turn', 'value' => 'off']]
+        1 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'brightness', 'value' => 30]], // High
+        2 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'brightness', 'value' => 30]], // High
+        3 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'brightness', 'value' => 1]],  // Medium
+        4 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'brightness', 'value' => 1]],  // Medium
+        5 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'turn', 'value' => 'off']],
+        6 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'turn', 'value' => 'off']]
     ],
     'GV5125207B' => [ // First remote
         2 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'brightness', 'value' => 100]], // High
