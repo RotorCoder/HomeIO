@@ -1,19 +1,18 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
-
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 
 try {
-    $log->logInfoMsg("Starting Govee command processor");
+    $log->logInfoMsg("Starting Govee device updater");
     
     // Main processing loop
     while (true) {
         try {
-            // Call the API endpoint to process commands
+            // Call the API endpoint to update devices
             $curl = curl_init();
             curl_setopt_array($curl, [
-                CURLOPT_URL => "https://mittencoder.com/homeio/api/process-govee-commands?max=5",
+                CURLOPT_URL => "https://mittencoder.com/homeio/api/update-govee-devices",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
                     'X-API-Key: ' . $config['api_keys'][0],
@@ -22,24 +21,31 @@ try {
             ]);
             
             $response = curl_exec($curl);
+            if ($response === false) {
+                $error = curl_error($curl);
+                $log->logErrorMsg("Curl error: " . $error);
+            }
+            
             $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
             curl_close($curl);
             
             if ($httpCode === 200) {
                 $result = json_decode($response, true);
-                if ($result['success'] && $result['processed'] > 0) {
-                    $log->logInfoMsg("Processed {$result['processed']} Govee commands");
+                if ($result['success']) {
+                    $devices = $result['devices'] ?? [];
+                    $deviceCount = count($devices);
+                    $log->logInfoMsg("Updated $deviceCount Govee devices. API timing: {$result['timing']['devices']['duration']}ms, DB timing: {$result['timing']['states']['duration']}ms");
                 }
             } else {
                 $log->logErrorMsg("API request failed with code $httpCode: $response");
             }
             
-            // Short sleep between checks
-            usleep(10000); // 10ms pause
+            // Sleep for 600 seconds before next update
+            sleep(600);
             
         } catch (Exception $e) {
-            $log->logErrorMsg("Error processing batch: " . $e->getMessage());
-            sleep(5);
+            $log->logErrorMsg("Error updating devices: " . $e->getMessage());
+            sleep(5); // Sleep longer on error to prevent rapid error loops
         }
     }
     

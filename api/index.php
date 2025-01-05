@@ -419,23 +419,21 @@ $app->post('/update-device-state', function (Request $request, Response $respons
             $currentState = $stmt->fetch(PDO::FETCH_ASSOC);
             
             switch($data['command']) {
-                case 'turn':
-                    $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
-                    $stmt->execute([$data['value'], $deviceId]);
-                    
-                    if ($currentState['powerState'] !== $data['value']) {
-                        $shouldQueueCommand = true;
-                    }
-                    break;
-                    
                 case 'brightness':
                     $brightness = (int)$data['value'];
                     $stmt = $pdo->prepare("UPDATE devices SET preferredBrightness = ?, preferredPowerState = 'on' WHERE device = ?");
                     $stmt->execute([$brightness, $deviceId]);
                     
-                    if ($currentState['brightness'] !== $brightness) {
-                        $shouldQueueCommand = true;
-                    }
+                    // Always queue the command - remove state checking
+                    $shouldQueueCommand = true;
+                    break;
+                
+                case 'turn':
+                    $stmt = $pdo->prepare("UPDATE devices SET preferredPowerState = ? WHERE device = ?");
+                    $stmt->execute([$data['value'], $deviceId]);
+                    
+                    // Always queue the command - remove state checking
+                    $shouldQueueCommand = true;
                     break;
                 
                 default:
