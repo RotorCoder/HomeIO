@@ -25,6 +25,7 @@
     <?php require __DIR__ . '/templates/history-popup.php'; ?>
     <?php require __DIR__ . '/templates/all-temps-popup.php'; ?>
     <?php require __DIR__ . '/templates/room-popup.php'; ?>
+    <?php require __DIR__ . '/templates/group-popup.php'; ?>
     
     <script>
         const API_KEY = <?php echo json_encode($config['homeio_api_key']); ?>;

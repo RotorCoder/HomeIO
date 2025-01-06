@@ -45,7 +45,7 @@ function handleDevicesUpdate(devices) {
 
     // Handle individual devices first
     devices.forEach(device => {
-        // Skip devices that will be shown in groups
+        // Skip devices that will be shown in groups unless explicitly set to show_in_room
         if (!device.group_id || device.show_in_room === 1) {
             const deviceHtml = createDeviceCard(device);
             
@@ -69,30 +69,45 @@ function handleDevicesUpdate(devices) {
         }
     });
 
-    // Handle groups
+    // In handleDevicesUpdate function in devices.js - modify the groups processing section
     if (window.apiResponse && window.apiResponse.groups) {
+        console.log('Processing all groups:', window.apiResponse.groups);
         window.apiResponse.groups.forEach(group => {
-            const groupDevices = JSON.parse(group.devices || '[]');
+            // Parse devices array
+            const groupDevices = Array.isArray(group.devices) ? 
+                               group.devices : 
+                               JSON.parse(group.devices || '[]');
             
             if (groupDevices.length === 0) {
+                console.log('Skipping group - no devices:', group.name);
                 return;
             }
-
+    
+            // Parse rooms array from the rooms column
+            const groupRooms = JSON.parse(group.rooms || '[]');
+            if (groupRooms.length === 0) {
+                console.log('Skipping group - no rooms:', group.name);
+                return;
+            }
+    
             const groupDeviceObjects = groupDevices
                 .map(deviceId => deviceMap.get(deviceId))
                 .filter(d => d);
-
+    
             if (groupDeviceObjects.length === 0) {
                 return;
             }
-
+    
             const primaryDevice = groupDeviceObjects[0];
             const groupDevice = {
                 device: group.id,
                 device_name: group.name,
                 model: 'group',
-                room_ids: group.room_ids,
-                room_names: group.room_names,
+                room_ids: groupRooms.join(','), // Use rooms from group.rooms
+                room_names: groupRooms.map(roomId => {
+                    const room = rooms.find(r => r.id === roomId);
+                    return room ? room.room_name : '';
+                }).join(','),
                 online: groupDevices.some(deviceId => {
                     const device = deviceMap.get(deviceId);
                     return device && device.online;
@@ -106,19 +121,16 @@ function handleDevicesUpdate(devices) {
                 brand: primaryDevice.brand,
                 isGroup: true
             };
-
+    
             // Add group to all its assigned rooms
-            if (groupDevice.room_ids) {
-                const roomIds = groupDevice.room_ids.split(',');
-                const groupHtml = createDeviceCard(groupDevice);
-                roomIds.forEach(roomId => {
-                    const roomGrid = document.getElementById(`room-${roomId}-devices`);
-                    if (roomGrid) {
-                        roomGrid.insertAdjacentHTML('beforeend', groupHtml);
-                    }
-                });
-            }
-
+            groupRooms.forEach(roomId => {
+                const roomGrid = document.getElementById(`room-${roomId}-devices`);
+                if (roomGrid) {
+                    const groupHtml = createDeviceCard(groupDevice);
+                    roomGrid.insertAdjacentHTML('beforeend', groupHtml);
+                }
+            });
+    
             deviceStates.set(group.id, {
                 online: groupDevice.online,
                 preferredPowerState: groupDevice.preferredPowerState,
