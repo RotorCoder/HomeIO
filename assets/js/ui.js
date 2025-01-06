@@ -48,8 +48,8 @@ async function createTabs() {
                 room_icon = 'fa-couch';
             } else if (room.room_name.includes('Outside')) {
                 room_icon = 'fa-globe';
-            } else if (room.room_name.includes('Garage')) {
-                room_icon = 'fa-car-side';
+            } else if (room.room_name.includes('Favorites')) {
+                room_icon = 'fa-star';
             } else {
                 room_icon = 'fa-house';
             }
@@ -75,54 +75,7 @@ async function createTabs() {
             <i class="fas fa-xl fa-cog"></i>
         </button>`;
 
-    contentsHtml += `
-        <div class="tab-content ${!savedTab ? 'active' : ''}" data-room="config">
-            <h2 class="room-header">
-                <span><i class="fas fa-cog"></i> Configuration</span>
-            </h2>
-            <button onclick="showAllTempHistory()" class="config-button">
-                <i class="fas fa-temperature-high"></i>
-                <span>Thermometers</span>
-            </button>
-            <button onclick="showDefaultRoomDevices()" class="config-button">
-                <i class="fas fa-plug"></i>
-                <span>Devices</span>
-            </button>
-            <button onclick="showRoomManagement()" class="config-button">
-                <i class="fas fa-door-open"></i>
-                <span>Rooms</span>
-            </button>
-        </div>
-        <div class="config-popup-desktop" id="config-popup-desktop">
-        <div class="config-content">
-            
-            <h2 class="room-header">
-                <span><i class="fas fa-cog"></i> Configuration</span>
-                <button onclick="hideDesktopConfig()" class="close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-            </h2>
-            <div class="content">
-                <button onclick="showAllTempHistory()" class="config-button">
-                    <i class="fas fa-temperature-high"></i>
-                    <span>Thermometers</span>
-                </button>
-                <button onclick="showDefaultRoomDevices()" class="config-button">
-                    <i class="fas fa-plug"></i>
-                    <span>Devices</span>
-                </button>
-                <button onclick="showRoomManagement()" class="config-button">
-                    <i class="fas fa-door-open"></i>
-                    <span>Rooms</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
-        <i class="fas fa-cog"></i>
-        <span>Configuration</span>
-    </button>`;
+    contentsHtml += generateConfigContent();
     
     tabsContainer.innerHTML = tabsHtml;
     tabContents.innerHTML = contentsHtml;
@@ -408,14 +361,53 @@ function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
         <div class="config-content">
             <button class="config-button" onclick="showAllTempHistory()">
-                <i class="fas fa-temperature-high"></i>Temperature/Humidity
+                <i class="fas fa-temperature-high"></i>
+                <span>Temperature/Humidity</span>
             </button>
             <button class="config-button" onclick="showRoomManagement()">
-                <i class="fas fa-home"></i>Rooms
+                <i class="fas fa-home"></i>
+                <span>Rooms</span>
+            </button>
+            <button class="config-button" onclick="showGroupManagement()">
+                <i class="fas fa-object-group"></i>
+                <span>Groups</span>
             </button>
             <button class="config-button" onclick="showDefaultRoomDevices()">
-                <i class="fas fa-list"></i>Devices
+                <i class="fas fa-list"></i>
+                <span>Devices</span>
             </button>
         </div>
-    </div>`;
+    </div>
+    <div class="config-popup-desktop" id="config-popup-desktop">
+        <div class="config-content">
+            <h2 class="room-header">
+                <span><i class="fas fa-cog"></i> Configuration</span>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </h2>
+            <div class="content">
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-temperature-high"></i>
+                    <span>Temperature/Humidity</span>
+                </button>
+                <button onclick="showRoomManagement()" class="config-button">
+                    <i class="fas fa-home"></i>
+                    <span>Rooms</span>
+                </button>
+                <button onclick="showGroupManagement()" class="config-button">
+                    <i class="fas fa-object-group"></i>
+                    <span>Groups</span>
+                </button>
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <i class="fas fa-list"></i>
+                    <span>Devices</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <button onclick="showDesktopConfig()" class="desktop-config-btn config-button">
+        <i class="fas fa-cog"></i>
+        <span>Configuration</span>
+    </button>`;
 }
