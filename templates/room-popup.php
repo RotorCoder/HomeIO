@@ -8,40 +8,30 @@
             </button>
         </div>
         <div class="popup-content">
-            <div class="room-table">
-                <div class="device-table-container">
-                    <table class="therm-table">
-                        <thead>
-                            <tr>
-                                <th>Room Name</th>
-                                <th>Icon</th>
-                                <th>Tab Order</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="room-list">
-                        </tbody>
-                        <tr>
-                            <td>
-                                <input type="text" id="new-room-name" placeholder="Room Name" style="width: auto; padding: 4px;">
-                            </td>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="fa-solid fa-house"></i>
-                                    <input type="text" id="new-room-icon" placeholder="fa-house" style="width: auto; padding: 4px;">
-                                </div>
-                            </td>
-                            <td>
-                                <input type="number" id="new-room-order" placeholder="Tab Order" style="width: 80px; padding: 4px;">
-                            </td>
-                            <td>
-                                <button onclick="addNewRoom()" class="save-btn" style="padding: 4px 8px;">
-                                    <i class="fas fa-plus"></i> Add Room
-                                </button>
-                            </td>
-                        </tr>
-                    </table>
+            <!-- Add new room card -->
+            <div class="room-card add-room-card">
+                <div class="room-card-content">
+                    <div class="room-input-group">
+                        <input type="text" id="new-room-name" placeholder="Room Name" class="room-input">
+                    </div>
+                    <div class="room-input-group">
+                        <div class="icon-preview">
+                            <i class="fa-solid fa-house"></i>
+                        </div>
+                        <input type="text" id="new-room-icon" placeholder="fa-house" class="room-input">
+                    </div>
+                    <div class="room-input-group">
+                        <input type="number" id="new-room-order" placeholder="Tab Order" class="room-input">
+                    </div>
+                    <button onclick="addNewRoom()" class="room-add-btn">
+                        <i class="fas fa-plus"></i> Add Room
+                    </button>
                 </div>
+            </div>
+
+            <!-- Existing rooms container -->
+            <div class="room-cards-container" id="room-list">
+                <!-- Room cards will be inserted here by JavaScript -->
             </div>
         </div>
     </div>
