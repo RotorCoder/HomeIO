@@ -680,3 +680,186 @@ body {
     vertical-align: top;
     padding: 8px;
 }
+.device-table .save-btn:hover {
+    background: #15803d;
+}
+
+/* Room Management Cards */
+.room-cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.room-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.room-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.add-room-card {
+    border: 2px dashed #d1d5db;
+    background: #f9fafb;
+}
+
+.room-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.room-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.icon-preview {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e1f1fc;
+    border-radius: 4px;
+}
+
+.room-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: #ffffff;
+}
+
+.room-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.room-add-btn {
+    width: 100%;
+    padding: 0.5rem;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.room-add-btn:hover {
+    background: #15803d;
+}
+
+.room-save-btn {
+    padding: 0.5rem 1rem;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    flex: 1;
+}
+
+.room-delete-btn {
+    padding: 0.5rem 1rem;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Add to your existing CSS for room management */
+.room-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.room-card-header {
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    cursor: pointer;
+    user-select: none;
+}
+
+.room-card-header-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.room-order-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.order-btn {
+    background: none;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: #64748b;
+}
+
+.order-btn:hover {
+    color: #0f172a;
+}
+
+.order-btn:disabled {
+    color: #cbd5e1;
+    cursor: not-allowed;
+}
+
+.room-card-content {
+    padding: 1rem;
+    border-top: 1px solid #e2e8f0;
+    display: none;
+}
+
+.room-card.expanded .room-card-content {
+    display: block;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.room-card.system-default .room-card-header {
+    background: #e2e8f0;
+}
+
+.system-default-badge {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    background: #64748b;
+    color: white;
+    border-radius: 4px;
+}
