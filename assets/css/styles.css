@@ -863,3 +863,282 @@ body {
     color: white;
     border-radius: 4px;
 }
+
+.device-picker-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.device-picker-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.device-picker-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    flex: 1;
+}
+
+.device-picker-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.device-picker-buttons {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.devices-btn {
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.devices-btn:hover {
+    background: #15803d;
+}
+
+.device-count {
+    background: #e5e7eb;
+    color: #374151;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    margin-left: auto;
+}
+
+.device-picker-group {
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.device-picker-group h4 {
+    margin-bottom: 0.5rem;
+    color: #374151;
+    padding: 0 1rem;
+}
+
+.device-picker-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.room-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.groups-btn {
+    background: #6366f1;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.groups-btn:hover {
+    background: #4f46e5;
+}
+
+.devices-btn {
+    flex: 1;
+}
+
+.group-count {
+    background: #e5e7eb;
+    color: #374151;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    margin-left: auto;
+}
+
+.group-picker-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.group-picker-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    flex: 1;
+}
+
+.group-details {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+    padding-left: 2rem;
+}
+
+.device-picker-item {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.device-picker-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    flex: 1;
+}
+
+.device-picker-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.device-picker-buttons {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.devices-btn {
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.devices-btn:hover {
+    background: #15803d;
+}
+
+.device-count {
+    background: #e5e7eb;
+    color: #374151;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    margin-left: auto;
+}
+
+.device-picker-group {
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.device-picker-group h4 {
+    margin-bottom: 0.5rem;
+    color: #374151;
+    padding: 0 1rem;
+}
+.add-room-btn {
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    width: 100%;
+    justify-content: center;
+}
+
+.add-room-btn:hover {
+    background: #15803d;
+}
+
+#new-room-form {
+    margin-bottom: 1rem;
+    border: 2px solid #16a34a;
+}
+
+/* Update the add room button styles */
+.add-room-btn {
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem;
+    font-size: 1rem;
+    width: calc(100% - 2rem);  /* Account for margins */
+    justify-content: center;
+}
+
+.add-room-btn:hover {
+    background: #15803d;
+}
+
+/* Update the new room form styles */
+#new-room-form {
+    display: none;  /* Hidden by default */
+    margin: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 2px solid #16a34a;
+}
+
+#new-room-form .room-card-content {
+    display: block;  /* Always show the content */
+}
