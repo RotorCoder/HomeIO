@@ -1,10 +1,12 @@
 <?php
 
+// remote_processor.php
+
 require_once __DIR__ . '/../config/config.php';
 require $config['sharedpath'].'/logger.php';
 
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
-$dbConfig = $config['db_config'];
+$dbConfig = $config['db_config']; // Store DB config globally
 
 // Button mapping configuration
 $buttonConfig = [
@@ -25,10 +27,10 @@ $buttonConfig = [
         5 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'turn', 'value' => 'off']]
     ],
     'GV5122427B' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 100% brightness
+        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]],
     ],
     'GV51224B48' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 100% brightness
+        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]],
     ]
 ];
 
@@ -47,27 +49,6 @@ function getDatabaseConnection($dbConfig) {
     } catch (PDOException $e) {
         throw new Exception("Database connection failed: " . $e->getMessage());
     }
-}
-
-function getGroupDevices($pdo, $groupId) {
-    $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
-    $stmt->execute([$groupId]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    return $result ? json_decode($result['devices'], true) : [];
-}
-
-function getCurrentGroupState($pdo, $groupId) {
-    // Get all devices in the group
-    $devices = getGroupDevices($pdo, $groupId);
-    if (empty($devices)) return false;
-
-    // Check the state of the first device (assuming all devices in group are synced)
-    $stmt = $pdo->prepare("SELECT powerState FROM devices WHERE device = ?");
-    $stmt->execute([$devices[0]]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    return $result ? $result['powerState'] : false;
 }
 
 try {
@@ -114,71 +95,40 @@ try {
                         $stmt->execute([$button['id']]);
 
                         if ($stmt->rowCount() > 0) {
-                            if (isset($config['group'])) {
-                                // Handle group command
-                                $groupId = $config['group'];
-                                $devices = getGroupDevices($pdo, $groupId);
-                                
-                                if ($config['command']['name'] === 'toggle') {
-                                    // Get current state of the group
-                                    $currentState = getCurrentGroupState($pdo, $groupId);
-                                    
-                                    // Prepare the command based on current state
-                                    $command = [
-                                        'name' => $currentState === 'on' ? 'turn' : 'brightness',
-                                        'value' => $currentState === 'on' ? 'off' : $config['command']['value']
-                                    ];
-                                    
-                                    // Queue command for each device in the group
-                                    foreach ($devices as $deviceId) {
-                                        $stmt = $pdo->prepare("
-                                            INSERT INTO command_queue 
-                                            (device, model, command, brand) 
-                                            SELECT device, model, :command, brand
-                                            FROM devices
-                                            WHERE device = :device
-                                        ");
-                                        $stmt->execute([
-                                            'command' => json_encode($command),
-                                            'device' => $deviceId
-                                        ]);
-                                    }
-                                }
-                            } else {
-                                // Handle individual device command
-                                $stmt = $pdo->prepare("
-                                    SELECT model, brand 
-                                    FROM devices 
-                                    WHERE device = ?
-                                ");
-                                $stmt->execute([$config['device']]);
-                                $device = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                                if ($device) {
-                                    $stmt = $pdo->prepare("
-                                        INSERT INTO command_queue 
-                                        (device, model, command, brand) 
-                                        VALUES (?, ?, ?, ?)
-                                    ");
-                                    $stmt->execute([
-                                        $config['device'],
-                                        $device['model'],
-                                        json_encode($config['command']),
-                                        $device['brand']
-                                    ]);
-                                }
-                            }
-
-                            // Mark as executed
+                            // Get device details
                             $stmt = $pdo->prepare("
-                                UPDATE remote_buttons 
-                                SET status = 'executed' 
-                                WHERE id = ?
+                                SELECT model, brand 
+                                FROM devices 
+                                WHERE device = ?
                             ");
-                            $stmt->execute([$button['id']]);
+                            $stmt->execute([$config['device']]);
+                            $device = $stmt->fetch(PDO::FETCH_ASSOC);
 
-                            $log->logInfoMsg("Command processed for " . 
-                                (isset($config['group']) ? "group {$config['group']}" : "device {$config['device']}"));
+                            if ($device) {
+                                // Queue the command
+                                $stmt = $pdo->prepare("
+                                    INSERT INTO command_queue 
+                                    (device, model, command, brand) 
+                                    VALUES (?, ?, ?, ?)
+                                ");
+                                $stmt->execute([
+                                    $config['device'],
+                                    $device['model'],
+                                    json_encode($config['command']),
+                                    $device['brand']
+                                ]);
+
+                                // Mark as executed
+                                $stmt = $pdo->prepare("
+                                    UPDATE remote_buttons 
+                                    SET status = 'executed' 
+                                    WHERE id = ?
+                                ");
+                                $stmt->execute([$button['id']]);
+
+                                $log->logInfoMsg("Queued command for device {$config['device']}: " . 
+                                    json_encode($config['command']));
+                            }
                         }
                         
                         $pdo->commit();

@@ -60,14 +60,15 @@ async function deleteDeviceGroup(groupId) {
 
 // assets/js/groups.js
 
-function showGroupManagement() {
+async function showGroupManagement() {
     const popup = document.getElementById('group-popup');
     if (!popup) {
         console.error('Group popup template not found');
         return;
     }
     popup.style.display = 'block';
-    loadGroupList();
+    // Call and await loadGroupList() immediately after showing the popup
+    await loadGroupList();
 }
 
 function hideGroupPopup() {
@@ -76,90 +77,90 @@ function hideGroupPopup() {
 
 async function loadGroupList() {
     try {
+        console.log('Loading groups list...');
         const response = await apiFetch('api/all-devices');
-        const data = await response;
+        console.log('API response:', response);
         
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to load groups');
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to load groups');
         }
 
-        // Populate rooms dropdown
-        const roomSelect = document.getElementById('new-group-rooms');
-        roomSelect.innerHTML = data.rooms.map(room => 
-            `<option value="${room.id}">${room.room_name}</option>`
-        ).join('');
-
-        // Populate devices dropdown
-        const deviceSelect = document.getElementById('new-group-devices');
-        deviceSelect.innerHTML = data.devices.map(device => 
-            `<option value="${device.device}">${device.device_name}</option>`
-        ).join('');
-
-        const tbody = document.getElementById('group-list');
-        if (!tbody) {
-            console.error('Group list tbody element not found');
+        const groupList = document.getElementById('group-list');
+        if (!groupList) {
+            console.error('Group list container not found');
             return;
         }
 
-        tbody.innerHTML = data.groups.map(group => {
-            // Parse devices array
-            const devices = JSON.parse(group.devices || '[]');
-            const deviceNames = devices.map(deviceId => {
-                const device = data.devices.find(d => d.device === deviceId);
-                return device ? device.device_name : deviceId;
-            }).join(', ');
+        const groups = response.groups || [];
+        console.log('Groups to display:', groups);
 
-            // Parse room assignments from the rooms column
-            const groupRooms = JSON.parse(group.rooms || '[]');
+        groupList.innerHTML = groups.map(group => {
+            // Safely parse devices array
+            let groupDevices = [];
+            try {
+                groupDevices = JSON.parse(group.devices || '[]');
+            } catch (e) {
+                console.error('Error parsing devices for group:', group.id, e);
+                groupDevices = [];
+            }
 
-            // Create room options with selections
-            const roomOptions = data.rooms.map(room => {
-                const isSelected = groupRooms.includes(room.id);
-                return `<option value="${room.id}" ${isSelected ? 'selected' : ''}>
-                    ${room.room_name}
-                </option>`;
-            }).join('');
-
-            // Create device options with selections
-            const deviceOptions = data.devices.map(device => {
-                const isSelected = devices.includes(device.device);
-                return `<option value="${device.device}" ${isSelected ? 'selected' : ''}>
-                    ${device.device_name}
-                </option>`;
-            }).join('');
+            // Safely parse rooms array 
+            let groupRooms = [];
+            try {
+                groupRooms = JSON.parse(group.rooms || '[]');
+            } catch (e) {
+                console.error('Error parsing rooms for group:', group.id, e);
+                groupRooms = [];
+            }
 
             return `
-                <tr data-group-id="${group.id}">
-                    <td>
-                        <input type="text" class="group-name" value="${group.name}" style="width: auto; padding: 4px;">
-                    </td>
-                    <td>
-                        <select class="group-model" style="width: auto; padding: 4px;">
-                            <option value="light" ${group.model === 'light' ? 'selected' : ''}>Light</option>
-                            <option value="fan" ${group.model === 'fan' ? 'selected' : ''}>Fan</option>
-                            <option value="outlet" ${group.model === 'outlet' ? 'selected' : ''}>Outlet</option>
-                        </select>
-                    </td>
-                    <td>
-                        <select class="group-rooms" multiple size="3" style="width: auto; padding: 4px;">
-                            ${roomOptions}
-                        </select>
-                    </td>
-                    <td>
-                        <select class="group-devices" multiple size="3" style="width: auto; padding: 4px;">
-                            ${deviceOptions}
-                        </select>
-                    </td>
-                    <td>
-                        <input type="text" class="group-x10" value="${group.x10Code || ''}" style="width: auto; padding: 4px;">
-                    </td>
-                    <td>
-                        <button onclick="saveGroup('${group.id}')" class="save-btn" style="padding: 4px 8px; margin-right: 5px;">Save</button>
-                        <button onclick="deleteGroup('${group.id}')" class="delete-btn" style="padding: 4px 8px; background: #ef4444;">Delete</button>
-                    </td>
-                </tr>
+                <div class="room-card" data-group-id="${group.id}">
+                    <div class="room-card-header" onclick="toggleGroupCard(${group.id})">
+                        <div class="room-card-header-content">
+                            <i class="fas fa-object-group"></i>
+                            <span>${group.name || 'Unnamed Group'}</span>
+                            <span class="device-count">${groupDevices.length} device${groupDevices.length !== 1 ? 's' : ''}</span>
+                            <span class="device-count">${groupRooms.length} room${groupRooms.length !== 1 ? 's' : ''}</span>
+                        </div>
+                    </div>
+                    <div class="room-card-content">
+                        <div class="room-input-group">
+                            <input type="text" class="room-input group-name" value="${group.name || ''}" placeholder="Group Name">
+                        </div>
+                        <div class="room-input-group">
+                            <select class="room-input group-model">
+                                <option value="light" ${group.model === 'light' ? 'selected' : ''}>Light</option>
+                                <option value="fan" ${group.model === 'fan' ? 'selected' : ''}>Fan</option>
+                                <option value="outlet" ${group.model === 'outlet' ? 'selected' : ''}>Outlet</option>
+                            </select>
+                        </div>
+                        <div class="room-input-group">
+                            <input type="text" class="room-input group-x10" value="${group.x10Code || ''}" placeholder="X10 Code">
+                        </div>
+                        <div class="room-buttons">
+                            <button onclick="showDevicePickerForGroup(${group.id}, '${group.name || ''}')" class="devices-btn">
+                                <i class="fas fa-lightbulb"></i> Devices
+                                <span class="device-count">${groupDevices.length}</span>
+                            </button>
+                            <button onclick="showRoomPickerForGroup(${group.id}, '${group.name || ''}')" class="groups-btn">
+                                <i class="fas fa-home"></i> Rooms
+                                <span class="device-count">${groupRooms.length}</span>
+                            </button>
+                        </div>
+                        <div class="room-actions">
+                            <button onclick="deleteGroup(${group.id})" class="room-delete-btn">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                            <button onclick="saveGroup(${group.id})" class="room-save-btn">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
             `;
         }).join('');
+
+        console.log('Group list HTML updated');
 
     } catch (error) {
         console.error('Error loading group list:', error);
@@ -168,16 +169,13 @@ async function loadGroupList() {
 }
 
 async function saveGroup(groupId) {
-    const row = document.querySelector(`tr[data-group-id="${groupId}"]`);
-    if (!row) return;
+    // Get the group card instead of row
+    const card = document.querySelector(`div[data-group-id="${groupId}"]`);
+    if (!card) return;
 
-    const groupName = row.querySelector('.group-name').value;
-    const model = row.querySelector('.group-model').value;
-    const rooms = Array.from(row.querySelector('.group-rooms').selectedOptions)
-        .map(opt => parseInt(opt.value)); // Convert room IDs to integers
-    const devices = Array.from(row.querySelector('.group-devices').selectedOptions)
-        .map(opt => opt.value);
-    const x10Code = row.querySelector('.group-x10').value;
+    const groupName = card.querySelector('.group-name').value;
+    const model = card.querySelector('.group-model').value;
+    const x10Code = card.querySelector('.group-x10').value;
 
     try {
         const response = await apiFetch('api/update-device-group', {
@@ -189,9 +187,7 @@ async function saveGroup(groupId) {
                 id: groupId,
                 name: groupName,
                 model: model,
-                rooms: rooms,
-                devices: devices,
-                x10Code: x10Code
+                x10Code: x10Code || null
             })
         });
         
@@ -214,10 +210,6 @@ async function saveGroup(groupId) {
 async function addNewGroup() {
     const groupName = document.getElementById('new-group-name').value;
     const model = document.getElementById('new-group-model').value;
-    const rooms = Array.from(document.getElementById('new-group-rooms')?.selectedOptions || [])
-        .map(opt => parseInt(opt.value));  // Convert room IDs to integers
-    const devices = Array.from(document.getElementById('new-group-devices')?.selectedOptions || [])
-        .map(opt => opt.value);
     const x10Code = document.getElementById('new-group-x10').value;
 
     if (!groupName || !model) {
@@ -234,8 +226,6 @@ async function addNewGroup() {
             body: JSON.stringify({
                 name: groupName,
                 model: model,
-                rooms: rooms,
-                devices: devices,
                 x10Code: x10Code || null
             })
         });
@@ -244,11 +234,13 @@ async function addNewGroup() {
             throw new Error(response.error || 'Failed to create group');
         }
 
-        // Clear form
+        // Clear form and hide it
         document.getElementById('new-group-name').value = '';
         document.getElementById('new-group-x10').value = '';
-        document.getElementById('new-group-rooms').selectedIndex = -1;
-        document.getElementById('new-group-devices').selectedIndex = -1;
+        document.getElementById('new-group-form').style.display = 'none';
+        
+        // Show add button again
+        document.querySelector('#group-popup .add-room-btn').style.display = 'flex';
 
         // Reload both the group list and main UI
         await Promise.all([
@@ -293,3 +285,54 @@ async function deleteGroup(groupId) {
         showError('Failed to delete group: ' + error.message);
     }
 }
+
+// Add to groups.js
+
+function showNewGroupCard() {
+    const addButton = document.querySelector('#group-popup .add-room-btn');
+    const newGroupForm = document.getElementById('new-group-form');
+
+    if (addButton) {
+        addButton.style.display = 'none';
+    }
+
+    if (newGroupForm) {
+        newGroupForm.style.display = 'block';
+        // Reset form fields
+        document.getElementById('new-group-name').value = '';
+        document.getElementById('new-group-model').value = 'light';
+        document.getElementById('new-group-x10').value = '';
+    }
+}
+
+function cancelNewGroup() {
+    const form = document.getElementById('new-group-form');
+    if (form) {
+        form.style.display = 'none';
+    }
+    
+    const addButton = document.querySelector('#group-popup .add-room-btn');
+    if (addButton) {
+        addButton.style.display = 'flex';
+    }
+}
+
+function toggleGroupCard(groupId) {
+    const card = document.querySelector(`div[data-group-id="${groupId}"]`);
+    if (card) {
+        event.stopPropagation();
+        card.classList.toggle('expanded');
+    }
+}
+
+
+
+// Add event listener for initialization
+document.addEventListener('DOMContentLoaded', () => {
+    // Delegate event listener for preventing propagation of action buttons
+    document.getElementById('group-list')?.addEventListener('click', function(e) {
+        if (e.target.closest('.room-actions') || e.target.closest('.room-buttons')) {
+            e.stopPropagation();
+        }
+    });
+});
