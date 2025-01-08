@@ -71,7 +71,7 @@ function handleDevicesUpdate(devices) {
 
     // In handleDevicesUpdate function in devices.js - modify the groups processing section
     if (window.apiResponse && window.apiResponse.groups) {
-        console.log('Processing all groups:', window.apiResponse.groups);
+        //console.log('Processing all groups:', window.apiResponse.groups);
         window.apiResponse.groups.forEach(group => {
             // Parse devices array
             const groupDevices = Array.isArray(group.devices) ? 

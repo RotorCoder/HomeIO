@@ -6,9 +6,6 @@ function showError(message) {
     errorElement.style.display = 'block';
 }
 
-
-
-// ui.js - Update UI related functions
 async function createTabs() {
     const tabsContainer = document.getElementById('tabs');
     const tabContents = document.getElementById('tab-contents');
