@@ -36,25 +36,14 @@ async function createTabs() {
                 console.error('Error fetching temperature:', error);
             }
             
-            let room_icon;
-            if (room.room_name.includes('Office')) {
-                room_icon = 'fa-computer';
-            } else if (room.room_name.includes('Bed')) {
-                room_icon = 'fa-bed';
-            } else if (room.room_name.includes('Living')) {
-                room_icon = 'fa-couch';
-            } else if (room.room_name.includes('Outside')) {
-                room_icon = 'fa-globe';
-            } else if (room.room_name.includes('Favorites')) {
-                room_icon = 'fa-star';
-            } else {
-                room_icon = 'fa-house';
-            }
+            // Use icon from database with fallback
+            const room_icon = room.icon || 'fa-house';
 
             tabsHtml += `
                 <button class="tab ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     <i class="fa-solid fa-xl ${room_icon}"></i>
                 </button>`;
+                
             contentsHtml += `
                 <div class="tab-content ${savedTab && savedTab === room.id.toString() ? 'active' : ''}" data-room="${room.id}">
                     <h2 class="room-header">
