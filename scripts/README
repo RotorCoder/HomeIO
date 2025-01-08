@@ -71,7 +71,7 @@ After=network.target mysql.service
 Type=simple
 User=www-data
 Group=www-data
-ExecStart=python3 /var/www/html/homeio/scripts/ble_remote_monitor.php
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/ble_remote_monitor.php
 Restart=always
 RestartSec=3
 
@@ -156,7 +156,7 @@ After=network.target mysql.service
 Type=simple
 User=www-data
 Group=www-data
-ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_processor.py
+ExecStart=/home/sjones/venv/bin/python3 /var/www/html/homeio/scripts/vesync_processor.py
 Restart=always
 RestartSec=3
 
@@ -173,7 +173,7 @@ After=network.target mysql.service
 Type=simple
 User=www-data
 Group=www-data
-ExecStart=python3 /var/www/html/homeio/scripts/x10_monitor.php
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/x10_monitor.php
 Restart=always
 RestartSec=3
 
