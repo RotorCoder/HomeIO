@@ -1,18 +1,23 @@
-HomeIO - PHP smart home mobile-friendly webapp (2024 Christmas vacation project)
+HomeIO - PHP smart home mobile-friendly webapp
 
-Controls Govee, VeSync and Philips Hue devices (Govee's public API has very restrictive rate limiting. VeSync no longer sells bulbs or plugs. Switching to Hue due to the Hue bridge local API)
+Inputs:
+    -Web UI
+    -X10 rf remotes (CM15A)
+    -Govee 1, 2, and 6 button bluetooth remotes (decoded using https://github.com/Bluetooth-Devices/govee-ble)
+    -Govee 5100 & 5175 thermometer/hygrometers (decoded using https://github.com/Bluetooth-Devices/govee-ble)
 
-Listens for x10 remote RF input through x10 Commander log (Using CM15A on Windows PC)
-
-Reads Govee H5075 Thermometers and displays on assigned room (Script reads data directly from BLE advertisements. I also run on the Windows PC due to no Hyper-v host bluetooth/USB access)
+Outputs:
+    -Govee devices (Govee public api)
+    -Vesync devices (API access logic comes from https://github.com/webdjoe/pyvesync)
+    -Philips Hue devices (Hue Bridge API)
 
 -Repository files sit in /var/www/html/homeio
 
 -Shared folder is copied from /var/www/html/shared
 
 <div align="center">
-    <img src="/../master/assets/images/HomeIO-mobile3.png" width="300px"</img>
+    <img src="/../master/assets/images/HomeIO-mobile4.png" width="300px"</img>
 </div>
 <div align="center">
-    <img src="/../master/assets/images/HomeIO-full3.png" width="800px"</img>
+    <img src="/../master/assets/images/HomeIO-full4.png" width="800px"</img>
 </div>
