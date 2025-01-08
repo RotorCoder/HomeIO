@@ -272,7 +272,7 @@ function queueDeviceCommand($x10Code, $command) {
             'value' => $apiValue
         ];
 
-        $ch = curl_init('https://mittencoder.com/homeio/api/queue-command');
+        $ch = curl_init('https://rotorcoder.com/homeio/api/queue-command');
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($commandData));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -451,7 +451,7 @@ try {
             fclose($handle);
 
             // Small sleep to prevent excessive CPU usage
-            usleep(10000); // 10ms pause
+            usleep(100000); // 10ms pause
 
         } catch (Exception $e) {
             $log->logInfoMsg("Error in processing loop: " . $e->getMessage());

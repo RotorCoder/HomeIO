@@ -12,7 +12,7 @@ try {
             // Call the API endpoint to update devices
             $curl = curl_init();
             curl_setopt_array($curl, [
-                CURLOPT_URL => "https://mittencoder.com/homeio/api/update-govee-devices",
+                CURLOPT_URL => "https://rotorcoder.com/homeio/api/update-govee-devices",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
                     'X-API-Key: ' . $config['api_keys'][0],

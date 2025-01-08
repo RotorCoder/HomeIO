@@ -13,7 +13,7 @@ try {
             // Call the API endpoint to process commands
             $curl = curl_init();
             curl_setopt_array($curl, [
-                CURLOPT_URL => "https://mittencoder.com/homeio/api/process-govee-commands?max=5",
+                CURLOPT_URL => "https://rotorcoder.com/homeio/api/process-govee-commands?max=5",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
                     'X-API-Key: ' . $config['api_keys'][0],
@@ -35,7 +35,7 @@ try {
             }
             
             // Short sleep between checks
-            usleep(10000); // 10ms pause
+            usleep(100000); // 500ms pause
             
         } catch (Exception $e) {
             $log->logErrorMsg("Error processing batch: " . $e->getMessage());
