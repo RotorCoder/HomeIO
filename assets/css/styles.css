@@ -320,7 +320,6 @@ body {
     white-space: nowrap;
 }
 
-/* Media Queries */
 @media (min-width: 1024px) {
     .tabs {
         display: none;
@@ -363,7 +362,6 @@ body {
 
 }  
 
-/* Existing styles for history, temperature, etc. */
 .history-controls {
     margin-bottom: 20px;
 }
@@ -455,8 +453,6 @@ body {
     animation: highlight 1s ease;
 }
 
-/* Add to styles.css */
-
 .popup-overlay {
     position: fixed;
     top: 0;
@@ -465,18 +461,6 @@ body {
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
     z-index: 1001;
-}
-
-.popup-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #c1e2f7;
-    z-index: 1001;
-    display: flex;
-    flex-direction: column;
 }
 
 .popup-header {
@@ -510,7 +494,6 @@ body {
     color: #374151;
 }
 
-/* Form styling for config popup */
 .form-group {
     background: white;
     padding: .4rem;
@@ -537,7 +520,6 @@ body {
     cursor: not-allowed;
 }
 
-/* Buttons container */
 .buttons {
     position: sticky;
     bottom: 0;
@@ -578,7 +560,6 @@ body {
     margin-right: auto;
 }
 
-/* Group members styling */
 .group-members {
     background: white;
     padding: 1rem;
@@ -603,7 +584,6 @@ body {
     border-bottom: none;
 }
 
-/* Error message */
 .config-error-message {
     background: #fee2e2;
     border: 1px solid #ef4444;
@@ -656,10 +636,6 @@ body {
     cursor: pointer;
 }
 
-.device-table .save-btn:hover {
-    background: #15803d;
-}
-
 .device-table select[multiple] {
     min-width: 150px;
     max-width: 300px;
@@ -680,24 +656,9 @@ body {
     vertical-align: top;
     padding: 8px;
 }
+
 .device-table .save-btn:hover {
     background: #15803d;
-}
-
-/* Room Management Cards */
-.room-cards-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-}
-
-.room-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    padding: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .room-card:hover {
@@ -708,12 +669,6 @@ body {
 .add-room-card {
     border: 2px dashed #d1d5db;
     background: #f9fafb;
-}
-
-.room-card-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
 }
 
 .room-input-group {
@@ -783,7 +738,6 @@ body {
     cursor: pointer;
 }
 
-/* Add to your existing CSS for room management */
 .room-card {
     background: white;
     border-radius: 8px;
@@ -864,13 +818,6 @@ body {
     border-radius: 4px;
 }
 
-.device-picker-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-}
-
 .device-picker-item {
     background: white;
     padding: 1rem;
@@ -889,11 +836,6 @@ body {
     flex: 1;
 }
 
-.device-picker-item input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
-}
 
 .device-picker-buttons {
     position: sticky;
@@ -956,150 +898,10 @@ body {
     margin-top: 0.5rem;
 }
 
-.groups-btn {
-    background: #6366f1;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-}
-
-.groups-btn:hover {
-    background: #4f46e5;
-}
-
-.devices-btn {
-    flex: 1;
-}
-
-.group-count {
-    background: #e5e7eb;
-    color: #374151;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    margin-left: auto;
-}
-
-.group-picker-item {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.group-picker-item label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    flex: 1;
-}
-
-.group-details {
-    font-size: 0.875rem;
-    color: #6b7280;
-    margin-top: 0.25rem;
-    padding-left: 2rem;
-}
-
-.device-picker-item {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.device-picker-item label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    flex: 1;
-}
-
 .device-picker-item input[type="checkbox"] {
     width: 20px;
     height: 20px;
     cursor: pointer;
-}
-
-.device-picker-buttons {
-    position: sticky;
-    bottom: 0;
-    background: white;
-    padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-}
-
-.devices-btn {
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.devices-btn:hover {
-    background: #15803d;
-}
-
-.device-count {
-    background: #e5e7eb;
-    color: #374151;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    margin-left: auto;
-}
-
-.device-picker-group {
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 1rem;
-    margin-bottom: 1rem;
-}
-
-.device-picker-group h4 {
-    margin-bottom: 0.5rem;
-    color: #374151;
-    padding: 0 1rem;
-}
-.add-room-btn {
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    font-size: 1rem;
-    width: 100%;
-    justify-content: center;
-}
-
-.add-room-btn:hover {
-    background: #15803d;
 }
 
 #new-room-form {
@@ -1107,7 +909,6 @@ body {
     border: 2px solid #16a34a;
 }
 
-/* Update the add room button styles */
 .add-room-btn {
     background: #16a34a;
     color: white;
@@ -1126,17 +927,6 @@ body {
 
 .add-room-btn:hover {
     background: #15803d;
-}
-
-/* Update the new room form styles */
-#new-room-form {
-    display: none;  /* Hidden by default */
-    margin: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border: 2px solid #16a34a;
 }
 
 #new-room-form .room-card-content {
@@ -1162,149 +952,4 @@ body {
     padding: 1rem;
 }
 
-.room-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem;
-    overflow: hidden;
-}
 
-/* Add to your styles.css */
-
-.group-cards-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
-}
-
-.group-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem;
-    overflow: hidden;
-}
-
-.group-card-header {
-    padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
-    cursor: pointer;
-    user-select: none;
-}
-
-.group-card-content {
-    padding: 1rem;
-    border-top: 1px solid #e2e8f0;
-    display: none;
-}
-
-.group-card.expanded .group-card-content {
-    display: block;
-    animation: slideDown 0.2s ease-out;
-}
-
-.group-input-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.group-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: #ffffff;
-}
-
-.group-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.group-save-btn {
-    padding: 0.5rem 1rem;
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    flex: 1;
-}
-
-.group-delete-btn {
-    padding: 0.5rem 1rem;
-    background: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.add-group-btn {
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 1rem;
-    font-size: 1rem;
-    width: calc(100% - 2rem);
-    justify-content: center;
-}
-
-.add-group-btn:hover {
-    background: #15803d;
-}
-
-#new-group-form {
-    display: none;
-    margin: 1rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border: 2px solid #16a34a;
-}
-
-.device-count, .group-count {
-    background: #e5e7eb;
-    color: #374151;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-}
-
-.group-buttons {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.group-buttons button {
-    flex: 1;
-    padding: 0.5rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-}
-
-.group-card-header-content {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}

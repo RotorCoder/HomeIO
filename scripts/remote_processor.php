@@ -17,18 +17,19 @@ $buttonConfig = [
         6 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'turn', 'value' => 'off']]
     ],
     'GV5125207B' => [ // First remote
-        2 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'brightness', 'value' => 100]], // High
-        1 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'brightness', 'value' => 100]], // High
-        4 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'brightness', 'value' => 50]],  // Medium
-        3 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'brightness', 'value' => 50]],  // Medium
-        6 => ['device' => 'd6831fe8-fe58-4321-8029-2d739f62a055', 'command' => ['name' => 'turn', 'value' => 'off']],
-        5 => ['device' => 'bab38ad6-9d55-47f7-8094-40f2c6282978', 'command' => ['name' => 'turn', 'value' => 'off']]
+        1=> ['group' => '29', 'command' => ['name' => 'brightness', 'value' => 100]],
+        3=> ['group' => '29', 'command' => ['name' => 'brightness', 'value' => 30]],
+        5=> ['group' => '29', 'command' => ['name' => 'turn', 'value' => 'off']],
+        
+        2 => ['device' => '4C:58:D0:C9:07:C9:4C:16', 'command' => ['name' => 'toggle', 'value' => 'on']],
+        4 => ['device' => '1C:05:D4:0F:41:86:6B:62', 'command' => ['name' => 'toggle', 'value' => 30]],
+        6 => ['device' => '0F:A7:D0:C9:07:C9:26:88', 'command' => ['name' => 'toggle', 'value' => 'on']]
     ],
     'GV5122427B' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 100% brightness
+        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 1% brightness
     ],
     'GV51224B48' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 100% brightness
+        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]], // Toggle between off and 1% brightness
     ]
 ];
 
@@ -65,6 +66,14 @@ function getCurrentGroupState($pdo, $groupId) {
     // Check the state of the first device (assuming all devices in group are synced)
     $stmt = $pdo->prepare("SELECT powerState FROM devices WHERE device = ?");
     $stmt->execute([$devices[0]]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    return $result ? $result['powerState'] : false;
+}
+
+function getCurrentDeviceState($pdo, $deviceId) {
+    $stmt = $pdo->prepare("SELECT powerState FROM devices WHERE device = ?");
+    $stmt->execute([$deviceId]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
     return $result ? $result['powerState'] : false;
@@ -128,21 +137,24 @@ try {
                                         'name' => $currentState === 'on' ? 'turn' : 'brightness',
                                         'value' => $currentState === 'on' ? 'off' : $config['command']['value']
                                     ];
-                                    
-                                    // Queue command for each device in the group
-                                    foreach ($devices as $deviceId) {
-                                        $stmt = $pdo->prepare("
-                                            INSERT INTO command_queue 
-                                            (device, model, command, brand) 
-                                            SELECT device, model, :command, brand
-                                            FROM devices
-                                            WHERE device = :device
-                                        ");
-                                        $stmt->execute([
-                                            'command' => json_encode($command),
-                                            'device' => $deviceId
-                                        ]);
-                                    }
+                                } else {
+                                    // Handle normal commands for groups
+                                    $command = $config['command'];
+                                }
+                                
+                                // Queue command for each device in the group
+                                foreach ($devices as $deviceId) {
+                                    $stmt = $pdo->prepare("
+                                        INSERT INTO command_queue 
+                                        (device, model, command, brand) 
+                                        SELECT device, model, :command, brand
+                                        FROM devices
+                                        WHERE device = :device
+                                    ");
+                                    $stmt->execute([
+                                        'command' => json_encode($command),
+                                        'device' => $deviceId
+                                    ]);
                                 }
                             } else {
                                 // Handle individual device command
@@ -155,6 +167,26 @@ try {
                                 $device = $stmt->fetch(PDO::FETCH_ASSOC);
 
                                 if ($device) {
+                                    $command = $config['command'];
+                                    
+                                    // Handle toggle for individual devices
+                                    if ($command['name'] === 'toggle') {
+                                        $currentState = getCurrentDeviceState($pdo, $config['device']);
+                                        if ($command['value'] === 'on') {
+                                            // Simple on/off toggle for devices without brightness
+                                            $command = [
+                                                'name' => 'turn',
+                                                'value' => $currentState === 'on' ? 'off' : 'on'
+                                            ];
+                                        } else {
+                                            // Toggle with brightness for dimmable devices
+                                            $command = [
+                                                'name' => $currentState === 'on' ? 'turn' : 'brightness',
+                                                'value' => $currentState === 'on' ? 'off' : $command['value']
+                                            ];
+                                        }
+                                    }
+
                                     $stmt = $pdo->prepare("
                                         INSERT INTO command_queue 
                                         (device, model, command, brand) 
@@ -163,7 +195,7 @@ try {
                                     $stmt->execute([
                                         $config['device'],
                                         $device['model'],
-                                        json_encode($config['command']),
+                                        json_encode($command),
                                         $device['brand']
                                     ]);
                                 }
