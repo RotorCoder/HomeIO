@@ -11,6 +11,7 @@ php /var/www/html/homeio/scripts/hue_processor.php
 python3 /var/www/html/homeio/scripts/vesync_processor.py
 php /var/www/html/homeio/scripts/x10_monitor.php
 
+php /var/www/html/homeio/scripts/ble_remote_monitor.php
 php /var/www/html/homeio/scripts/govee_updater.php
 php /var/www/html/homeio/scripts/hue_updater.php
  
@@ -20,6 +21,7 @@ sudo nano /etc/systemd/system/hue-processor.service
 sudo nano /etc/systemd/system/vesync-processor.service
 sudo nano /etc/systemd/system/x10-monitor.service
 
+sudo nano /etc/systemd/system/ble-remote-monitor.service
 sudo nano /etc/systemd/system/govee-updater.service
 sudo nano /etc/systemd/system/hue-updater.service
 
@@ -32,9 +34,11 @@ sudo service hue-processor restart
 sudo service vesync-processor restart
 sudo service x10-monitor restart
 
+sudo service ble-remote-monitor restart
 sudo service govee-updater restart
 sudo service hue-updater restart
-sudo service govee-processor restart && sudo service hue-processor restart && sudo service vesync-processor restart && sudo service x10-monitor restart && sudo service govee-updater restart && sudo service hue-updater restart
+
+sudo service ble-remote-monitor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service vesync-processor restart && sudo service x10-monitor restart && sudo service govee-updater restart && sudo service hue-updater restart
 
 //monitor a service
 sudo service govee-processor status
@@ -42,6 +46,7 @@ sudo service hue-processor status
 sudo service vesync-processor status
 sudo service x10-monitor status
 
+sudo service ble-remote-monitor status
 sudo service govee-updater status
 sudo service hue-updater status
 
@@ -51,9 +56,28 @@ sudo service hue-processor stop
 sudo service vesync-processor stop
 sudo service x10-monitor stop
 
+sudo service ble-remote-monitor stop
 sudo service govee-updater stop
 sudo service hue-updater stop
-sudo service govee-processor stop && sudo service hue-processor stop && sudo service vesync-processor stop && sudo service x10-monitor stop && sudo service govee-updater stop & sudo service hue-updater stop
+
+sudo service ble-remote-monitor stop && sudo service govee-processor stop && sudo service hue-processor stop && sudo service vesync-processor stop && sudo service x10-monitor stop && sudo service govee-updater stop & sudo service hue-updater stop
+
+//contents of etc/systemd/system/ble-remote-monitor.service
+[Unit]
+Description=Bluetooth Low Energy Remote Monitor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=python3 /var/www/html/homeio/scripts/ble_remote_monitor.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
 
 //contents of etc/systemd/system/govee-processor.service
 [Unit]
