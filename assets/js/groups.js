@@ -1,4 +1,4 @@
-// assets/js/groups.js
+// groups.js
 
 let currentGroupDevices = new Set();
 let currentGroupId = null;
@@ -10,7 +10,7 @@ function showGroupManagement() {
         return;
     }
     popup.style.display = 'block';
-    loadGroupList();
+    loadGroups();
 }
 
 function hideGroupPopup() {
@@ -18,6 +18,7 @@ function hideGroupPopup() {
 }
 
 function showDevicePicker(groupId, groupName) {
+    event.stopPropagation();
     currentGroupId = groupId;
     document.getElementById('device-picker-group-name').textContent = groupName;
     document.getElementById('device-picker-popup').style.display = 'block';
@@ -26,63 +27,166 @@ function showDevicePicker(groupId, groupName) {
 
 function hideDevicePicker() {
     document.getElementById('device-picker-popup').style.display = 'none';
-    currentGroupId = null;
-    currentGroupDevices.clear();
+}
+
+function toggleGroupCard(groupId) {
+    const card = document.querySelector(`div[data-groups-group-id="${groupId}"]`);
+    if (card) {
+        event.stopPropagation();
+        card.classList.toggle('expanded');
+    }
+}
+
+
+async function saveGroup(groupId) {
+    const card = document.querySelector(`div[data-groups-group-id="${groupId}"]`);
+    if (!card) return;
+    console.error(card);
+    const groupName = card.querySelector('.group-name').value;
+    
+    
+    console.error(groupName);
+
+
+    try {
+        // First get current group data
+        const getGroupResponse = await apiFetch('api/all-devices');
+        if (!getGroupResponse.success) {
+            throw new Error('Failed to fetch current group data');
+        }
+
+        const currentGroup = getGroupResponse.groups.find(g => g.id.toString() === groupId.toString());
+        if (!currentGroup) {
+            throw new Error('Group not found');
+        }
+
+        // Update group while preserving existing data
+        const response = await apiFetch('api/update-device-group', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                id: groupId,
+                name: groupName,
+                model: currentGroup.model || 'group',
+                devices: currentGroup.devices ? JSON.parse(currentGroup.devices) : [],
+                rooms: currentGroup.rooms ? JSON.parse(currentGroup.rooms) : []
+            })
+        });
+
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to update group');
+        }
+
+        await loadGroups();
+        await loadInitialData();
+
+    } catch (error) {
+        console.error('Error saving group:', error);
+        showError('Failed to save group: ' + error.message);
+    }
+}
+
+async function deleteGroup(groupId) {
+    event.stopPropagation();
+    if (!confirm('Are you sure you want to delete this group? This cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await apiFetch('api/delete-device-group', {
+            method: 'POST',
+            body: JSON.stringify({ groupId })
+        });
+        
+        if (!response.success) {
+            throw new Error('Failed to delete group');
+        }
+
+        await loadGroups();
+
+    } catch (error) {
+        console.error('Error deleting group:', error);
+        showError('Failed to delete group: ' + error.message);
+    }
+}
+
+async function moveGroup(groupId, direction) {
+    event.stopPropagation();
+    
+    const currentCard = document.querySelector(`div[data-groups-group-id="${groupId}"]`);
+    if (!currentCard) return;
+
+    const allCards = Array.from(document.querySelectorAll('.room-card'))
+        .sort((a, b) => parseInt(a.dataset.tabOrder) - parseInt(b.dataset.tabOrder));
+    
+    const currentIndex = allCards.indexOf(currentCard);
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+    if (targetIndex < 0 || targetIndex >= allCards.length) return;
+
+    try {
+        // Get target card
+        const targetCard = allCards[targetIndex];
+        
+        // Update both groups' orders
+        await Promise.all([
+            updateGroupOrder(groupId, parseInt(targetCard.dataset.tabOrder)),
+            updateGroupOrder(targetCard.dataset.groupId, parseInt(currentCard.dataset.tabOrder))
+        ]);
+
+        // Reload groups to reflect changes
+        await loadGroups();
+
+    } catch (error) {
+        console.error('Error moving group:', error);
+        showError('Failed to move group: ' + error.message);
+    }
 }
 
 async function loadDeviceList(groupId) {
     try {
         const response = await apiFetch('api/all-devices');
         if (!response.success) {
-            throw new Error(response.error || 'Failed to load devices');
+            throw new Error('Failed to load devices');
         }
 
-        // Reset current group devices
-        currentGroupDevices.clear();
-
-        // Find current group's devices
         const group = response.groups.find(g => g.id === groupId);
-        if (group && group.devices) {
-            const groupDevices = JSON.parse(group.devices);
-            groupDevices.forEach(deviceId => currentGroupDevices.add(deviceId));
+        const currentDevices = new Set();
+        if (group?.devices) {
+            JSON.parse(group.devices).forEach(id => currentDevices.add(id));
         }
 
-        // Group devices by type
-        const deviceGroups = {
+        const deviceList = document.getElementById('device-picker-list');
+        const groupedDevices = {
             'Lights': [],
             'Fans': [],
-            'Outlets': [],
             'Other': []
         };
 
         response.devices.forEach(device => {
-            // Categorize device
-            const deviceName = device.device_name.toLowerCase();
-            if (deviceName.includes('light') || deviceName.includes('lamp')) {
-                deviceGroups['Lights'].push(device);
-            } else if (deviceName.includes('fan')) {
-                deviceGroups['Fans'].push(device);
-            } else if (deviceName.includes('outlet') || deviceName.includes('plug')) {
-                deviceGroups['Outlets'].push(device);
+            const name = device.device_name.toLowerCase();
+            if (name.includes('light') || name.includes('lamp')) {
+                groupedDevices['Lights'].push(device);
+            } else if (name.includes('fan')) {
+                groupedDevices['Fans'].push(device);
             } else {
-                deviceGroups['Other'].push(device);
+                groupedDevices['Other'].push(device);
             }
         });
 
-        // Generate HTML for device picker
-        const deviceList = document.getElementById('device-picker-list');
-        deviceList.innerHTML = Object.entries(deviceGroups)
+        deviceList.innerHTML = Object.entries(groupedDevices)
             .filter(([_, devices]) => devices.length > 0)
             .map(([groupName, devices]) => `
                 <div class="device-picker-group">
-                    <h4>${groupName} (${devices.length})</h4>
+                    <h4>${groupName}</h4>
                     ${devices.map(device => `
                         <div class="device-picker-item">
                             <label>
-                                <input type="checkbox" 
-                                       value="${device.device}"
-                                       ${currentGroupDevices.has(device.device) ? 'checked' : ''}>
-                                <span>${device.device_name}</span>
+                                <input type="checkbox" value="${device.device}" 
+                                       ${currentDevices.has(device.device) ? 'checked' : ''}>
+                                ${device.device_name}
                             </label>
                         </div>
                     `).join('')}
@@ -102,18 +206,7 @@ async function saveDeviceSelection() {
             document.querySelectorAll('#device-picker-list input[type="checkbox"]:checked')
         ).map(cb => cb.value);
 
-        // Get current group data
-        const response = await apiFetch('api/all-devices');
-        if (!response.success) {
-            throw new Error('Failed to fetch current group data');
-        }
-
-        const group = response.groups.find(g => g.id === currentGroupId);
-        if (!group) {
-            throw new Error('Group not found');
-        }
-
-        // Update group with new device selection
+        // Update device-level group membership
         await apiFetch('api/update-device-group', {
             method: 'POST',
             headers: {
@@ -121,17 +214,13 @@ async function saveDeviceSelection() {
             },
             body: JSON.stringify({
                 id: currentGroupId,
-                name: group.name,
-                model: 'group',
                 devices: selectedDevices
             })
         });
 
         hideDevicePicker();
-        await Promise.all([
-            loadGroupList(),
-            loadInitialData()
-        ]);
+        await loadRoomList();
+        await loadInitialData();
 
     } catch (error) {
         console.error('Error saving device selection:', error);
@@ -139,180 +228,102 @@ async function saveDeviceSelection() {
     }
 }
 
-async function loadGroupList() {
-    try {
-        const response = await apiFetch('api/all-devices');
-        console.log('API Response:', response); // For debugging
-        
-        if (!response.success) {
-            throw new Error(response.error || 'Failed to load devices and groups');
-        }
-
-        const groupList = document.getElementById('group-list');
-        if (!groupList) {
-            console.error('Group list element not found');
-            return;
-        }
-
-        // Show what groups we found
-        console.log('Found groups:', response.groups);
-
-        // Create a map of device names for quick lookup
-        const deviceMap = new Map(response.devices.map(d => [d.device, d.device_name]));
-
-        // Process each group
-        const groupsHtml = response.groups
-            .filter(group => group.name !== 'Unassigned')  // Skip the Unassigned group
-            .map(group => {
-                // Get list of devices in this group
+async function loadGroups() {
+        try {
+            const response = await apiFetch('api/all-devices');
+            if (!response.success) {
+                throw new Error(response.error || 'Failed to load devices');
+            }
+    
+            const groupList = document.getElementById('group-list');
+            if (!groupList) {
+                console.error('Group list element not found');
+                return;
+            }
+    
+            // Sort groups by name
+            const sortedGroups = response.groups
+                .filter(group => group.name !== 'Unassigned')
+                .sort((a, b) => a.name.localeCompare(b.name));
+    
+            // Build the group cards HTML
+            const groupCardsHtml = sortedGroups.map(group => {
                 const groupDevices = JSON.parse(group.devices || '[]');
                 const deviceCount = groupDevices.length;
-                
-                // Get device names for display
-                const deviceNames = groupDevices
-                    .map(deviceId => deviceMap.get(deviceId))
-                    .filter(name => name)
-                    .join(', ');
-
+            
                 return `
-                    <div class="group-card" data-group-id="${group.id}">
-                        <div class="group-card-header" onclick="toggleGroupCard(${group.id})">
-                            <div class="group-card-header-content">
-                                <span>${group.name}</span>
+                    <div class="room-card" data-groups-group-id="${group.id}">
+                        <div class="room-card-header" onclick="toggleGroupCard(${group.id})">
+                            <div class="room-card-header-content">
+                                <i class="fas fa-layer-group"></i>
+                                <span class="group-name">${group.name}</span>
                                 <span class="device-count">${deviceCount} device${deviceCount !== 1 ? 's' : ''}</span>
                             </div>
-                        </div>
-                        <div class="group-card-content">
-                            <div class="group-input-group">
-                                <input type="text" class="group-input group-name" value="${group.name}" placeholder="Group Name">
-                            </div>
-                            <div class="device-list">
-                                <small>${deviceNames || 'No devices'}</small>
-                            </div>
-                            <button onclick="showDevicePicker(${group.id}, '${group.name}')" class="devices-btn">
-                                <i class="fas fa-lightbulb"></i> Manage Devices
-                                <span class="device-count">${deviceCount}</span>
-                            </button>
-                            <div class="group-actions">
-                                <button onclick="deleteGroup(${group.id})" class="group-delete-btn">
-                                    <i class="fas fa-trash"></i> Delete Group
+                            <div class="room-order-buttons">
+                                <button onclick="moveGroup(${group.id}, 'up')" class="order-btn">
+                                    <i class="fas fa-arrow-up"></i>
                                 </button>
-                                <button onclick="saveGroup(${group.id})" class="group-save-btn">
-                                    <i class="fas fa-save"></i> Save Changes
+                                <button onclick="moveGroup(${group.id}, 'down')" class="order-btn">
+                                    <i class="fas fa-arrow-down"></i>
                                 </button>
                             </div>
                         </div>
-                    </div>
-                `;
+                        <div class="room-card-content">  
+                        
+                            <div class="room-input-group">
+                                <input type="text" class="room-input group-name" value="${group.name}" placeholder="Group Name">
+                            </div>
+                            
+                            <div class="room-buttons">
+                                <button onclick="showDevicePicker(${group.id}, '${group.name}')" class="devices-btn">
+                                    <i class="fas fa-lightbulb"></i> Devices
+                                    <span class="device-count">${deviceCount}</span>
+                                </button>
+                            </div>
+                            <div class="room-actions">
+                                <button onclick="deleteGroup(${group.id})" class="room-delete-btn">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button onclick="saveGroup(${group.id}); event.stopPropagation();" class="room-save-btn">
+                                    <i class="fas fa-save"></i> Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
             }).join('');
-
-        // Update the group list container
-        groupList.innerHTML = groupsHtml;
-
-    } catch (error) {
-        console.error('Error loading group list:', error);
-        showError('Failed to load group list: ' + error.message);
-    }
-}
-
-async function saveGroup(groupId) {
-    const groupCard = document.querySelector(`div[data-group-id="${groupId}"]`);
-    if (!groupCard) return;
-
-    const groupName = groupCard.querySelector('.group-name').value;
-    if (!groupName.trim()) {
-        showError('Group name cannot be empty');
-        return;
+    
+            groupList.innerHTML = groupCardsHtml;
+    
+        } catch (error) {
+            console.error('Error loading groups:', error);
+            showError('Failed to load groups: ' + error.message);
+        }
     }
 
+async function updateGroupOrder(groupId, newOrder) {
     try {
-        // Get current group data
-        const response = await apiFetch('api/all-devices');
-        if (!response.success) {
-            throw new Error('Failed to fetch current group data');
-        }
-
-        const group = response.groups.find(g => g.id === groupId);
-        if (!group) {
-            throw new Error('Group not found');
-        }
-
-        // Update group
-        const updateResponse = await apiFetch('api/update-device-group', {
+        const response = await apiFetch('api/update-device-group', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
                 id: groupId,
-                name: groupName,
-                model: 'group',
-                devices: JSON.parse(group.devices || '[]') // Preserve existing devices
+                tab_order: newOrder
             })
-        });
-
-        if (!updateResponse.success) {
-            throw new Error(updateResponse.error || 'Failed to update group');
-        }
-
-        // Reload UI
-        await Promise.all([
-            loadGroupList(),
-            loadInitialData()
-        ]);
-
-    } catch (error) {
-        console.error('Error saving group:', error);
-        showError('Failed to save group: ' + error.message);
-    }
-}
-
-async function deleteGroup(groupId) {
-    if (!confirm('Are you sure you want to delete this group? This cannot be undone.')) {
-        return;
-    }
-
-    try {
-        const response = await apiFetch('api/delete-device-group', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ groupId })
         });
         
         if (!response.success) {
-            throw new Error(response.error || 'Failed to delete group');
+            throw new Error(response.error || 'Failed to update group order');
         }
-
-        // Reload UI
-        await Promise.all([
-            loadGroupList(),
-            loadInitialData()
-        ]);
-
     } catch (error) {
-        console.error('Error deleting group:', error);
-        showError('Failed to delete group: ' + error.message);
+        throw error;
     }
 }
 
-function toggleGroupCard(groupId) {
-    const card = document.querySelector(`div[data-group-id="${groupId}"]`);
-    if (card) {
-        event.stopPropagation();
-        card.classList.toggle('expanded');
-    }
-}
-
-function showNewGroupCard() {
-    // Hide the add button
+function showNewGroup() {
     const addButton = document.querySelector('.add-group-btn');
     if (addButton) {
         addButton.style.display = 'none';
     }
 
-    // Show and reset the form
     const newGroupForm = document.getElementById('new-group-form');
     if (newGroupForm) {
         newGroupForm.style.display = 'block';
@@ -321,20 +332,18 @@ function showNewGroupCard() {
 }
 
 function cancelNewGroup() {
-    // Hide the form
     const form = document.getElementById('new-group-form');
     if (form) {
         form.style.display = 'none';
     }
     
-    // Show the add button
     const addButton = document.querySelector('.add-group-btn');
     if (addButton) {
-        addButton.style.display = 'flex';
+        addButton.style.display = 'block';
     }
 }
 
-async function addNewGroup() {
+async function saveNewGroup() {
     const groupName = document.getElementById('new-group-name').value;
     if (!groupName.trim()) {
         showError('Please enter a group name');
@@ -342,42 +351,31 @@ async function addNewGroup() {
     }
 
     try {
-        // Create new group
         const response = await apiFetch('api/update-device-group', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({
                 name: groupName,
                 model: 'group',
                 devices: []
             })
         });
-        
+
         if (!response.success) {
-            throw new Error(response.error || 'Failed to add group');
+            throw new Error('Failed to create group');
         }
 
-        // Hide the form and show the add button
         document.getElementById('new-group-form').style.display = 'none';
-        document.querySelector('.add-group-btn').style.display = 'flex';
-
-        // Reload everything
-        await Promise.all([
-            loadGroupList(),
-            loadInitialData()
-        ]);
+        document.querySelector('.add-group-btn').style.display = 'block';
+        await loadGroups();
 
     } catch (error) {
-        console.error('Error adding group:', error);
-        showError('Failed to add group: ' + error.message);
+        console.error('Error creating group:', error);
+        showError('Failed to create group: ' + error.message);
     }
 }
 
-// Add event listeners when document loads
+// Initialize event listeners
 document.addEventListener('DOMContentLoaded', () => {
-    // Prevent click events from reaching cards when clicking buttons
     document.getElementById('group-list')?.addEventListener('click', function(e) {
         if (e.target.closest('button')) {
             e.stopPropagation();
