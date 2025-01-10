@@ -8,37 +8,12 @@
             </button>
         </div>
         <div class="popup-content">
-            <!-- Existing groups container -->
-            <div class="group-cards-container" id="group-list">
-                <!-- Group cards will be inserted here by JavaScript -->
+            <div class="room-cards-container" id="group-list">
+                <!-- Group cards will be inserted here -->
             </div>
-            <!-- Add Group Button -->
-            <button onclick="showNewGroupCard()" class="add-group-btn">
+            <button onclick="showNewGroup()" class="add-group-btn">
                 <i class="fas fa-plus"></i> Add Group
             </button>
-
-            <!-- New Group Form (hidden by default) -->
-            <div id="new-group-form" class="group-card" style="display: none;">
-                <div class="group-card-content">
-                    <div class="group-input-group">
-                        <input type="text" id="new-group-name" placeholder="Group Name" class="group-input">
-                    </div>
-                    <div class="group-input-group">
-                        <div class="icon-preview">
-                            <i class="fa-solid fa-house"></i>
-                        </div>
-                        <input type="text" id="new-group-icon" placeholder="fa-house" class="group-input">
-                    </div>
-                    <div class="group-actions">
-                        <button onclick="cancelNewGroup()" class="group-delete-btn">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>
-                        <button onclick="addNewGroup()" class="group-save-btn">
-                            <i class="fas fa-save"></i> Save
-                        </button>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -53,15 +28,32 @@
             </button>
         </div>
         <div class="popup-content">
-            <div class="device-list-container">
-                <div id="device-picker-list" class="device-picker-list">
-                    <!-- Devices will be populated here -->
-                </div>
+            <div id="device-picker-list" class="device-picker-list">
+                <!-- Devices will be populated here -->
             </div>
             <div class="device-picker-buttons">
                 <button onclick="hideDevicePicker()" class="cancel-btn">Cancel</button>
                 <button onclick="saveDeviceSelection()" class="save-btn">Save Changes</button>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- New Group Form -->
+<div id="new-group-form" class="room-card" style="display: none;">
+    <div class="room-card-header" onclick="toggleGroupCard(${group.id}, event)">
+        <div class="room-card-header-content">
+            <i class="fas fa-plus"></i>
+            <input type="text" id="new-group-name" placeholder="Group Name">
+            <span class="device-count">0 devices</span>
+        </div>
+    </div>
+    <div class="room-actions">
+        <button onclick="cancelNewGroup()" class="room-delete-btn">
+            <i class="fas fa-times"></i> Cancel
+        </button>
+        <button onclick="saveNewGroup()" class="room-save-btn">
+            <i class="fas fa-save"></i> Save
+        </button>
     </div>
 </div>

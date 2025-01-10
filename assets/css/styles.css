@@ -1,955 +1,1396 @@
 /* assets/css/styles.css */
 
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-color: #c1e2f7;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	background-color: #c1e2f7;
 }
 
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0.5rem;
-    padding-top: 0;
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 0.5rem;
+	padding-top: 0;
 }
 
 /* Tabs styling */
 .tabs {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: #333;
-    margin: 0;
-    padding: 0;
-    z-index: 1000;
+	display: flex;
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background-color: #333;
+	margin: 0;
+	padding: 0;
+	z-index: 1000;
 }
 
 .tab {
-    flex: 1;
-    padding: 1.2rem .3rem 1.3rem .3rem;
-    background-color: #333;
-    border: none;
-    color: white;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s ease;
-    font-size: 1.1rem;
-    text-align: center;
+	flex: 1;
+	padding: 1.2rem .3rem 1.3rem .3rem;
+	background-color: #333;
+	border: none;
+	color: white;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: all 0.2s ease;
+	font-size: 1.1rem;
+	text-align: center;
 }
 
 .tab:hover {
-    background-color: #444;
+	background-color: #444;
 }
 
 .tab.active {
-    background-color: #00a65a;
+	background-color: #00a65a;
 }
 
 .tab-content {
-    display: none;
+	display: none;
 }
 
 .tab-content.active {
-    display: block;
-    animation: fadeIn 0.3s ease;
+	display: block;
+	animation: fadeIn 0.3s ease;
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
 }
 
 .device-grid {
-    display: grid;
-    gap: .5rem;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	display: grid;
+	gap: .5rem;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
-
 
 
 .icon-wrapper {
-    width: 40px;
-    height: 40px;
-    border-radius: 0.375rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
+	width: 40px;
+	height: 40px;
+	border-radius: 0.375rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.3s ease;
 }
 
 .device-details h3 {
-    color: #111827;
-    font-size: 1rem;
-    font-weight: 500;
-    margin: 0;
+	color: #111827;
+	font-size: 1rem;
+	font-weight: 500;
+	margin: 0;
 }
 
 .device-details p {
-    color: #6b7280;
-    font-size: 0.875rem;
-    transition: color 0.3s ease;
+	color: #6b7280;
+	font-size: 0.875rem;
+	transition: color 0.3s ease;
 }
 
 .device-card {
-    background: white;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.2s ease;
-    height: 100px;
+	background: white;
+	border-radius: 0.5rem;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	display: flex;
+	flex-direction: column;
+	transition: transform 0.2s ease;
+	height: 100px;
 }
 
 .device-info {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    height: 30%;
-    margin: 10px;
-    position: relative;
-    padding: 0.5rem;
-    background: white;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	height: 30%;
+	margin: 10px;
+	position: relative;
+	padding: 0.5rem;
+	background: white;
 }
 
 .config-btn {
-    position: absolute;
-    right: 0.5rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 5px;
-    color: #6b7280;
+	position: absolute;
+	right: 0.5rem;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 5px;
+	color: #6b7280;
 }
 
 #device-config-form {
-    max-width: 600px;
-    margin: 0 auto; 
-    background: white; 
-    padding: 1rem; 
-    border-radius: 8px; 
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	max-width: 600px;
+	margin: 0 auto;
+	background: white;
+	padding: 1rem;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
 
 
 .config-btn:hover {
-    color: #374151;
+	color: #374151;
 }
 
 .device-details {
-    flex: 1;
-    padding-right: 2.5rem; /* Make room for config button */
+	flex: 1;
+	padding-right: 2.5rem;
+	/* Make room for config button */
 }
 
 
 .device-controls {
-    display: flex;
-    height: 75%;
-    margin: 0;
-    padding: 0;
+	display: flex;
+	height: 75%;
+	margin: 0;
+	padding: 0;
 }
 
 .device-controls .btn {
-    flex: 1;
-    margin: 0;
-    padding: 0;
-    border: 1px solid #e5e7eb;
-    border-radius: 0;
-    background-color: white;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+	flex: 1;
+	margin: 0;
+	padding: 0;
+	border: 1px solid #e5e7eb;
+	border-radius: 0;
+	background-color: white;
+	cursor: pointer;
+	transition: all 0.2s;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .device-controls .btn:first-child {
-    border-bottom-left-radius: 0.5rem;
+	border-bottom-left-radius: 0.5rem;
 }
 
 .device-controls .btn:last-child {
-    border-bottom-right-radius: 0.5rem;
+	border-bottom-right-radius: 0.5rem;
 }
 
 .device-controls .btn:hover {
-    background-color: #c1e2f7;
+	background-color: #c1e2f7;
 }
 
 .device-controls .btn.active {
-    background-color: #dcfce7;
-    border-color: #16a34a;
-    color: #16a34a;
+	background-color: #dcfce7;
+	border-color: #16a34a;
+	color: #16a34a;
 }
 
 .error-message {
-    background-color: #fee2e2;
-    border: 1px solid #ef4444;
-    color: #991b1b;
-    padding: 1rem;
-    border-radius: 0.375rem;
-    margin-bottom: 1rem;
-    display: none;
+	background-color: #fee2e2;
+	border: 1px solid #ef4444;
+	color: #991b1b;
+	padding: 1rem;
+	border-radius: 0.375rem;
+	margin-bottom: 1rem;
+	display: none;
 }
 
 /* Configuration Popup Styles */
 .config-popup-desktop {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1001;
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1001;
 }
 
 .config-popup-desktop .config-content {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    padding: 10px;
-    border-radius: 8px;
-    max-width: 600px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background: white;
+	padding: 10px;
+	border-radius: 8px;
+	max-width: 600px;
+	width: 90%;
+	max-height: 90vh;
+	overflow-y: auto;
 }
 
 .config-popup-desktop .header {
-    position: relative;  /* For absolute positioning of close button */
-    padding: 20px;
+	position: relative;
+	/* For absolute positioning of close button */
+	padding: 20px;
 }
 
 .config-popup-desktop .close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    font-size: 1.2rem;
-    padding: 5px;
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	background: none;
+	border: none;
+	color: #6b7280;
+	cursor: pointer;
+	font-size: 1.2rem;
+	padding: 5px;
 }
 
 .config-popup-desktop .close-btn:hover {
-    color: #374151;
+	color: #374151;
 }
 
 .config-popup-desktop .config-content {
-    /* Keep existing styles */
-    position: relative;  /* For absolute positioning context */
+	/* Keep existing styles */
+	position: relative;
+	/* For absolute positioning context */
 }
 
 .config-button {
-    background-color: white;
-    
-    padding: 10px 10px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    margin: 5px 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 1rem;
+	background-color: white;
+
+	padding: 10px 10px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	margin: 5px 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-size: 1rem;
 }
 
 .config-button:hover {
-    background-color: #6b7280;
+	background-color: #6b7280;
 }
 
 .config-button i {
-    font-size: 1.1em;
+	font-size: 1.1em;
 }
 
 .auto-refresh-control {
-    margin-bottom: 15px;
+	margin-bottom: 15px;
 }
 
 .refresh-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 5px;
-    cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 5px;
+	cursor: pointer;
 }
 
 .refresh-time {
-    font-size: 0.875rem;
-    color: #6b7280;
+	font-size: 0.875rem;
+	color: #6b7280;
 }
 
 .close-btn {
-    background: none;
-    border: none;
-    color: #6b7280;
-    cursor: pointer;
-    padding: 5px;
-    font-size: 1.2rem;
+	background: none;
+	border: none;
+	color: #6b7280;
+	cursor: pointer;
+	padding: 5px;
+	font-size: 1.2rem;
 }
 
 .close-btn:hover {
-    color: #374151;
+	color: #374151;
 }
 
 .room-header {
-    font-size: 1.25rem;
-    margin: 1rem 0 .75rem 0;
-    padding: 0 0.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+	font-size: 1.25rem;
+	margin: 1rem 0 .75rem 0;
+	padding: 0 0.5rem;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .room-temp-info {
-    font-size: 1rem;
-    color: #6b7280;
-    white-space: nowrap;
+	font-size: 1rem;
+	color: #6b7280;
+	white-space: nowrap;
 }
 
 @media (min-width: 1024px) {
-    .tabs {
-        display: none;
-    }
-    
-    .tab-content {
-        display: block !important;
-    }
+	.tabs {
+		display: none;
+	}
 
-    .tab-content[data-room="config"] {
-        display: none !important;
-    }
+	.tab-content {
+		display: block !important;
+	}
 
-    .desktop-config-btn {
-        display: block;
-        margin: 10px 0;
-    }
-    
-    .room-temp-info {
-        margin-right: 68%;
-    }
+	.tab-content[data-room="config"] {
+		display: none !important;
+	}
+
+	.desktop-config-btn {
+		display: block;
+		margin: 10px 0;
+	}
+
+	.room-temp-info {
+		margin-right: 68%;
+	}
 }
 
 @media (max-width: 1023px) {
-    .tab-content:not(.active) {
-        display: none;
-    }
+	.tab-content:not(.active) {
+		display: none;
+	}
 
-    .desktop-config-btn {
-        display: none;
-    }
+	.desktop-config-btn {
+		display: none;
+	}
 
-    .config-popup-desktop {
-        display: none !important;
-    }
-    
-    .room-temp-info {
-        margin-left: auto;
-    }
+	.config-popup-desktop {
+		display: none !important;
+	}
 
-}  
+	.room-temp-info {
+		margin-left: auto;
+	}
+
+}
 
 .history-controls {
-    margin-bottom: 20px;
+	margin-bottom: 20px;
 }
 
 .history-controls select {
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ddd;
+	padding: 8px;
+	border-radius: 4px;
+	border: 1px solid #ddd;
 }
 
 .chart-container {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	background: white;
+	padding: 1rem;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
 
 
 .history-table-container {
-    border: 1px solid #ddd;
-    border-radius: 4px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
 }
 
 .thermometer-table {
-    overflow-x: auto;
-    margin-top: 20px;
+	overflow-x: auto;
+	margin-top: 20px;
 }
 
 .therm-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    table-layout: auto;
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9rem;
+	table-layout: auto;
 }
 
 .therm-table th,
 .therm-table td {
-    padding: 8px;
-    border: 1px solid #ddd;
-    text-align: left;
-    white-space: nowrap;
-    width: 1px;
+	padding: 8px;
+	border: 1px solid #ddd;
+	text-align: left;
+	white-space: nowrap;
+	width: 1px;
 }
 
 .therm-table th {
-    background-color: #e1f1fc;
-    font-weight: 500;
+	background-color: #e1f1fc;
+	font-weight: 500;
 }
 
 .therm-table input,
 .therm-table select {
-    width: auto;
-    padding: 4px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+	width: auto;
+	padding: 4px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
 }
 
 .therm-table .save-btn {
-    padding: 4px 8px;
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+	padding: 4px 8px;
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
 }
 
 .therm-table .save-btn:hover {
-    background: #15803d;
+	background: #15803d;
 }
 
 /* Animation keyframes */
 @keyframes highlight {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-    100% { transform: scale(1); }
+	0% {
+		transform: scale(1);
+	}
+
+	50% {
+		transform: scale(1.02);
+	}
+
+	100% {
+		transform: scale(1);
+	}
 }
 
 @keyframes spin {
-    100% { transform: rotate(360deg); }
+	100% {
+		transform: rotate(360deg);
+	}
 }
 
 .refresh-indicator {
-    display: inline-block;
-    animation: spin 1s linear infinite;
+	display: inline-block;
+	animation: spin 1s linear infinite;
 }
 
 .status-change {
-    animation: highlight 1s ease;
+	animation: highlight 1s ease;
 }
 
 .popup-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1001;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1001;
 }
 
 .popup-header {
-    position: sticky;
-    top: 0;
-    background: white;
-    padding: 1rem;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 1002;
+	position: sticky;
+	top: 0;
+	background: white;
+	padding: 1rem;
+	border-bottom: 1px solid #e5e7eb;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	z-index: 1002;
 }
 
 .popup-content {
-    flex: 1;
-    padding: 1rem;
-    overflow-y: auto;
+	flex: 1;
+	padding: 1rem;
+	overflow-y: auto;
 }
 
 .close-popup-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1.5rem;
-    padding: 5px;
-    color: #6b7280;
+	background: none;
+	border: none;
+	cursor: pointer;
+	font-size: 1.5rem;
+	padding: 5px;
+	color: #6b7280;
 }
 
 .close-popup-btn:hover {
-    color: #374151;
+	color: #374151;
 }
 
 .form-group {
-    background: white;
-    padding: .4rem;
+	background: white;
+	padding: .4rem;
 }
 
 .form-group label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-    color: #374151;
+	display: block;
+	font-weight: 500;
+	margin-bottom: 0.5rem;
+	color: #374151;
 }
 
 .form-group input,
 .form-group select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: #e1f1fc;
+	width: 100%;
+	padding: 0.5rem;
+	border: 1px solid #d1d5db;
+	border-radius: 4px;
+	background: #e1f1fc;
 }
 
 .form-group input[readonly] {
-    background: white;
-    cursor: not-allowed;
+	background: white;
+	cursor: not-allowed;
 }
 
 .buttons {
-    position: sticky;
-    bottom: 0;
-    background: white;
-    padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
+	position: sticky;
+	bottom: 0;
+	background: white;
+	padding: 1rem;
+	border-top: 1px solid #e5e7eb;
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
 }
 
 .cancel-btn,
 .save-btn {
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-weight: 500;
+	padding: 0.5rem 1rem;
+	border-radius: 4px;
+	border: none;
+	cursor: pointer;
+	font-weight: 500;
 }
 
 .cancel-btn {
-    background: #c1e2f7;
-    color: #374151;
+	background: #c1e2f7;
+	color: #374151;
 }
 
 .save-btn {
-    background: #16a34a;
-    color: white;
+	background: #16a34a;
+	color: white;
 }
 
 .delete-btn {
-    background: #ef4444; 
-    color: white; 
-    padding: 16px 16px; 
-    border: none; 
-    border-radius: 4px; 
-    cursor: pointer; 
-    margin-right: auto;
+	background: #ef4444;
+	color: white;
+	padding: 16px 16px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	margin-right: auto;
 }
 
 .group-members {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    margin-top: 1rem;
+	background: white;
+	padding: 1rem;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	margin-top: 1rem;
 }
 
 .group-members h4 {
-    margin-bottom: 0.5rem;
-    color: #374151;
+	margin-bottom: 0.5rem;
+	color: #374151;
 }
 
 .group-member {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem;
-    border-bottom: 1px solid #e5e7eb;
+	display: flex;
+	justify-content: space-between;
+	padding: 0.5rem;
+	border-bottom: 1px solid #e5e7eb;
 }
 
 .group-member:last-child {
-    border-bottom: none;
+	border-bottom: none;
 }
 
 .config-error-message {
-    background: #fee2e2;
-    border: 1px solid #ef4444;
-    color: #991b1b;
-    padding: 0.75rem;
-    border-radius: 4px;
-    margin-bottom: 1rem;
+	background: #fee2e2;
+	border: 1px solid #ef4444;
+	color: #991b1b;
+	padding: 0.75rem;
+	border-radius: 4px;
+	margin-bottom: 1rem;
 }
 
 .device-table-container {
-    overflow-x: auto;
-    margin-top: 20px;
+	overflow-x: auto;
+	margin-top: 20px;
 }
 
 .device-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-    table-layout: auto;
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.9rem;
+	table-layout: auto;
 }
 
 .device-table th,
 .device-table td {
-    padding: 8px;
-    border: 1px solid #ddd;
-    text-align: left;
-    white-space: nowrap;
-    width: 1px;
+	padding: 8px;
+	border: 1px solid #ddd;
+	text-align: left;
+	white-space: nowrap;
+	width: 1px;
 }
 
 .device-table th {
-    background-color: #e1f1fc;
-    font-weight: 500;
+	background-color: #e1f1fc;
+	font-weight: 500;
 }
 
 .device-table input,
 .device-table select {
-    width: auto;
-    padding: 4px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+	width: auto;
+	padding: 4px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
 }
 
 .device-table .save-btn {
-    padding: 4px 8px;
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+	padding: 4px 8px;
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
 }
 
 .device-table select[multiple] {
-    min-width: 150px;
-    max-width: 300px;
-    padding: 4px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background-color: white;
+	min-width: 150px;
+	max-width: 300px;
+	padding: 4px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	background-color: white;
 }
 
 .device-table small {
-    display: block;
-    color: #666;
-    font-size: 0.8em;
-    margin-top: 2px;
+	display: block;
+	color: #666;
+	font-size: 0.8em;
+	margin-top: 2px;
 }
 
 .device-table td {
-    vertical-align: top;
-    padding: 8px;
+	vertical-align: top;
+	padding: 8px;
 }
 
 .device-table .save-btn:hover {
-    background: #15803d;
+	background: #15803d;
 }
 
 .room-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .add-room-card {
-    border: 2px dashed #d1d5db;
-    background: #f9fafb;
+	border: 2px dashed #d1d5db;
+	background: #f9fafb;
 }
 
 .room-input-group {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 }
 
 .icon-preview {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #e1f1fc;
-    border-radius: 4px;
+	width: 40px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #e1f1fc;
+	border-radius: 4px;
 }
 
 .room-input {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    background: #ffffff;
+	width: 100%;
+	padding: 0.5rem;
+	border: 1px solid #d1d5db;
+	border-radius: 4px;
+	background: #ffffff;
 }
 
 .room-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 1rem;
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 1rem;
 }
 
 .room-add-btn {
-    width: 100%;
-    padding: 0.5rem;
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+	width: 100%;
+	padding: 0.5rem;
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
 }
 
 .room-add-btn:hover {
-    background: #15803d;
+	background: #15803d;
 }
 
 .room-save-btn {
-    padding: 0.5rem 1rem;
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    flex: 1;
+	padding: 0.5rem 1rem;
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	flex: 1;
 }
 
 .room-delete-btn {
-    padding: 0.5rem 1rem;
-    background: #ef4444;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+	padding: 0.5rem 1rem;
+	background: #ef4444;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
 }
 
 .room-card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem;
-    overflow: hidden;
+	background: white;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	margin-bottom: 1rem;
+	overflow: hidden;
 }
 
 .room-card-header {
-    padding: 1rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
-    cursor: pointer;
-    user-select: none;
+	padding: 1rem;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: #f8fafc;
+	cursor: pointer;
+	user-select: none;
 }
 
 .room-card-header-content {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
 }
 
 .room-order-buttons {
-    display: flex;
-    gap: 0.5rem;
+	display: flex;
+	gap: 0.5rem;
 }
 
 .order-btn {
-    background: none;
-    border: none;
-    padding: 0.5rem;
-    cursor: pointer;
-    color: #64748b;
+	background: none;
+	border: none;
+	padding: 0.5rem;
+	cursor: pointer;
+	color: #64748b;
 }
 
 .order-btn:hover {
-    color: #0f172a;
+	color: #0f172a;
 }
 
 .order-btn:disabled {
-    color: #cbd5e1;
-    cursor: not-allowed;
+	color: #cbd5e1;
+	cursor: not-allowed;
 }
 
 .room-card-content {
-    padding: 1rem;
-    border-top: 1px solid #e2e8f0;
-    display: none;
+	padding: 1rem;
+	border-top: 1px solid #e2e8f0;
+	display: none;
 }
 
 .room-card.expanded .room-card-content {
-    display: block;
-    animation: slideDown 0.2s ease-out;
+	display: block;
+	animation: slideDown 0.2s ease-out;
 }
 
 @keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
 }
 
 .room-card.system-default .room-card-header {
-    background: #e2e8f0;
+	background: #e2e8f0;
 }
 
 .system-default-badge {
-    font-size: 0.875rem;
-    padding: 0.25rem 0.5rem;
-    background: #64748b;
-    color: white;
-    border-radius: 4px;
+	font-size: 0.875rem;
+	padding: 0.25rem 0.5rem;
+	background: #64748b;
+	color: white;
+	border-radius: 4px;
 }
 
 .device-picker-item {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+	background: white;
+	padding: 1rem;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	display: flex;
+	align-items: center;
+	gap: 1rem;
 }
 
 .device-picker-item label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	cursor: pointer;
+	flex: 1;
 }
 
 
 .device-picker-buttons {
-    position: sticky;
-    bottom: 0;
-    background: white;
-    padding: 1rem;
-    border-top: 1px solid #e5e7eb;
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
+	position: sticky;
+	bottom: 0;
+	background: white;
+	padding: 1rem;
+	border-top: 1px solid #e5e7eb;
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
 }
 
-.devices-btn {
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+.devices-btn,
+.groups-btn {
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	padding: 0.5rem 1rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 }
 
-.devices-btn:hover {
-    background: #15803d;
+.devices-btn:hover,
+.groups-btn:hover {
+	background: #15803d;
 }
 
 .device-count {
-    background: #e5e7eb;
-    color: #374151;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.875rem;
-    margin-left: auto;
+	background: #e5e7eb;
+	color: #374151;
+	padding: 0.25rem 0.5rem;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	margin-left: auto;
 }
 
 .device-picker-group {
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 1rem;
-    margin-bottom: 1rem;
+	border-bottom: 1px solid #e5e7eb;
+	padding-bottom: 1rem;
+	margin-bottom: 1rem;
 }
 
 .device-picker-group h4 {
-    margin-bottom: 0.5rem;
-    color: #374151;
-    padding: 0 1rem;
+	margin-bottom: 0.5rem;
+	color: #374151;
+	padding: 0 1rem;
 }
 
 .device-picker-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 1rem;
+	padding: 1rem;
 }
 
 .room-buttons {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
 }
 
 .device-picker-item input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    cursor: pointer;
+	width: 20px;
+	height: 20px;
+	cursor: pointer;
 }
 
 #new-room-form {
-    margin-bottom: 1rem;
-    border: 2px solid #16a34a;
+	margin-bottom: 1rem;
+	border: 2px solid #16a34a;
 }
 
 .add-room-btn {
-    background: #16a34a;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 1rem;
-    font-size: 1rem;
-    width: calc(100% - 2rem);  /* Account for margins */
-    justify-content: center;
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 8px;
+	padding: 0.75rem 1rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1rem;
+	font-size: 1rem;
+	justify-content: center;
 }
 
 .add-room-btn:hover {
-    background: #15803d;
+	background: #15803d;
 }
 
 #new-room-form .room-card-content {
-    display: block;  /* Always show the content */
+	display: block;
+	/* Always show the content */
 }
 
 .popup-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: #c1e2f7;
-    z-index: 1001;
-    display: flex;
-    flex-direction: column;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: #c1e2f7;
+	z-index: 1001;
+	display: flex;
+	flex-direction: column;
 }
 
 .room-cards-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1rem;
-    padding: 1rem;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 1rem;
+	padding: 1rem;
+}
+
+.group-cards-container {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1rem;
+}
+
+.group-card {
+	background: white;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	overflow: hidden;
+}
+
+.group-card-header {
+	padding: 1rem;
+	background: #f8fafc;
+	cursor: pointer;
+	user-select: none;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.group-card-header-content {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+.group-card-header i {
+	color: #0284c7;
+	font-size: 1.2rem;
+}
+
+.group-input {
+	border: none;
+	background: transparent;
+	font-size: 1rem;
+	color: #1e293b;
+	padding: 0.25rem;
+	border-radius: 4px;
+}
+
+.group-input:focus {
+	outline: 2px solid #0284c7;
+	background: white;
+}
+
+.device-count {
+	background: #e2e8f0;
+	padding: 0.25rem 0.5rem;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: #64748b;
+}
+
+.group-order-buttons {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.order-btn {
+	background: none;
+	border: none;
+	padding: 0.5rem;
+	cursor: pointer;
+	color: #64748b;
+}
+
+.order-btn:hover {
+	color: #0f172a;
+}
+
+.order-btn:disabled {
+	color: #cbd5e1;
+	cursor: not-allowed;
+}
+
+.add-group-btn {
+	background: #16a34a;
+	color: white;
+	border: none;
+	border-radius: 8px;
+	padding: 0.75rem 1rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1rem;
+	font-size: 1rem;
+	justify-content: center;
+}
+
+.add-group-btn:hover {
+	background: #15803d;
+}
+
+.group-actions {
+	display: flex;
+	gap: 0.5rem;
+	padding: 1rem;
+	background: white;
+	border-top: 1px solid #e2e8f0;
+}
+
+.group-delete-btn,
+.group-save-btn {
+	padding: 0.5rem 1rem;
+	border-radius: 4px;
+	border: none;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.875rem;
+}
+
+.group-delete-btn {
+	background: #ef4444;
+	color: white;
+}
+
+.group-save-btn {
+	background: #0284c7;
+	color: white;
 }
 
 
+.room-cards-container {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 1rem;
+	padding: 1rem;
+}
+
+/* Group-specific styles */
+.group-card .icon-preview {
+	background: #e0f2fe;
+	/* Lighter blue for groups */
+}
+
+.group-card .room-save-btn {
+	background: #0284c7;
+	/* Different shade for groups */
+}
+
+.group-card .room-save-btn:hover {
+	background: #0369a1;
+}
+
+/* Group indicator */
+.group-indicator {
+	font-size: 0.75rem;
+	padding: 0.25rem 0.5rem;
+	background: #0284c7;
+	color: white;
+	border-radius: 4px;
+	margin-left: 0.5rem;
+}
+
+.group-card {
+	background: white;
+	border-radius: 8px;
+	padding: 1rem;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.group-header {
+	flex-grow: 1;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.group-title {
+	font-size: 1rem;
+	color: #111827;
+}
+
+.device-count {
+	font-size: 0.875rem;
+	color: #6b7280;
+}
+
+.device-count::before {
+	content: "• ";
+}
+
+.group-controls {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.manage-devices {
+	display: inline-flex;
+	padding: 0.25rem 0.75rem;
+	background: #555555;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	align-items: center;
+	gap: 0.5rem;
+	cursor: pointer;
+}
+
+.manage-devices .count {
+	background: #444444;
+	padding: 0.125rem 0.375rem;
+	border-radius: 4px;
+}
+
+.delete-group,
+.save-changes {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.75rem;
+	border: none;
+	border-radius: 4px;
+	color: white;
+	font-size: 0.875rem;
+	cursor: pointer;
+	gap: 0.5rem;
+}
+
+.delete-group {
+	background: #ef4444;
+}
+
+.save-changes {
+	background: #16a34a;
+}
+
+.move-controls {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.move-btn {
+	border: none;
+	background: none;
+	padding: 0.25rem;
+	cursor: pointer;
+	color: #6b7280;
+}
+
+.move-btn:hover {
+	color: #111827;
+}
+
+.move-btn:disabled {
+	color: #d1d5db;
+	cursor: not-allowed;
+}
+
+.group-cards-container {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 1rem;
+	padding: 1rem;
+}
+
+.group-card {
+	background: white;
+	border-radius: 0.5rem;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+	padding: 1rem;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+
+.group-name {
+	font-size: 1rem;
+	color: #111827;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.device-count {
+	color: #6b7280;
+	font-size: 0.875rem;
+	background: #f3f4f6;
+	padding: 0.125rem 0.5rem;
+	border-radius: 0.25rem;
+}
+
+.group-controls {
+	display: flex;
+	gap: 0.5rem;
+	margin-left: auto;
+}
+
+.manage-devices {
+	background: #f9fafb;
+	border: 1px solid #d1d5db;
+	color: #111827;
+	padding: 0.25rem 0.75rem;
+	border-radius: 0.375rem;
+	font-size: 0.875rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.delete-group-btn,
+.save-changes-btn {
+	padding: 0.25rem 0.75rem;
+	border-radius: 0.375rem;
+	border: none;
+	color: white;
+	font-size: 0.875rem;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.delete-group-btn {
+	background: #ef4444;
+}
+
+.save-changes-btn {
+	background: #16a34a;
+}
+
+.order-buttons {
+	display: flex;
+	gap: 0.25rem;
+}
+
+.order-btn {
+	background: none;
+	border: none;
+	padding: 0.25rem;
+	color: #6b7280;
+	cursor: pointer;
+}
+
+.order-btn:disabled {
+	color: #d1d5db;
+	cursor: not-allowed;
+}
+
+.room-card .room-card-content {
+	padding: 1rem;
+	border-top: 1px solid #e2e8f0;
+	display: none;
+}
+
+.room-card.expanded .room-card-content {
+	display: block;
+	animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.room-card-header {
+	padding: 1rem;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	background: #f8fafc;
+	cursor: pointer;
+	user-select: none;
+}
+
+.room-card {
+	background: white;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	margin-bottom: 1rem;
+	overflow: hidden;
+}
+
+/* Add to assets/css/styles.css */
+
+.room-card-content {
+	display: none;
+	/* Hide by default */
+	padding: 1rem;
+	border-top: 1px solid #e2e8f0;
+}
+
+.room-card.expanded .room-card-content {
+	display: block;
+	/* Show when parent has expanded class */
+	animation: slideDown 0.2s ease-out;
+}
+
+/* Ensure header is clickable */
+.room-card-header {
+	cursor: pointer;
+}
+
+/* Animation for expansion */
+@keyframes slideDown {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

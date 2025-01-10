@@ -31,11 +31,10 @@ function hideDevicePicker() {
     currentRoomDevices.clear();
 }
 
-
 async function saveRoom(roomId) {
     const roomCard = document.querySelector(`div[data-room-id="${roomId}"]`);
     if (!roomCard) return;
-
+    console.error(roomCard);
     const roomName = roomCard.querySelector('.room-name').value;
     const icon = roomCard.querySelector('.room-icon').value;
     const tabOrder = roomCard.dataset.tabOrder || '0'; // Use the data attribute instead
@@ -110,12 +109,9 @@ async function deleteRoom(roomId) {
     }
 }
 
-
-
 function toggleRoomCard(roomId) {
     const card = document.querySelector(`div[data-room-id="${roomId}"]`);
     if (card) {
-        // Prevent click event from reaching order buttons
         event.stopPropagation();
         card.classList.toggle('expanded');
     }
@@ -269,8 +265,6 @@ async function saveDeviceSelection() {
         showError('Failed to save device selection: ' + error.message);
     }
 }
-
-
 
 function showGroupPicker(roomId, roomName) {
     currentRoomId = roomId;
@@ -483,6 +477,7 @@ async function loadRoomList() {
                         </div>
                     </div>
                     <div class="room-card-content">
+                    
                         <div class="room-input-group">
                             <input type="text" class="room-input room-name" value="${room.room_name}" placeholder="Room Name">
                         </div>
@@ -553,7 +548,6 @@ function showNewRoomCard() {
     }
 }
 
-// Update the cancelNewRoom function
 function cancelNewRoom() {
     // Hide the form
     const form = document.getElementById('new-room-form');
