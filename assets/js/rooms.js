@@ -110,13 +110,30 @@ async function deleteRoom(roomId) {
 }
 
 function toggleRoomCard(roomId) {
-    const card = document.querySelector(`div[data-room-id="${roomId}"]`);
-    if (card) {
-        event.stopPropagation();
-        card.classList.toggle('expanded');
+    event.stopPropagation();
+    
+    // First remove expanded class from all cards
+    document.querySelectorAll('.room-card').forEach(card => {
+        if (card.dataset.roomId !== roomId.toString()) {
+            card.classList.remove('expanded');
+            // Reset any expanded content
+            const content = card.querySelector('.room-card-content');
+            if (content) {
+                content.style.display = 'none';
+            }
+        }
+    });
+    
+    // Toggle the clicked card
+    const clickedCard = document.querySelector(`div[data-room-id="${roomId}"]`);
+    if (clickedCard) {
+        clickedCard.classList.toggle('expanded');
+        const content = clickedCard.querySelector('.room-card-content');
+        if (content) {
+            content.style.display = clickedCard.classList.contains('expanded') ? 'block' : 'none';
+        }
     }
 }
-
 async function moveRoom(roomId, direction) {
     event.stopPropagation();
     
@@ -520,48 +537,92 @@ async function loadRoomList() {
     }
 }
 
-// Room management functions
 function showNewRoomCard() {
     // Get references to the elements
     const addButton = document.querySelector('.add-room-btn');
-    const newRoomForm = document.getElementById('new-room-form');
     const roomList = document.getElementById('room-list');
-
+    
     // Hide the add button
     if (addButton) {
         addButton.style.display = 'none';
     }
 
-    // Reset and show the form
-    if (newRoomForm) {
+    // Check if form already exists
+    let newRoomForm = document.getElementById('new-room-form');
+    
+    // If form doesn't exist, create it
+    if (!newRoomForm) {
+        newRoomForm = document.createElement('div');
+        newRoomForm.id = 'new-room-form';
+        newRoomForm.className = 'room-card';
+        newRoomForm.innerHTML = `
+            <div class="room-card-content">
+                <div class="room-input-group">
+                    <input type="text" id="new-room-name" placeholder="Room Name" class="room-input">
+                </div>
+                <div class="room-input-group">
+                    <div class="icon-preview">
+                        <i class="fa-solid fa-house"></i>
+                    </div>
+                    <input type="text" id="new-room-icon" placeholder="fa-house" class="room-input">
+                </div>
+                <div class="room-actions">
+                    <button onclick="cancelNewRoom()" class="room-delete-btn">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button onclick="addNewRoom()" class="room-save-btn">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    // Reset form fields
+    const nameInput = newRoomForm.querySelector('#new-room-name');
+    const iconInput = newRoomForm.querySelector('#new-room-icon');
+    if (nameInput) nameInput.value = '';
+    if (iconInput) iconInput.value = 'fa-house';
+
+    // Reset icon preview
+    const iconPreview = newRoomForm.querySelector('.icon-preview i');
+    if (iconPreview) {
+        iconPreview.className = 'fa-solid fa-house';
+    }
+
+    // Show the form
+    newRoomForm.style.display = 'block';
+    newRoomForm.classList.add('expanded');
+
+    // Add form to room list
+    if (roomList) {
+        roomList.appendChild(newRoomForm);
+    } else {
+        console.error('Room list container not found');
+    }
+
+    // Ensure the form is visible
+    newRoomForm.scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelNewRoom() {
+    // Hide and reset the form
+    const form = document.getElementById('new-room-form');
+    if (form) {
+        form.style.display = 'none';
+        form.classList.remove('expanded');
+        
         // Reset form fields
         const nameInput = document.getElementById('new-room-name');
         const iconInput = document.getElementById('new-room-icon');
-        
         if (nameInput) nameInput.value = '';
         if (iconInput) iconInput.value = 'fa-house';
         
         // Reset icon preview
-        const iconPreview = newRoomForm.querySelector('.icon-preview i');
+        const iconPreview = form.querySelector('.icon-preview i');
         if (iconPreview) {
             iconPreview.className = 'fa-solid fa-house';
         }
-
-        // Show the form
-        newRoomForm.style.display = 'block';
-        
-        // Move form into the room-cards-container
-        if (roomList) {
-            roomList.appendChild(newRoomForm);
-        }
-    }
-}
-
-function cancelNewRoom() {
-    // Hide the form
-    const form = document.getElementById('new-room-form');
-    if (form) {
-        form.style.display = 'none';
     }
     
     // Show the add button
@@ -613,9 +674,18 @@ async function addNewRoom() {
             throw new Error(addResponse.error || 'Failed to add room');
         }
 
-        // Hide the form and show the add button
-        document.getElementById('new-room-form').style.display = 'none';
-        document.querySelector('.add-room-btn').style.display = 'flex';
+        // Reset and hide the form
+        const newRoomForm = document.getElementById('new-room-form');
+        if (newRoomForm) {
+            newRoomForm.style.display = 'none';
+            newRoomForm.classList.remove('expanded');
+        }
+        
+        // Show the add button
+        const addButton = document.querySelector('.add-room-btn');
+        if (addButton) {
+            addButton.style.display = 'flex';
+        }
 
         // Reload everything
         await loadInitialData();
