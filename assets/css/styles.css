@@ -1294,26 +1294,26 @@ body {
 }
 
 .room-card .room-card-content {
-	padding: 1rem;
-	border-top: 1px solid #e2e8f0;
-	display: none;
+    display: none; /* Hide content by default */
+    padding: 1rem;
+    border-top: 1px solid #e2e8f0;
 }
 
 .room-card.expanded .room-card-content {
-	display: block;
-	animation: slideDown 0.2s ease-out;
+    display: block;
+    animation: slideDown 0.2s ease-out;
 }
 
+/* Keep the existing animation */
 @keyframes slideDown {
-	from {
-		opacity: 0;
-		transform: translateY(-10px);
-	}
-
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .room-card-header {
@@ -1327,25 +1327,16 @@ body {
 }
 
 .room-card {
-	background: white;
-	border-radius: 8px;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-	overflow: hidden;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    height: 56px; /* Match the header height */
+    transition: height 0.2s ease-out;
 }
 
-/* Add to assets/css/styles.css */
-
-.room-card-content {
-	display: none;
-	/* Hide by default */
-	padding: 1rem;
-	border-top: 1px solid #e2e8f0;
-}
-
-.room-card.expanded .room-card-content {
-	display: block;
-	/* Show when parent has expanded class */
-	animation: slideDown 0.2s ease-out;
+.room-card.expanded {
+    height: auto;
 }
 
 /* Ensure header is clickable */

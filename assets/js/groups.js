@@ -42,28 +42,55 @@ function toggleGroupCard(groupId) {
 function showNewGroupCard() {
     // Get references to the elements
     const addButton = document.querySelector('.add-room-btn');
-    const newGroupForm = document.getElementById('new-group-form');
     const groupList = document.getElementById('group-list');
-
+    
     // Hide the add button
     if (addButton) {
         addButton.style.display = 'none';
     }
 
+    // Check if form already exists
+    let newGroupForm = document.getElementById('new-group-form');
+    
+    // If form doesn't exist, create it
+    if (!newGroupForm) {
+        newGroupForm = document.createElement('div');
+        newGroupForm.id = 'new-group-form';
+        newGroupForm.className = 'room-card';
+        newGroupForm.innerHTML = `
+            <div class="room-card-content">
+                <div class="room-input-group">
+                    <input type="text" id="new-group-name" placeholder="Group Name" class="room-input">
+                </div>
+                <div class="room-actions">
+                    <button onclick="cancelNewGroup()" class="room-delete-btn">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button onclick="saveNewGroup()" class="room-save-btn">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
     // Reset form fields
-    const nameInput = document.getElementById('new-group-name');
+    const nameInput = newGroupForm.querySelector('#new-group-name');
     if (nameInput) nameInput.value = '';
 
     // Show the form
-    if (newGroupForm) {
-        newGroupForm.style.display = 'block';
-        newGroupForm.classList.add('expanded');
-        
-        // Move form into the group-cards-container
-        if (groupList) {
-            groupList.appendChild(newGroupForm);
-        }
+    newGroupForm.style.display = 'block';
+    newGroupForm.classList.add('expanded');
+
+    // Add form to group list
+    if (groupList) {
+        groupList.appendChild(newGroupForm);
+    } else {
+        console.error('Group list container not found');
     }
+
+    // Ensure the form is visible
+    newGroupForm.scrollIntoView({ behavior: 'smooth' });
 }
 
 function cancelNewGroup() {
