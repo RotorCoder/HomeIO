@@ -520,19 +520,20 @@ async function loadRoomList() {
     }
 }
 
+// Room management functions
 function showNewRoomCard() {
     // Get references to the elements
     const addButton = document.querySelector('.add-room-btn');
     const newRoomForm = document.getElementById('new-room-form');
+    const roomList = document.getElementById('room-list');
 
     // Hide the add button
     if (addButton) {
         addButton.style.display = 'none';
     }
 
-    // Show and reset the form
+    // Reset and show the form
     if (newRoomForm) {
-        newRoomForm.style.display = 'block';
         // Reset form fields
         const nameInput = document.getElementById('new-room-name');
         const iconInput = document.getElementById('new-room-icon');
@@ -544,6 +545,14 @@ function showNewRoomCard() {
         const iconPreview = newRoomForm.querySelector('.icon-preview i');
         if (iconPreview) {
             iconPreview.className = 'fa-solid fa-house';
+        }
+
+        // Show the form
+        newRoomForm.style.display = 'block';
+        
+        // Move form into the room-cards-container
+        if (roomList) {
+            roomList.appendChild(newRoomForm);
         }
     }
 }
@@ -558,7 +567,7 @@ function cancelNewRoom() {
     // Show the add button
     const addButton = document.querySelector('.add-room-btn');
     if (addButton) {
-        addButton.style.display = 'flex';  // Changed from 'block' to 'flex'
+        addButton.style.display = 'flex';
     }
 }
 
@@ -620,15 +629,16 @@ async function addNewRoom() {
 
 // Add event listeners for icon preview updates
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('new-room-icon').addEventListener('input', function(e) {
-        const iconPreview = document.querySelector('.add-room-card .icon-preview i');
+    // Event listener for the new room icon input
+    document.getElementById('new-room-icon')?.addEventListener('input', function(e) {
+        const iconPreview = document.querySelector('#new-room-form .icon-preview i');
         if (iconPreview) {
             iconPreview.className = `fa-solid ${e.target.value}`;
         }
     });
 
     // Delegate event listener for existing room icon inputs
-    document.getElementById('room-list').addEventListener('input', function(e) {
+    document.getElementById('room-list')?.addEventListener('input', function(e) {
         if (e.target.classList.contains('room-icon')) {
             const roomCard = e.target.closest('.room-card');
             if (roomCard) {
@@ -640,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    document.getElementById('room-list').addEventListener('click', function(e) {
+    document.getElementById('room-list')?.addEventListener('click', function(e) {
         if (e.target.closest('.order-btn')) {
             e.stopPropagation();
         }
