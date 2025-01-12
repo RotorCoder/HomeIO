@@ -6,33 +6,6 @@ require $config['sharedpath'].'/logger.php';
 $log = new logger(basename(__FILE__, '.php')."_", __DIR__);
 $dbConfig = $config['db_config'];
 
-// Button mapping configuration
-$buttonConfig = [
-    'GV5125615A' => [ // Second remote
-        1 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'brightness', 'value' => 30]],
-        2 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'brightness', 'value' => 30]],
-        3 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'brightness', 'value' => 1]],
-        4 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'brightness', 'value' => 1]],
-        5 => ['device' => 'e5c95310-d979-4484-a524-b7e424e17f88', 'command' => ['name' => 'turn', 'value' => 'off']],
-        6 => ['device' => '682a0c16-6d63-4877-9c02-f1711691c488', 'command' => ['name' => 'turn', 'value' => 'off']]
-    ],
-    'GV5125207B' => [ // First remote
-        1=> ['group' => '29', 'command' => ['name' => 'brightness', 'value' => 100]],
-        3=> ['group' => '29', 'command' => ['name' => 'brightness', 'value' => 30]],
-        5=> ['group' => '29', 'command' => ['name' => 'turn', 'value' => 'off']],
-        
-        2 => ['device' => '4C:58:D0:C9:07:C9:4C:16', 'command' => ['name' => 'toggle', 'value' => 'on']],
-        4 => ['device' => '1C:05:D4:0F:41:86:6B:62', 'command' => ['name' => 'toggle', 'value' => 30]],
-        6 => ['device' => '0F:A7:D0:C9:07:C9:26:88', 'command' => ['name' => 'toggle', 'value' => 'on']]
-    ],
-    'GV5122427B' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]],
-    ],
-    'GV51224B48' => [ 
-        1 => ['group' => '25', 'command' => ['name' => 'toggle', 'value' => 1]],
-    ]
-];
-
 function getDatabaseConnection($dbConfig) {
     $dsn = "mysql:host={$dbConfig['host']};dbname={$dbConfig['dbname']};charset=utf8mb4";
     
@@ -50,6 +23,68 @@ function getDatabaseConnection($dbConfig) {
     }
 }
 
+function addUnmappedButton($pdo, $remoteName, $buttonNumber) {
+    $stmt = $pdo->prepare("
+        INSERT INTO remote_button_mappings 
+        (remote_name, button_number, command_name, mapped) 
+        VALUES (?, ?, 'toggle', FALSE)
+        ON DUPLICATE KEY UPDATE mapped = mapped
+    ");
+    
+    try {
+        $stmt->execute([$remoteName, $buttonNumber]);
+        if ($stmt->rowCount() > 0) {
+            $log->logInfoMsg("Added new unmapped button for remote {$remoteName} button {$buttonNumber}");
+        }
+    } catch (Exception $e) {
+        $log->logErrorMsg("Failed to add unmapped button: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+function getButtonMapping($pdo, $remoteName, $buttonNumber) {
+    // First try to get existing mapping
+    $stmt = $pdo->prepare("
+        SELECT * 
+        FROM remote_button_mappings 
+        WHERE remote_name = ? AND button_number = ?
+    ");
+    $stmt->execute([$remoteName, $buttonNumber]);
+    $mapping = $stmt->fetch();
+    
+    if (!$mapping) {
+        // If no mapping exists, add unmapped button entry
+        addUnmappedButton($pdo, $remoteName, $buttonNumber);
+        return null;
+    }
+
+    // If button exists but is unmapped, return null
+    if (!$mapping['mapped']) {
+        return null;
+    }
+
+    // Convert database record to command structure
+    $command = [
+        'name' => $mapping['command_name']
+    ];
+
+    if ($mapping['command_value']) {
+        $command['value'] = $mapping['command_value'];
+    }
+
+    if ($mapping['toggle_states']) {
+        $command['states'] = json_decode($mapping['toggle_states'], true);
+    }
+
+    // Only include target if it exists
+    $result = ['command' => $command];
+    if ($mapping['target_type'] && $mapping['target_id']) {
+        $result[$mapping['target_type']] = $mapping['target_id'];
+    }
+
+    return $result;
+}
+
 function getGroupDevices($pdo, $groupId) {
     $stmt = $pdo->prepare("SELECT devices FROM device_groups WHERE id = ?");
     $stmt->execute([$groupId]);
@@ -59,11 +94,9 @@ function getGroupDevices($pdo, $groupId) {
 }
 
 function getCurrentGroupState($pdo, $groupId) {
-    // Get all devices in the group
     $devices = getGroupDevices($pdo, $groupId);
     if (empty($devices)) return false;
 
-    // Check the state of the first device (assuming all devices in group are synced)
     $stmt = $pdo->prepare("SELECT powerState FROM devices WHERE device = ?");
     $stmt->execute([$devices[0]]);
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -77,6 +110,119 @@ function getCurrentDeviceState($pdo, $deviceId) {
     $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
     return $result ? $result['powerState'] : false;
+}
+
+function getNextToggleState($pdo, $deviceId, $states) {
+    // Get current device preferred states
+    $stmt = $pdo->prepare("
+        SELECT preferredPowerState, preferredBrightness, high, medium, low 
+        FROM devices 
+        WHERE device = ?
+    ");
+    $stmt->execute([$deviceId]);
+    $device = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$device) {
+        return null;
+    }
+
+    // Create map of brightness levels to their values
+    $brightnessLevels = [
+        'high' => $device['high'],
+        'medium' => $device['medium'],
+        'low' => $device['low']
+    ];
+
+    // Determine current state from preferred states
+    $currentState = 'off';
+    if ($device['preferredPowerState'] === 'on') {
+        if ($device['preferredBrightness'] !== null) {
+            // Find closest brightness level to preferred brightness
+            $currentBrightness = $device['preferredBrightness'];
+            $minDiff = PHP_FLOAT_MAX;
+            foreach ($brightnessLevels as $level => $value) {
+                if ($value !== null) {
+                    $diff = abs($currentBrightness - $value);
+                    if ($diff < $minDiff) {
+                        $minDiff = $diff;
+                        $currentState = $level;
+                    }
+                }
+            }
+            // If no brightness level matches closely enough, use 'on'
+            if ($minDiff > 10) {  // threshold of 10% difference
+                $currentState = 'on';
+            }
+        } else {
+            $currentState = 'on';
+        }
+    }
+
+    // For simple on/off toggle, handle directly
+    if ($states === ['on', 'off']) {
+        return [
+            'name' => 'turn',
+            'value' => ($device['preferredPowerState'] === 'on') ? 'off' : 'on'
+        ];
+    }
+
+    // Find current state in array and get next state
+    $currentIndex = array_search($currentState, $states);
+    if ($currentIndex === false) {
+        // If current state isn't in array, start from beginning
+        $nextState = $states[0];
+    } else {
+        // Move to next state, wrapping around to start if at end
+        $nextIndex = ($currentIndex + 1) % count($states);
+        $nextState = $states[$nextIndex];
+    }
+
+    // Convert state to command
+    if ($nextState === 'off') {
+        return [
+            'name' => 'turn',
+            'value' => 'off'
+        ];
+    } else if ($nextState === 'on') {
+        return [
+            'name' => 'turn',
+            'value' => 'on'
+        ];
+    } else if (isset($brightnessLevels[$nextState]) && $brightnessLevels[$nextState] !== null) {
+        return [
+            'name' => 'brightness',
+            'value' => $brightnessLevels[$nextState]
+        ];
+    }
+
+    // Fallback
+    return [
+        'name' => 'turn',
+        'value' => 'on'
+    ];
+}
+
+function updateDevicePreferences($pdo, $deviceId, $command) {
+    $stmt = $pdo->prepare("
+        UPDATE devices 
+        SET preferredPowerState = CASE 
+                WHEN :cmd_name = 'turn' THEN :power_state
+                WHEN :cmd_name = 'brightness' THEN 'on'
+                ELSE preferredPowerState 
+            END,
+            preferredBrightness = CASE 
+                WHEN :cmd_name = 'brightness' THEN :brightness
+                ELSE preferredBrightness 
+            END
+        WHERE device = :device
+    ");
+    
+    $stmt->execute([
+        'cmd_name' => $command['name'],
+        'power_state' => $command['name'] === 'turn' ? $command['value'] : null,
+        'brightness' => $command['name'] === 'brightness' ? $command['value'] : null,
+        'device' => $deviceId
+    ]);
 }
 
 try {
@@ -105,12 +251,9 @@ try {
             $buttons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             foreach ($buttons as $button) {
-                $remote = $button['remote_name'];
-                $buttonNum = (int)$button['button_number'];
+                $mapping = getButtonMapping($pdo, $button['remote_name'], $button['button_number']);
 
-                if (isset($buttonConfig[$remote][$buttonNum])) {
-                    $config = $buttonConfig[$remote][$buttonNum];
-                    
+                if ($mapping) {
                     try {
                         $pdo->beginTransaction();
 
@@ -123,27 +266,26 @@ try {
                         $stmt->execute([$button['id']]);
 
                         if ($stmt->rowCount() > 0) {
-                            if (isset($config['group'])) {
+                            if (isset($mapping['group'])) {
                                 // Handle group command
-                                $groupId = $config['group'];
+                                $groupId = $mapping['group'];
                                 $devices = getGroupDevices($pdo, $groupId);
                                 
-                                if ($config['command']['name'] === 'toggle') {
-                                    // Get current state of the group
-                                    $currentState = getCurrentGroupState($pdo, $groupId);
-                                    
-                                    // Prepare the command based on current state
-                                    $command = [
-                                        'name' => $currentState === 'on' ? 'turn' : 'brightness',
-                                        'value' => $currentState === 'on' ? 'off' : $config['command']['value']
-                                    ];
+                                if ($mapping['command']['name'] === 'toggle' && isset($mapping['command']['states'])) {
+                                    if (!empty($devices)) {
+                                        // Use first device in group to determine next state
+                                        $command = getNextToggleState($pdo, $devices[0], $mapping['command']['states']);
+                                    }
                                 } else {
-                                    // Handle normal commands for groups
-                                    $command = $config['command'];
+                                    $command = $mapping['command'];
                                 }
                                 
-                                // Queue command for each device in the group
+                                // Queue command and update preferences for each device in the group
                                 foreach ($devices as $deviceId) {
+                                    // Update device preferences first
+                                    updateDevicePreferences($pdo, $deviceId, $command);
+                                    
+                                    // Then queue the command
                                     $stmt = $pdo->prepare("
                                         INSERT INTO command_queue 
                                         (device, model, command, brand) 
@@ -163,37 +305,27 @@ try {
                                     FROM devices 
                                     WHERE device = ?
                                 ");
-                                $stmt->execute([$config['device']]);
+                                $stmt->execute([$mapping['device']]);
                                 $device = $stmt->fetch(PDO::FETCH_ASSOC);
 
                                 if ($device) {
-                                    $command = $config['command'];
-                                    
-                                    // Handle toggle for individual devices
-                                    if ($command['name'] === 'toggle') {
-                                        $currentState = getCurrentDeviceState($pdo, $config['device']);
-                                        if ($command['value'] === 'on') {
-                                            // Simple on/off toggle for devices without brightness
-                                            $command = [
-                                                'name' => 'turn',
-                                                'value' => $currentState === 'on' ? 'off' : 'on'
-                                            ];
-                                        } else {
-                                            // Toggle with brightness for dimmable devices
-                                            $command = [
-                                                'name' => $currentState === 'on' ? 'turn' : 'brightness',
-                                                'value' => $currentState === 'on' ? 'off' : $command['value']
-                                            ];
-                                        }
+                                    if ($mapping['command']['name'] === 'toggle' && isset($mapping['command']['states'])) {
+                                        $command = getNextToggleState($pdo, $mapping['device'], $mapping['command']['states']);
+                                    } else {
+                                        $command = $mapping['command'];
                                     }
 
+                                    // Update device preferences first
+                                    updateDevicePreferences($pdo, $mapping['device'], $command);
+
+                                    // Then queue the command
                                     $stmt = $pdo->prepare("
                                         INSERT INTO command_queue 
                                         (device, model, command, brand) 
                                         VALUES (?, ?, ?, ?)
                                     ");
                                     $stmt->execute([
-                                        $config['device'],
+                                        $mapping['device'],
                                         $device['model'],
                                         json_encode($command),
                                         $device['brand']
@@ -210,7 +342,7 @@ try {
                             $stmt->execute([$button['id']]);
 
                             $log->logInfoMsg("Command processed for " . 
-                                (isset($config['group']) ? "group {$config['group']}" : "device {$config['device']}"));
+                                (isset($mapping['group']) ? "group {$mapping['group']}" : "device {$mapping['device']}"));
                         }
                         
                         $pdo->commit();
@@ -226,6 +358,8 @@ try {
                         WHERE id = ?
                     ");
                     $stmt->execute([$button['id']]);
+
+                    $log->logInfoMsg("No mapping found for remote {$button['remote_name']} button {$button['button_number']}");
                 }
             }
 
