@@ -59,8 +59,12 @@ function toggleGroupCard(groupId) {
 
 function showNewGroupCard() {
     // Get references to the elements
-    const addButton = document.querySelector('.add-room-btn');
+    const addButton = document.querySelector('button[onclick="showNewGroupCard()"]');
     const groupList = document.getElementById('group-list');
+    
+    if (addButton) {
+        addButton.style.setProperty('display', 'none', 'important');
+    }
 
     // Check if form already exists
     let newGroupForm = document.getElementById('new-group-form');
@@ -119,9 +123,9 @@ function cancelNewGroup() {
     }
     
     // Show the add button
-    const addButton = document.querySelector('.add-room-btn');  // Using same class as rooms
+    const addButton = document.querySelector('button[onclick="showNewGroupCard()"]');
     if (addButton) {
-        addButton.style.display = 'flex';
+        addButton.style.removeProperty('display');
     }
 }
 
@@ -358,7 +362,10 @@ async function saveNewGroup() {
 
         // Hide the form and show the add button
         document.getElementById('new-group-form').style.display = 'none';
-        document.querySelector('.add-room-btn').style.display = 'flex';
+        const addButton = document.querySelector('button[onclick="showNewGroupCard()"]');
+        if (addButton) {
+            addButton.style.removeProperty('display');
+        }
 
         // Reload everything
         await loadGroups();
