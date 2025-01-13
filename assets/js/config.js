@@ -1,5 +1,6 @@
 // assets/js/config.js
 
+// Configuration popup functions
 function hideConfigMenu() {
     const popup = document.getElementById('config-popup');
     if (popup) {
@@ -7,7 +8,6 @@ function hideConfigMenu() {
     }
 }
 
-// Update the showConfigMenu function in config.js
 async function showConfigMenu(deviceId) {
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const popup = document.getElementById('config-popup');
@@ -33,6 +33,15 @@ async function showConfigMenu(deviceId) {
         `<option value="${room.id}">${room.room_name}</option>`
     ).join('');
 
+    // Update groups multiselect
+    const groupsSelect = document.getElementById('config-groups');
+    if (window.apiResponse && window.apiResponse.groups) {
+        groupsSelect.innerHTML = window.apiResponse.groups
+            .filter(group => group.name !== 'Unassigned')
+            .map(group => `<option value="${group.id}">${group.name}</option>`)
+            .join('');
+    }
+
     // Initialize X10 dropdowns and set up validation
     initializeX10Dropdowns();
     const validateX10 = setupX10CodeValidation();
@@ -48,6 +57,13 @@ async function showConfigMenu(deviceId) {
             if (configData.rooms) {
                 Array.from(roomsSelect.options).forEach(option => {
                     option.selected = configData.rooms.includes(parseInt(option.value));
+                });
+            }
+
+            // Set selected groups
+            if (configData.groups) {
+                Array.from(groupsSelect.options).forEach(option => {
+                    option.selected = configData.groups.includes(parseInt(option.value));
                 });
             }
 
@@ -73,7 +89,6 @@ async function showConfigMenu(deviceId) {
     }
 }
 
-// Update the saveDeviceConfig function
 async function saveDeviceConfig() {
     const deviceId = document.getElementById('config-device-id').value;
     const deviceElement = document.getElementById(`device-${deviceId}`);
@@ -96,9 +111,14 @@ async function saveDeviceConfig() {
         const selectedRooms = Array.from(document.getElementById('config-rooms').selectedOptions)
             .map(option => parseInt(option.value));
 
+        // Get selected groups
+        const selectedGroups = Array.from(document.getElementById('config-groups').selectedOptions)
+            .map(option => parseInt(option.value));
+
         const config = {
             device: deviceId,
             rooms: selectedRooms,
+            groups: selectedGroups,
             low: parseInt(formContainer.querySelector('input[id$="config-low"]').value) || 0,
             medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
             high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
