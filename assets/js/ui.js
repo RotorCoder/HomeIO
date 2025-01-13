@@ -345,10 +345,10 @@ function generateConfigTab(savedTab) {
 
 function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
+        <h2 class="room-header">
+            <span><i class="fas fa-cog"></i> Configuration</span>
+        </h2>
         <div class="config-content">
-            <h2 class="room-header">
-                <span><i class="fas fa-cog"></i> Configuration</span>
-            </h2>
             <button class="config-button" onclick="showDefaultRoomDevices()">
                 <i class="fas fa-xl fa-list"></i>
                 <span>Devices</span>
@@ -362,19 +362,35 @@ function generateConfigContent() {
                 <span>Rooms</span>
             </button>
             <button class="config-button" onclick="showAllTempHistory()">
-                <i class="fas fa-xl fa-temperature-high"></i>
+                <i class="fas fa-xl fa-temperature-half"></i>
                 <span>Temperature & Humidity</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-xl fa-temperature-half"></i>
+                <span>Sensors</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-xl fa-gamepad"></i>
+                <span>Remotes</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-xl fa-gears"></i>
+                <span>Services</span>
+            </button>
+            <button onclick="showAllTempHistory()" class="config-button">
+                <i class="fas fa-xl fa-user"></i>
+                <span>Users</span>
             </button>
         </div>
     </div>
     <div class="config-popup-desktop" id="config-popup-desktop">
+        <h2 class="room-header">
+            <span><i class="fas fa-cog"></i> Configuration</span>
+            <button onclick="hideDesktopConfig()" class="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </h2>
         <div class="config-content">
-            <h2 class="room-header">
-                <span><i class="fas fa-cog"></i> Configuration</span>
-                <button onclick="hideDesktopConfig()" class="close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-            </h2>
             <div class="content">
                 <button onclick="showDefaultRoomDevices()" class="config-button">
                     <i class="fas fa-xl fa-list"></i>
@@ -389,8 +405,24 @@ function generateConfigContent() {
                     <span>Rooms</span>
                 </button>
                 <button onclick="showAllTempHistory()" class="config-button">
-                    <i class="fas fa-xl fa-temperature-high"></i>
+                    <i class="fas fa-xl fa-temperature-half"></i>
                     <span>Temperature & Humidity</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-xl fa-temperature-half"></i>
+                    <span>Sensors</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-xl fa-gamepad"></i>
+                    <span>Remotes</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-xl fa-gears"></i>
+                    <span>Services</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-xl fa-user"></i>
+                    <span>Users</span>
                 </button>
             </div>
         </div>
