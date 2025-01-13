@@ -865,14 +865,6 @@ body {
 	background: #15803d;
 }
 
-.device-count {
-	background: #e5e7eb;
-	color: #374151;
-	padding: 0.25rem 0.5rem;
-	border-radius: 4px;
-	font-size: 0.875rem;
-	margin-left: auto;
-}
 
 .device-picker-group {
 	border-bottom: 1px solid #e5e7eb;
@@ -1000,13 +992,7 @@ body {
 	background: white;
 }
 
-.device-count {
-	background: #e2e8f0;
-	padding: 0.25rem 0.5rem;
-	border-radius: 4px;
-	font-size: 0.875rem;
-	color: #64748b;
-}
+
 
 .group-order-buttons {
 	display: flex;
@@ -1125,14 +1111,7 @@ body {
 	color: #111827;
 }
 
-.device-count {
-	font-size: 0.875rem;
-	color: #6b7280;
-}
 
-.device-count::before {
-	content: "• ";
-}
 
 .group-controls {
 	display: flex;
@@ -1225,14 +1204,6 @@ body {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-}
-
-.device-count {
-	color: #6b7280;
-	font-size: 0.875rem;
-	background: #f3f4f6;
-	padding: 0.125rem 0.5rem;
-	border-radius: 0.25rem;
 }
 
 .group-controls {

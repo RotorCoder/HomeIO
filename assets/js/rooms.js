@@ -457,7 +457,7 @@ async function loadRoomList() {
             .filter(room => room.room_name !== 'Unassigned')
             .sort((a, b) => a.tab_order - b.tab_order);
 
-        roomList.innerHTML = sortedRooms.map((room, index) => {
+        const roomCardsHtml = sortedRooms.map((room, index) => {
             const isFirst = index === 0;
             const isLast = index === sortedRooms.length - 1;
             const deviceCount = deviceCounts[room.id] || 0;
@@ -482,7 +482,6 @@ async function loadRoomList() {
                         <div class="room-card-header-content">
                             <i class="fa-solid ${room.icon}"></i>
                             <span>${room.room_name}</span>
-                            <span class="device-count">${deviceCount} device${deviceCount !== 1 ? 's' : ''}</span>
                         </div>
                         <div class="room-order-buttons">
                             <button onclick="moveRoom(${room.id}, 'up')" class="order-btn" ${isFirst ? 'disabled' : ''}>
@@ -494,12 +493,9 @@ async function loadRoomList() {
                         </div>
                     </div>
                     <div class="room-card-content">
-                    
                         <div class="room-input-group">
                             <input type="text" class="room-input room-name" value="${room.room_name}" placeholder="Room Name">
                         </div>
-                        
-                        
                         <div class="room-input-group">
                             <div class="icon-preview">
                                 <i class="fa-solid ${room.icon}"></i>
@@ -531,6 +527,20 @@ async function loadRoomList() {
             `;
         }).join('');
 
+        // Insert the cards BEFORE the button - exactly like groups.js
+        const addButton = roomList.querySelector('.add-room-btn');
+        if (addButton) {
+            // Remove existing cards while preserving the button
+            const cards = roomList.querySelectorAll('.room-card');
+            cards.forEach(card => card.remove());
+            
+            // Insert new cards before the button
+            addButton.insertAdjacentHTML('beforebegin', roomCardsHtml);
+        } else {
+            // Fallback if button not found
+            roomList.innerHTML = roomCardsHtml;
+        }
+
     } catch (error) {
         console.error('Error loading room list:', error);
         showError('Failed to load room list: ' + error.message);
@@ -539,12 +549,11 @@ async function loadRoomList() {
 
 function showNewRoomCard() {
     // Get references to the elements
-    const addButton = document.querySelector('.add-room-btn');
+    const addButton = document.querySelector('button[onclick="showNewRoomCard()"]');
     const roomList = document.getElementById('room-list');
     
-    // Hide the add button
     if (addButton) {
-        addButton.style.display = 'none';
+        addButton.style.setProperty('display', 'none', 'important');
     }
 
     // Check if form already exists
@@ -570,7 +579,7 @@ function showNewRoomCard() {
                     <button onclick="cancelNewRoom()" class="room-delete-btn">
                         <i class="fas fa-times"></i> Cancel
                     </button>
-                    <button onclick="addNewRoom()" class="room-save-btn">
+                    <button onclick="saveNewRoom()" class="room-save-btn">
                         <i class="fas fa-save"></i> Save
                     </button>
                 </div>
@@ -583,12 +592,6 @@ function showNewRoomCard() {
     const iconInput = newRoomForm.querySelector('#new-room-icon');
     if (nameInput) nameInput.value = '';
     if (iconInput) iconInput.value = 'fa-house';
-
-    // Reset icon preview
-    const iconPreview = newRoomForm.querySelector('.icon-preview i');
-    if (iconPreview) {
-        iconPreview.className = 'fa-solid fa-house';
-    }
 
     // Show the form
     newRoomForm.style.display = 'block';
@@ -603,6 +606,11 @@ function showNewRoomCard() {
 
     // Ensure the form is visible
     newRoomForm.scrollIntoView({ behavior: 'smooth' });
+    
+    // Hide the add button
+    if (addButton) {
+        addButton.style.display = 'none';
+    }
 }
 
 function cancelNewRoom() {
@@ -632,7 +640,7 @@ function cancelNewRoom() {
     }
 }
 
-async function addNewRoom() {
+async function saveNewRoom() {
     const roomName = document.getElementById('new-room-name').value;
     const icon = document.getElementById('new-room-icon').value;
 
