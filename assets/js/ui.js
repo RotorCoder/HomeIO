@@ -104,35 +104,8 @@ function showDefaultRoomDevices() {
                 </button>
             </div>
             <div class="popup-content">
-                <div class="device-table-container">
-                    <table class="device-table">
-                        <thead>
-                            <tr>
-                                <th>Device Name</th>
-                                <th>Preferred Name</th>
-                                <th>Brand</th>
-                                <th>Model</th>
-                                <th>Room</th>
-                                <th>Group</th>
-                                <th>X10 Code</th>
-                                <th>Online</th>
-                                <th>Power State</th>
-                                <th>Pref Power</th>
-                                <th>Brightness</th>
-                                <th>Pref Bright</th>
-                                <th>Color Temp</th>
-                                <th>Pref Color</th>
-                                <th>Low</th>
-                                <th>Med</th>
-                                <th>High</th>
-                                <th>Power</th>
-                                <th>Voltage</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="all-devices-list">
-                        </tbody>
-                    </table>
+                <div class="device-grid" id="all-devices-list">
+                    <!-- Device cards will be inserted here -->
                 </div>
             </div>
         </div>
@@ -151,66 +124,9 @@ async function loadAllDevices() {
             throw new Error(data.error || 'Failed to load devices');
         }
 
-        const tbody = document.getElementById('all-devices-list');
-        tbody.innerHTML = data.devices.map(device => {
-            // Create multi-select for rooms
-            const roomOptions = data.rooms.map(room => {
-                const isSelected = device.room_ids && device.room_ids.split(',').includes(room.id.toString());
-                return `<option value="${room.id}" ${isSelected ? 'selected' : ''}>
-                    ${room.room_name}
-                </option>`;
-            }).join('');
-
-            // Create multi-select for groups
-            const groupOptions = data.groups.map(group => {
-                const isSelected = group.devices && JSON.parse(group.devices).includes(device.device);
-                return `<option value="${group.id}" ${isSelected ? 'selected' : ''}>
-                    ${group.name}
-                </option>`;
-            }).join('');
-
-            return `
-                <tr data-device="${device.device}">
-                    <td>${device.device_name}</td>
-                    <td><input type="text" class="pref-name" value="${device.preferredName || ''}"></td>
-                    <td>${device.brand}</td>
-                    <td>${device.model}</td>
-                    <td>
-                        <select class="rooms" multiple size="3">
-                            ${roomOptions}
-                        </select>
-                        <small>Hold Ctrl/Cmd to select multiple</small>
-                    </td>
-                    <td>
-                        <select class="groups" multiple size="3">
-                            ${groupOptions}
-                        </select>
-                        <small>Hold Ctrl/Cmd to select multiple</small>
-                    </td>
-                    <td><input type="text" class="x10-code" value="${device.x10Code || ''}"></td>
-                    <td>${device.online ? 'Yes' : 'No'}</td>
-                    <td>${device.powerState}</td>
-                    <td>
-                        <select class="pref-power">
-                            <option value="">None</option>
-                            <option value="on" ${device.preferredPowerState === 'on' ? 'selected' : ''}>On</option>
-                            <option value="off" ${device.preferredPowerState === 'off' ? 'selected' : ''}>Off</option>
-                        </select>
-                    </td>
-                    <td>${device.brightness || ''}</td>
-                    <td><input type="number" class="pref-bright" value="${device.preferredBrightness || ''}" min="0" max="100"></td>
-                    <td>${device.colorTemp || ''}</td>
-                    <td><input type="number" class="pref-color" value="${device.preferredColorTem || ''}" min="2000" max="9000"></td>
-                    <td><input type="number" class="low" value="${device.low || ''}" min="0" max="100"></td>
-                    <td><input type="number" class="medium" value="${device.medium || ''}" min="0" max="100"></td>
-                    <td><input type="number" class="high" value="${device.high || ''}" min="0" max="100"></td>
-                    <td>${device.power || ''}</td>
-                    <td>${device.voltage || ''}</td>
-                    <td>
-                        <button onclick="saveDeviceDetails('${device.device}')" class="save-btn">Save</button>
-                    </td>
-                </tr>
-            `;
+        const deviceGrid = document.getElementById('all-devices-list');
+        deviceGrid.innerHTML = data.devices.map(device => {
+            return createDeviceCard(device);
         }).join('');
 
     } catch (error) {

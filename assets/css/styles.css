@@ -1366,3 +1366,111 @@ body {
 .tab-content .config-content .config-button i {
 	padding: .3rem;
 }
+
+.config-device-card {
+    height: 56px;
+    transition: height 0.2s ease-out;
+    overflow: hidden;
+}
+
+.config-device-card.expanded {
+    height: auto;
+}
+
+
+
+.device-card-content {
+    padding: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.device-config-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.config-field label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+.config-field input,
+.config-field select {
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background-color: white;
+    width: 100%;
+}
+
+.config-field select[multiple] {
+    height: 6rem;
+}
+
+.config-device-card .save-btn {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    width: 100%;
+}
+
+.config-device-card .save-btn:hover {
+    background-color: #15803d;
+}
+
+.config-device-card .device-info {
+
+	margin: 15px;
+
+}
+
+
+/* Animation for content expansion */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.config-device-card.expanded .device-card-content {
+    animation: slideDown 0.2s ease-out;
+}
+
+.config-device-card {
+    height: 80px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.config-device-card:hover {
+    transform: translateY(-2px);
+}
+
+#all-devices-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: .5rem;
+
+    overflow-y: auto;
+}
+
+#config-popup {
+    z-index: 1002;
+}
