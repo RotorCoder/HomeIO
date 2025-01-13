@@ -558,7 +558,8 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                     high = ?,
                     preferredColorTem = ?,
                     x10Code = ?,
-                    show_in_room = ? 
+                    show_in_room = ?,
+                    preferredName = ? 
                 WHERE device = ?
             ");
             $stmt->execute([
@@ -568,6 +569,7 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                 $data['preferredColorTem'],
                 $x10Code,
                 $show_in_room,
+                $data['preferredName'] ?? null,  // Add the preferredName field
                 $data['device']
             ]);
 
