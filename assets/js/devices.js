@@ -151,7 +151,7 @@ function createDeviceCard(device) {
     
     // Don't split group names
     const displayName = device.isGroup ? device.device_name : (
-        device.device_name.includes('-') ? device.device_name.split('-')[1].trim() : device.device_name
+        device.preferredName || (device.device_name.includes('-') ? device.device_name.split('-')[1].trim() : device.device_name)
     );
                     
     let controlButtons = '';

@@ -12,7 +12,13 @@
                 <!-- Hidden inputs -->
                 <input type="hidden" id="config-device-id">
                 <input type="hidden" id="config-device-name">
-                
+        
+                <!-- Add preferred name field here -->
+                <div class="form-group">
+                    <label>Preferred Name:</label>
+                    <input type="text" id="config-preferred-name" style="width: 100%;">
+                </div>
+        
                 <div class="form-group" style="display: flex; gap: 10px;">
                     <div style="flex: 1;">
                         <label>Brand:</label>

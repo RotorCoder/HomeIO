@@ -8,6 +8,8 @@ function hideConfigMenu() {
     }
 }
 
+// In config.js, update the showConfigMenu function
+
 async function showConfigMenu(deviceId) {
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const popup = document.getElementById('config-popup');
@@ -17,48 +19,60 @@ async function showConfigMenu(deviceId) {
         return;
     }
 
-    document.getElementById('config-device-title').textContent = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-
-    const model = deviceElement.dataset.model;
-    const groupId = deviceElement.dataset.groupId;
-
-    document.getElementById('config-device-id').value = deviceId;
-    document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
-    document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
-    document.getElementById('config-model').value = model;
-    
-    // Update rooms multiselect
-    const roomsSelect = document.getElementById('config-rooms');
-    roomsSelect.innerHTML = rooms.map(room => 
-        `<option value="${room.id}">${room.room_name}</option>`
-    ).join('');
-
-    // Update groups multiselect
-    const groupsSelect = document.getElementById('config-groups');
-    if (window.apiResponse && window.apiResponse.groups) {
-        groupsSelect.innerHTML = window.apiResponse.groups
-            .filter(group => group.name !== 'Unassigned')
-            .map(group => `<option value="${group.id}">${group.name}</option>`)
-            .join('');
-    }
-
-    // Initialize X10 dropdowns and set up validation
-    initializeX10Dropdowns();
-    const validateX10 = setupX10CodeValidation();
-    popup.dataset.validateX10 = 'true';
-
     try {
-        // Load device config
+        // Load device config first
         const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
-        const configData = await configResponse;
-        
-        if (configData.success) {
+        if (!configResponse.success) {
+            throw new Error(configResponse.error || 'Failed to load device configuration');
+        }
+        const configData = configResponse;
+
+        // Set form title and basic info
+        document.getElementById('config-device-title').textContent = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+        document.getElementById('config-device-id').value = deviceId;
+        document.getElementById('config-device-name').value = deviceElement.dataset.fullGroupName || deviceElement.dataset.fullDeviceName;
+        document.getElementById('config-brand').value = deviceStates.get(deviceId)?.brand || 'Unknown';
+        document.getElementById('config-model').value = deviceElement.dataset.model || '';
+
+        // Safely set all form values with null checks
+        const setInputValue = (elementId, value) => {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.value = value || '';
+            }
+        };
+
+        // Set preferred name
+        setInputValue('config-preferred-name', configData.preferredName);
+
+        // Set brightness values
+        setInputValue('config-low', configData.low);
+        setInputValue('config-medium', configData.medium);
+        setInputValue('config-high', configData.high);
+        setInputValue('config-color-temp', configData.preferredColorTem);
+
+        // Update rooms multiselect
+        const roomsSelect = document.getElementById('config-rooms');
+        if (roomsSelect) {
+            roomsSelect.innerHTML = rooms.map(room => 
+                `<option value="${room.id}">${room.room_name}</option>`
+            ).join('');
+
             // Set selected rooms
             if (configData.rooms) {
                 Array.from(roomsSelect.options).forEach(option => {
                     option.selected = configData.rooms.includes(parseInt(option.value));
                 });
             }
+        }
+
+        // Update groups multiselect
+        const groupsSelect = document.getElementById('config-groups');
+        if (groupsSelect && window.apiResponse && window.apiResponse.groups) {
+            groupsSelect.innerHTML = window.apiResponse.groups
+                .filter(group => group.name !== 'Unassigned')
+                .map(group => `<option value="${group.id}">${group.name}</option>`)
+                .join('');
 
             // Set selected groups
             if (configData.groups) {
@@ -66,23 +80,24 @@ async function showConfigMenu(deviceId) {
                     option.selected = configData.groups.includes(parseInt(option.value));
                 });
             }
-
-            // Set other configuration values
-            document.getElementById('config-low').value = configData.low || '';
-            document.getElementById('config-medium').value = configData.medium || '';
-            document.getElementById('config-high').value = configData.high || '';
-            document.getElementById('config-color-temp').value = configData.preferredColorTem || '';
-
-            if (configData.x10Code && configData.x10Code.trim()) {
-                const letter = configData.x10Code.charAt(0).toLowerCase();
-                const number = configData.x10Code.substring(1);
-                document.getElementById('config-x10-letter').value = letter;
-                document.getElementById('config-x10-number').value = number;
-            }
         }
 
+        // Initialize and set X10 code if exists
+        initializeX10Dropdowns();
+        if (configData.x10Code && configData.x10Code.trim()) {
+            const letter = configData.x10Code.charAt(0).toLowerCase();
+            const number = configData.x10Code.substring(1);
+            setInputValue('config-x10-letter', letter);
+            setInputValue('config-x10-number', number);
+        }
+
+        // Setup X10 validation
+        const validateX10 = setupX10CodeValidation();
+        popup.dataset.validateX10 = 'true';
+
+        // Finally show the popup
         popup.style.display = 'block';
-        
+
     } catch (error) {
         console.error('Configuration error:', error);
         showError('Failed to load device configuration: ' + error.message);
@@ -119,6 +134,7 @@ async function saveDeviceConfig() {
             device: deviceId,
             rooms: selectedRooms,
             groups: selectedGroups,
+            preferredName: document.getElementById('config-preferred-name').value.trim(),
             low: parseInt(formContainer.querySelector('input[id$="config-low"]').value) || 0,
             medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
             high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
