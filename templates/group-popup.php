@@ -11,11 +11,10 @@
             <!-- Existing groups container -->
             <div class="room-cards-container" id="group-list">
                 <!-- Group cards will be inserted here by JavaScript -->
+                <button onclick="showNewGroupCard()" class="add-room-btn">
+                    <i class="fas fa-plus"></i> Add Group
+                </button>
             </div>
-            <!-- Add Group Button -->
-            <button onclick="showNewGroupCard()" class="add-room-btn">
-                <i class="fas fa-plus"></i> Add Group
-            </button>
 
             <!-- New Group Form (hidden by default) -->
             <div id="new-group-form" class="room-card" style="display: none;">
