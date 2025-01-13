@@ -923,7 +923,6 @@ body {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	margin-top: .5rem;
 	font-size: 1rem;
 	justify-content: center;
 }
@@ -946,8 +945,10 @@ body {
 
 .room-cards-container {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	grid-template-columns: 1fr;
 	gap: .5rem;
+	max-width: 600px;
+	margin: 0 auto;
 }
 
 .group-cards-container {
@@ -1039,7 +1040,6 @@ body {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	margin-top: .5rem;
 	font-size: 1rem;
 	justify-content: center;
 }

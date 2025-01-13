@@ -32,10 +32,28 @@ function hideDevicePicker() {
 }
 
 function toggleGroupCard(groupId) {
-    const card = document.querySelector(`div[data-groups-group-id="${groupId}"]`);
-    if (card) {
-        event.stopPropagation();
-        card.classList.toggle('expanded');
+    event.stopPropagation();
+    
+    // First remove expanded class from all cards
+    document.querySelectorAll('.room-card').forEach(card => {
+        if (card.dataset.groupsGroupId !== groupId.toString()) {
+            card.classList.remove('expanded');
+            // Reset any expanded content
+            const content = card.querySelector('.room-card-content');
+            if (content) {
+                content.style.display = 'none';
+            }
+        }
+    });
+    
+    // Toggle the clicked card
+    const clickedCard = document.querySelector(`div[data-groups-group-id="${groupId}"]`);
+    if (clickedCard) {
+        clickedCard.classList.toggle('expanded');
+        const content = clickedCard.querySelector('.room-card-content');
+        if (content) {
+            content.style.display = clickedCard.classList.contains('expanded') ? 'block' : 'none';
+        }
     }
 }
 
@@ -43,11 +61,6 @@ function showNewGroupCard() {
     // Get references to the elements
     const addButton = document.querySelector('.add-room-btn');
     const groupList = document.getElementById('group-list');
-    
-    // Hide the add button
-    if (addButton) {
-        addButton.style.display = 'none';
-    }
 
     // Check if form already exists
     let newGroupForm = document.getElementById('new-group-form');
@@ -91,6 +104,11 @@ function showNewGroupCard() {
 
     // Ensure the form is visible
     newGroupForm.scrollIntoView({ behavior: 'smooth' });
+    
+    // Hide the add button
+    if (addButton) {
+        addButton.style.display = 'none';
+    }
 }
 
 function cancelNewGroup() {
@@ -388,50 +406,58 @@ async function loadGroups() {
             .sort((a, b) => a.name.localeCompare(b.name));
 
         // Build the group cards HTML
-        const groupCardsHtml = sortedGroups.map(group => {
-            const groupDevices = JSON.parse(group.devices || '[]');
-            const deviceCount = groupDevices.length;
-        
-            return `
-                <div class="room-card" data-groups-group-id="${group.id}">
-                    <div class="room-card-header" onclick="toggleGroupCard(${group.id})">
-                        <div class="room-card-header-content">
-                            <i class="fas fa-layer-group"></i>
-                            <span class="group-name">${group.name}</span>
-                            <span class="device-count">${deviceCount} device${deviceCount !== 1 ? 's' : ''}</span>
-                        </div>
-                        <div class="room-order-buttons">
-                            <button onclick="moveGroup(${group.id}, 'up')" class="order-btn">
-                                <i class="fas fa-arrow-up"></i>
-                            </button>
-                            <button onclick="moveGroup(${group.id}, 'down')" class="order-btn">
-                                <i class="fas fa-arrow-down"></i>
-                            </button>
-                        </div>
+        const groupCardsHtml = sortedGroups.map(group => `
+            <div class="room-card" data-groups-group-id="${group.id}">
+                <div class="room-card-header" onclick="toggleGroupCard(${group.id})">
+                    <div class="room-card-header-content">
+                        <i class="fas fa-layer-group"></i>
+                        <span class="group-name">${group.name}</span>
+                        <span class="device-count">${JSON.parse(group.devices || '[]').length} device${JSON.parse(group.devices || '[]').length !== 1 ? 's' : ''}</span>
                     </div>
-                    <div class="room-card-content">  
-                        <div class="room-input-group">
-                            <input type="text" class="room-input group-name" value="${group.name}" placeholder="Group Name">
-                        </div>
-                        <div class="room-buttons">
-                            <button onclick="showDevicePicker(${group.id}, '${group.name}')" class="devices-btn">
-                                <i class="fas fa-lightbulb"></i> Devices
-                                <span class="device-count">${deviceCount}</span>
-                            </button>
-                        </div>
-                        <div class="room-actions">
-                            <button onclick="deleteGroup(${group.id})" class="room-delete-btn">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-                            <button onclick="saveGroup(${group.id})" class="room-save-btn">
-                                <i class="fas fa-save"></i> Save
-                            </button>
-                        </div>
+                    <div class="room-order-buttons">
+                        <button onclick="moveGroup(${group.id}, 'up')" class="order-btn">
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                        <button onclick="moveGroup(${group.id}, 'down')" class="order-btn">
+                            <i class="fas fa-arrow-down"></i>
+                        </button>
                     </div>
-                </div>`;
-        }).join('');
+                </div>
+                <div class="room-card-content">  
+                    <div class="room-input-group">
+                        <input type="text" class="room-input group-name" value="${group.name}" placeholder="Group Name">
+                    </div>
+                    <div class="room-buttons">
+                        <button onclick="showDevicePicker(${group.id}, '${group.name}')" class="devices-btn">
+                            <i class="fas fa-lightbulb"></i> Devices
+                            <span class="device-count">${JSON.parse(group.devices || '[]').length}</span>
+                        </button>
+                    </div>
+                    <div class="room-actions">
+                        <button onclick="deleteGroup(${group.id})" class="room-delete-btn">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                        <button onclick="saveGroup(${group.id})" class="room-save-btn">
+                            <i class="fas fa-save"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
 
-        groupList.innerHTML = groupCardsHtml;
+        // Insert the cards BEFORE the button
+        const addButton = groupList.querySelector('.add-room-btn');
+        if (addButton) {
+            // Remove existing cards while preserving the button
+            const cards = groupList.querySelectorAll('.room-card');
+            cards.forEach(card => card.remove());
+            
+            // Insert new cards before the button
+            addButton.insertAdjacentHTML('beforebegin', groupCardsHtml);
+        } else {
+            // Fallback if button not found
+            groupList.innerHTML = groupCardsHtml;
+        }
 
     } catch (error) {
         console.error('Error loading groups:', error);
