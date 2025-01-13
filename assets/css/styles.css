@@ -260,7 +260,6 @@ body {
 
 .config-button {
 	background-color: white;
-
 	padding: 10px 10px;
 	border: none;
 	border-radius: 4px;
@@ -275,10 +274,6 @@ body {
 
 .config-button:hover {
 	background-color: #6b7280;
-}
-
-.config-button i {
-	font-size: 1.1em;
 }
 
 .auto-refresh-control {
@@ -1334,4 +1329,41 @@ body {
 
 #device-picker-popup {
     z-index: 1002;
+}
+
+.config-content {
+    padding-top: .5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem;
+}
+
+.config-content .config-button {
+    background-color: white;
+    aspect-ratio: 1;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.config-content .room-header {
+    grid-column: 1 / -1;
+    font-size: 1.25rem;
+    margin: 0 0 .75rem 0;
+    padding: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.config-content .config-button i {
+	padding: .3rem;
 }

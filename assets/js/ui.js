@@ -348,23 +348,22 @@ function generateConfigContent() {
         <div class="config-content">
             <h2 class="room-header">
                 <span><i class="fas fa-cog"></i> Configuration</span>
-                
             </h2>
-            <button class="config-button" onclick="showAllTempHistory()">
-                <i class="fas fa-temperature-high"></i>
-                <span>Temperature/Humidity</span>
+            <button class="config-button" onclick="showDefaultRoomDevices()">
+                <i class="fas fa-xl fa-list"></i>
+                <span>Devices</span>
             </button>
-            <button class="config-button" onclick="showRoomManagement()">
-                <i class="fas fa-home"></i>
-                <span>Rooms</span>
-            </button>
-            <button class="config-button" onclick="showGroupManagement()">
-                <i class="fas fa-object-group"></i>
+             <button class="config-button" onclick="showGroupManagement()">
+                <i class="fas fa-xl fa-object-group"></i>
                 <span>Groups</span>
             </button>
-            <button class="config-button" onclick="showDefaultRoomDevices()">
-                <i class="fas fa-list"></i>
-                <span>Devices</span>
+            <button class="config-button" onclick="showRoomManagement()">
+                <i class="fas fa-xl fa-home"></i>
+                <span>Rooms</span>
+            </button>
+            <button class="config-button" onclick="showAllTempHistory()">
+                <i class="fas fa-xl fa-temperature-high"></i>
+                <span>Temperature & Humidity</span>
             </button>
         </div>
     </div>
@@ -377,21 +376,21 @@ function generateConfigContent() {
                 </button>
             </h2>
             <div class="content">
-                <button onclick="showAllTempHistory()" class="config-button">
-                    <i class="fas fa-temperature-high"></i>
-                    <span>Temperature/Humidity</span>
-                </button>
-                <button onclick="showRoomManagement()" class="config-button">
-                    <i class="fas fa-home"></i>
-                    <span>Rooms</span>
+                <button onclick="showDefaultRoomDevices()" class="config-button">
+                    <i class="fas fa-xl fa-list"></i>
+                    <span>Devices</span>
                 </button>
                 <button onclick="showGroupManagement()" class="config-button">
-                    <i class="fas fa-object-group"></i>
+                    <i class="fas fa-xl fa-object-group"></i>
                     <span>Groups</span>
                 </button>
-                <button onclick="showDefaultRoomDevices()" class="config-button">
-                    <i class="fas fa-list"></i>
-                    <span>Devices</span>
+                <button onclick="showRoomManagement()" class="config-button">
+                    <i class="fas fa-xl fa-home"></i>
+                    <span>Rooms</span>
+                </button>
+                <button onclick="showAllTempHistory()" class="config-button">
+                    <i class="fas fa-xl fa-temperature-high"></i>
+                    <span>Temperature & Humidity</span>
                 </button>
             </div>
         </div>

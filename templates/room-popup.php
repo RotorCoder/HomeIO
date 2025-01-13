@@ -57,10 +57,11 @@
                     <!-- Groups will be populated here -->
                 </div>
             </div>
-            <div class="device-picker-buttons">
-                <button onclick="hideGroupPicker()" class="cancel-btn">Cancel</button>
-                <button onclick="saveGroupSelection()" class="save-btn">Save Changes</button>
-            </div>
+            
+        </div>
+        <div class="device-picker-buttons">
+            <button onclick="hideGroupPicker()" class="cancel-btn">Cancel</button>
+            <button onclick="saveGroupSelection()" class="save-btn">Save Changes</button>
         </div>
     </div>
 </div>
@@ -80,10 +81,10 @@
                     <!-- Devices will be populated here -->
                 </div>
             </div>
-            <div class="device-picker-buttons">
+        </div>
+        <div class="device-picker-buttons">
                 <button onclick="hideDevicePicker()" class="cancel-btn">Cancel</button>
                 <button onclick="saveDeviceSelection()" class="save-btn">Save Changes</button>
             </div>
-        </div>
     </div>
 </div>
