@@ -384,13 +384,13 @@ function generateConfigContent() {
         </div>
     </div>
     <div class="config-popup-desktop" id="config-popup-desktop">
-        <h2 class="room-header">
-            <span><i class="fas fa-cog"></i> Configuration</span>
-            <button onclick="hideDesktopConfig()" class="close-btn">
-                <i class="fas fa-times"></i>
-            </button>
-        </h2>
         <div class="config-content">
+            <h2 class="room-header">
+                <span><i class="fas fa-cog"></i> Configuration</span>
+                <button onclick="hideDesktopConfig()" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </h2>
             <div class="content">
                 <button onclick="showDefaultRoomDevices()" class="config-button">
                     <i class="fas fa-xl fa-list"></i>
