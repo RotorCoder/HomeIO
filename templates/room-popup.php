@@ -11,12 +11,11 @@
             <!-- Existing rooms container -->
             <div class="room-cards-container" id="room-list">
                 <!-- Room cards will be inserted here by JavaScript -->
+                <button onclick="showNewRoomCard()" class="add-room-btn">
+                    <i class="fas fa-plus"></i> Add Room
+                </button>
             </div>
-            <!-- Add Room Button -->
-            <button onclick="showNewRoomCard()" class="add-room-btn">
-                <i class="fas fa-plus"></i> Add Room
-            </button>
-
+            
             <!-- New Room Form (hidden by default) -->
             <div id="new-room-form" class="room-card" style="display: none;">
                 <div class="room-card-content">

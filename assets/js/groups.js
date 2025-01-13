@@ -419,7 +419,6 @@ async function loadGroups() {
                     <div class="room-card-header-content">
                         <i class="fas fa-layer-group"></i>
                         <span class="group-name">${group.name}</span>
-                        <span class="device-count">${JSON.parse(group.devices || '[]').length} device${JSON.parse(group.devices || '[]').length !== 1 ? 's' : ''}</span>
                     </div>
                     <div class="room-order-buttons">
                         <button onclick="moveGroup(${group.id}, 'up')" class="order-btn">
