@@ -346,6 +346,10 @@ function generateConfigTab(savedTab) {
 function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
         <div class="config-content">
+            <h2 class="room-header">
+                <span><i class="fas fa-cog"></i> Configuration</span>
+                
+            </h2>
             <button class="config-button" onclick="showAllTempHistory()">
                 <i class="fas fa-temperature-high"></i>
                 <span>Temperature/Humidity</span>
