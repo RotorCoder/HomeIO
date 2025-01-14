@@ -288,7 +288,7 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-temperature-half"></i>
                 <span>Sensors</span>
             </button>
-            <button class="config-button">
+            <button onclick="showRemoteManagement()" class="config-button">
                 <i class="fas fa-xl fa-gamepad"></i>
                 <span>Remotes</span>
             </button>
@@ -331,7 +331,7 @@ function generateConfigContent() {
                     <i class="fas fa-xl fa-temperature-half"></i>
                     <span>Sensors</span>
                 </button>
-                <button class="config-button">
+                <button onclick="showRemoteManagement()" class="config-button">
                     <i class="fas fa-xl fa-gamepad"></i>
                     <span>Remotes</span>
                 </button>

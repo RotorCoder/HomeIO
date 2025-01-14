@@ -27,6 +27,7 @@
         <?php require __DIR__ . '/templates/room-popup.php'; ?>
         <?php require __DIR__ . '/templates/group-popup.php'; ?>
         <?php require __DIR__ . '/templates/thermometer-popup.php'; ?>
+        <?php require __DIR__ . '/templates/remote-popup.php'; ?>
         
         <script>
             const API_KEY = <?php echo json_encode($config['homeio_api_key']); ?>;
@@ -39,5 +40,6 @@
         <script src="assets/js/temperature.js"></script>
         <script src="assets/js/main.js"></script>
         <script src="assets/js/rooms.js"></script>
+        <script src="assets/js/remote.js"></script>
     </body>
 </html>
