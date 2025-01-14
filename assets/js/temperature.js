@@ -46,50 +46,58 @@ function hideAllTempsPopup() {
     document.getElementById('all-temps-popup').style.display = 'none';
 }
 
-// Helper function to calculate hourly averages
-function calculateHourlyAverages(data) {
-    const hourlyGroups = {};
+function calculateHourlyAverages(data, hours = 24) {
+    const timeGroups = {};
+    const interval = hours == 24 ? 15 : 60; // 15 min for 24h view, 1 hour otherwise
+    
+    console.error('Hours: ', hours);
+    console.error('IntervaL: ', interval);
     
     // First sort data by timestamp
     data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     
     data.forEach(record => {
         const date = new Date(record.timestamp);
-        // Set minutes and seconds to 0 to get exact hour
-        date.setMinutes(0, 0, 0);
-        const hourKey = date.getTime(); // Use timestamp as key
+        // Round to nearest interval
+        if (interval === 15) {
+            const minutes = date.getMinutes();
+            date.setMinutes(Math.floor(minutes / 15) * 15, 0, 0);
+        } else {
+            date.setMinutes(0, 0, 0);
+        }
+        const timeKey = date.getTime();
         
-        if (!hourlyGroups[hourKey]) {
-            hourlyGroups[hourKey] = {
+        if (!timeGroups[timeKey]) {
+            timeGroups[timeKey] = {
                 temps: [],
                 humidities: [],
                 timestamp: date
             };
         }
         
-        // Group all readings within this hour
-        hourlyGroups[hourKey].temps.push(parseFloat(record.temperature));
-        hourlyGroups[hourKey].humidities.push(parseFloat(record.humidity));
+        // Group all readings within this time period
+        timeGroups[timeKey].temps.push(parseFloat(record.temperature));
+        timeGroups[timeKey].humidities.push(parseFloat(record.humidity));
     });
     
-    // Calculate averages for each hour
-    const hourlyData = Object.entries(hourlyGroups).map(([timestamp, data]) => ({
+    // Calculate averages for each time period
+    const averagedData = Object.entries(timeGroups).map(([timestamp, data]) => ({
         timestamp: new Date(parseInt(timestamp)),
         temperature: data.temps.reduce((a, b) => a + b, 0) / data.temps.length,
         humidity: data.humidities.reduce((a, b) => a + b, 0) / data.humidities.length
     }));
 
     // Sort by timestamp
-    hourlyData.sort((a, b) => a.timestamp - b.timestamp);
+    averagedData.sort((a, b) => a.timestamp - b.timestamp);
     
-    // Fill in missing hours with null values to ensure gaps in data are visible
-    if (hourlyData.length > 1) {
+    // Fill in missing intervals with null values
+    if (averagedData.length > 1) {
         const filledData = [];
-        const startTime = hourlyData[0].timestamp;
-        const endTime = hourlyData[hourlyData.length - 1].timestamp;
+        const startTime = averagedData[0].timestamp;
+        const endTime = averagedData[averagedData.length - 1].timestamp;
         
-        for (let time = startTime; time <= endTime; time = new Date(time.setHours(time.getHours() + 1))) {
-            const existingData = hourlyData.find(d => d.timestamp.getTime() === time.getTime());
+        for (let time = startTime; time <= endTime;) {
+            const existingData = averagedData.find(d => d.timestamp.getTime() === time.getTime());
             if (existingData) {
                 filledData.push(existingData);
             } else {
@@ -99,11 +107,18 @@ function calculateHourlyAverages(data) {
                     humidity: null
                 });
             }
+            
+            // Increment by interval
+            if (interval === 15) {
+                time = new Date(time.setMinutes(time.getMinutes() + 15));
+            } else {
+                time = new Date(time.setHours(time.getHours() + 1));
+            }
         }
         return filledData;
     }
 
-    return hourlyData;
+    return averagedData;
 }
 
 async function loadTempHistory() {
@@ -138,18 +153,25 @@ async function loadTempHistory() {
                     minute: '2-digit'
                 });
                 
+                const temp = record.temperature !== null && !isNaN(record.temperature) 
+                    ? `${record.temperature.toFixed(1)}°F` 
+                    : '-';
+                const humidity = record.humidity !== null && !isNaN(record.humidity)
+                    ? `${record.humidity.toFixed(1)}%` 
+                    : '-';
+                
                 return `
                     <tr>
                         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${formattedDate}</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.temperature.toFixed(1)}°F</td>
-                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${record.humidity.toFixed(1)}%</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${temp}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${humidity}</td>
                     </tr>
                 `;
             }).join('');
         }
 
         // Calculate hourly averages from raw data
-        const hourlyData = calculateHourlyAverages(data.history);
+        const hourlyData = calculateHourlyAverages(data.history, hours);
 
         if (hourlyData.length === 0) {
             document.getElementById('temp-history-chart').innerHTML = 
