@@ -409,6 +409,30 @@ async function loadAllTempHistory() {
     }
 }
 
+
+// Add to temperature.js
+
+function showThermometerManagement() {
+    const popup = document.getElementById('thermometer-popup');
+    popup.style.display = 'block';
+    loadThermometerList();
+}
+
+function hideThermometerPopup() {
+    document.getElementById('thermometer-popup').style.display = 'none';
+}
+
+// Update the click handler for the Sensors button
+document.addEventListener('DOMContentLoaded', () => {
+    const sensorsButtons = document.querySelectorAll('button[onclick="showAllTempHistory()"].config-button');
+    sensorsButtons.forEach(button => {
+        if (button.querySelector('i.fa-gamepad')) return; // Skip the remotes button
+        if (button.querySelector('i.fa-temperature-half')) return; // Skip the temperature button
+        button.onclick = () => showThermometerManagement();
+    });
+});
+
+// Move the thermometer list loading function here
 async function loadThermometerList() {
     try {
         const response = await apiFetch('api/thermometer-list');
@@ -433,7 +457,6 @@ async function loadThermometerList() {
                                value="${therm.display_name || ''}">
                     </td>
                     <td>${therm.model || ''}</td>
-                    
                     <td>${therm.mac}</td>
                     <td>
                         <select class="therm-room">
@@ -477,15 +500,13 @@ async function saveThermometer(mac) {
             })
         });
         
-        const data = await response;
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to update thermometer');
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to update thermometer');
         }
 
-        // Reload both the list and the chart
+        // Reload just the thermometer list
         await Promise.all([
             loadThermometerList(),
-            loadAllTempHistory(),
             loadInitialData()  // Also reload main UI to reflect changes
         ]);
 

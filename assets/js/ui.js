@@ -259,6 +259,9 @@ function generateConfigTab(savedTab) {
         </button>`;
 }
 
+// Update the generateConfigContent function in ui.js
+// Replace only the config-content section
+
 function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
         <h2 class="room-header">
@@ -269,7 +272,7 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-list"></i>
                 <span>Devices</span>
             </button>
-             <button class="config-button" onclick="showGroupManagement()">
+            <button class="config-button" onclick="showGroupManagement()">
                 <i class="fas fa-xl fa-object-group"></i>
                 <span>Groups</span>
             </button>
@@ -281,19 +284,19 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-temperature-half"></i>
                 <span>Temperature & Humidity</span>
             </button>
-            <button onclick="showAllTempHistory()" class="config-button">
+            <button class="config-button" onclick="showThermometerManagement()">
                 <i class="fas fa-xl fa-temperature-half"></i>
                 <span>Sensors</span>
             </button>
-            <button onclick="showAllTempHistory()" class="config-button">
+            <button class="config-button">
                 <i class="fas fa-xl fa-gamepad"></i>
                 <span>Remotes</span>
             </button>
-            <button onclick="showAllTempHistory()" class="config-button">
+            <button class="config-button">
                 <i class="fas fa-xl fa-gears"></i>
                 <span>Services</span>
             </button>
-            <button onclick="showAllTempHistory()" class="config-button">
+            <button class="config-button">
                 <i class="fas fa-xl fa-user"></i>
                 <span>Users</span>
             </button>
@@ -324,19 +327,19 @@ function generateConfigContent() {
                     <i class="fas fa-xl fa-temperature-half"></i>
                     <span>Temperature & Humidity</span>
                 </button>
-                <button onclick="showAllTempHistory()" class="config-button">
+                <button onclick="showThermometerManagement()" class="config-button">
                     <i class="fas fa-xl fa-temperature-half"></i>
                     <span>Sensors</span>
                 </button>
-                <button onclick="showAllTempHistory()" class="config-button">
+                <button class="config-button">
                     <i class="fas fa-xl fa-gamepad"></i>
                     <span>Remotes</span>
                 </button>
-                <button onclick="showAllTempHistory()" class="config-button">
+                <button class="config-button">
                     <i class="fas fa-xl fa-gears"></i>
                     <span>Services</span>
                 </button>
-                <button onclick="showAllTempHistory()" class="config-button">
+                <button class="config-button">
                     <i class="fas fa-xl fa-user"></i>
                     <span>Users</span>
                 </button>
