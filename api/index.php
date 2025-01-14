@@ -1100,4 +1100,128 @@ $app->post('/update-device-details', function (Request $request, Response $respo
     }
 });
 
+$app->get('/remote-mappings', function (Request $request, Response $response) use ($config) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->query("
+            SELECT * FROM remote_button_mappings 
+            ORDER BY remote_name, button_number
+        ");
+        
+        return sendSuccessResponse($response, [
+            'mappings' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+        ]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/remote-mapping', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['remote', 'button']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("
+            SELECT * FROM remote_button_mappings 
+            WHERE remote_name = ? AND button_number = ?
+        ");
+        $stmt->execute([
+            $request->getQueryParams()['remote'],
+            $request->getQueryParams()['button']
+        ]);
+        
+        $mapping = $stmt->fetch(PDO::FETCH_ASSOC);
+        return sendSuccessResponse($response, ['mapping' => $mapping]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/update-remote-mapping', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, [
+            'remote_name', 'button_number', 'target_type', 
+            'target_id', 'command_name'
+        ]);
+        
+        $pdo = getDatabaseConnection($config);
+        
+        // Check if mapping exists
+        $stmt = $pdo->prepare("
+            SELECT * FROM remote_button_mappings 
+            WHERE remote_name = ? AND button_number = ?
+        ");
+        $stmt->execute([$data['remote_name'], $data['button_number']]);
+        $exists = $stmt->fetch();
+        
+        if ($exists) {
+            $stmt = $pdo->prepare("
+                UPDATE remote_button_mappings 
+                SET target_type = ?,
+                    target_id = ?,
+                    command_name = ?,
+                    command_value = ?,
+                    toggle_states = ?,
+                    mapped = 1
+                WHERE remote_name = ? AND button_number = ?
+            ");
+        } else {
+            $stmt = $pdo->prepare("
+                INSERT INTO remote_button_mappings 
+                (remote_name, button_number, target_type, target_id, 
+                 command_name, command_value, toggle_states, mapped)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ");
+        }
+        
+        $params = $exists ? [
+            $data['target_type'],
+            $data['target_id'],
+            $data['command_name'],
+            $data['command_value'],
+            json_encode($data['toggle_states']),
+            $data['remote_name'],
+            $data['button_number']
+        ] : [
+            $data['remote_name'],
+            $data['button_number'],
+            $data['target_type'],
+            $data['target_id'],
+            $data['command_name'],
+            $data['command_value'],
+            json_encode($data['toggle_states'])
+        ];
+        
+        $stmt->execute($params);
+        return sendSuccessResponse($response, ['message' => 'Mapping updated successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/delete-remote-mapping', function (Request $request, Response $response) use ($config) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['remote_name', 'button_number']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("
+            UPDATE remote_button_mappings 
+            SET mapped = 0,
+                target_type = NULL,
+                target_id = NULL,
+                command_name = 'toggle',
+                command_value = NULL,
+                toggle_states = NULL
+            WHERE remote_name = ? AND button_number = ?
+        ");
+        
+        $stmt->execute([$data['remote_name'], $data['button_number']]);
+        return sendSuccessResponse($response, ['message' => 'Mapping deleted successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
 $app->run();
