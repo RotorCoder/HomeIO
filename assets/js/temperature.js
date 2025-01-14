@@ -432,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Move the thermometer list loading function here
 async function loadThermometerList() {
     try {
         const response = await apiFetch('api/thermometer-list');
@@ -442,37 +441,128 @@ async function loadThermometerList() {
             throw new Error(data.error || 'Failed to load thermometer list');
         }
 
-        const tbody = document.getElementById('thermometer-list');
-        tbody.innerHTML = data.thermometers.map(therm => {
-            const roomOptions = data.rooms.map(room => 
-                `<option value="${room.id}" ${room.id == therm.room_id ? 'selected' : ''}>
-                    ${room.room_name}
-                </option>`
-            ).join('');
+        const thermometerList = document.getElementById('thermometer-list');
+        if (!thermometerList) {
+            console.error('Thermometer list element not found');
+            return;
+        }
+
+        
+
+        // Sort thermometers by name
+        const sortedThermometers = data.thermometers.sort((a, b) => {
+            const nameA = a.display_name || a.name;
+            const nameB = b.display_name || b.name;
+            return nameA.localeCompare(nameB);
+        });
+
+        const thermometerCardsHtml = sortedThermometers.map(therm => {
 
             return `
-                <tr data-mac="${therm.mac}">
-                    <td>
-                        <input type="text" class="therm-display-name" 
-                               value="${therm.display_name || ''}">
-                    </td>
-                    <td>${therm.model || ''}</td>
-                    <td>${therm.mac}</td>
-                    <td>
-                        <select class="therm-room">
-                            <option value="">No Room</option>
-                            ${roomOptions}
-                        </select>
-                    </td>
-                    <td>${new Date(therm.updated).toLocaleString()}</td>
-                    <td>
-                        <button onclick="saveThermometer('${therm.mac}')" class="save-btn">
-                            Save
-                        </button>
-                    </td>
-                </tr>
+                <div class="room-card" data-mac="${therm.mac}">
+                    <div class="room-card-header" onclick="toggleThermometerCard('${therm.mac}')">
+                        <div class="room-card-header-content">
+                            <i class="fas fa-temperature-half"></i>
+                            <span>${therm.display_name || therm.name}</span>
+                        </div>
+                        <div class="current-readings">
+                            <span class="temperature">${therm.temp}°F</span>
+                            <span class="humidity">${therm.humidity}%</span>
+                        </div>
+                    </div>
+                    <div class="room-card-content">
+                        Name
+                        <div class="room-input-group">
+                            <input type="text" class="room-input thermometer-name" 
+                                   value="${therm.display_name || ''}" 
+                                   placeholder="Display Name">
+                        </div>
+                        Room
+                        <div class="room-input-group">
+                            <select class="room-input thermometer-room">
+                                <option value="">No Room</option>
+                                ${data.rooms.map(room => `
+                                    <option value="${room.id}" ${room.id == therm.room_id ? 'selected' : ''}>
+                                        ${room.room_name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="device-info">
+                            <small>Model: ${therm.model || 'Unknown'}</small><br>
+                            <small>MAC: ${therm.mac}</small><br>
+                            <small>Last Update: ${new Date(therm.updated).toLocaleString()}</small>
+                        </div>
+                        <div class="room-actions">
+                            <button onclick="saveThermometer('${therm.mac}')" class="room-save-btn">
+                                <i class="fas fa-save"></i> Save
+                            </button>
+                            <button onclick="showTempHistory('${therm.mac}', '${therm.display_name || therm.name}')" class="history-btn">
+                                <i class="fas fa-chart-line"></i> History
+                            </button>
+                        </div>
+                    </div>
+                </div>
             `;
         }).join('');
+
+        // Add the cards BEFORE any existing buttons
+        const addButton = thermometerList.querySelector('.add-room-btn');
+        if (addButton) {
+            // Remove existing cards while preserving the button
+            const cards = thermometerList.querySelectorAll('.room-card');
+            cards.forEach(card => card.remove());
+            
+            // Insert new cards before the button
+            addButton.insertAdjacentHTML('beforebegin', thermometerCardsHtml);
+        } else {
+            // If no button exists, just set the innerHTML
+            thermometerList.innerHTML = thermometerCardsHtml;
+        }
+
+        // Add the necessary CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .current-readings {
+                display: flex;
+                gap: 1rem;
+                align-items: center;
+                margin-left: auto;
+                padding-right: 1rem;
+            }
+            
+            .current-readings.no-data {
+                color: #6b7280;
+                font-style: italic;
+            }
+
+            .current-readings .temperature {
+                color: #E67E22;
+                font-weight: 500;
+            }
+
+            .current-readings .humidity {
+                color: #3498DB;
+                font-weight: 500;
+            }
+
+            .history-btn {
+                padding: 0.5rem 1rem;
+                background: #3498DB;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .history-btn:hover {
+                background: #2980B9;
+            }
+        `;
+        document.head.appendChild(style);
 
     } catch (error) {
         console.error('Error loading thermometer list:', error);
@@ -480,12 +570,35 @@ async function loadThermometerList() {
     }
 }
 
-async function saveThermometer(mac) {
-    const row = document.querySelector(`tr[data-mac="${mac}"]`);
-    if (!row) return;
+function toggleThermometerCard(mac) {
+    // First remove expanded class from all cards
+    document.querySelectorAll('.room-card').forEach(card => {
+        if (card.dataset.mac !== mac) {
+            card.classList.remove('expanded');
+            const content = card.querySelector('.room-card-content');
+            if (content) {
+                content.style.display = 'none';
+            }
+        }
+    });
+    
+    // Toggle the clicked card
+    const clickedCard = document.querySelector(`div[data-mac="${mac}"]`);
+    if (clickedCard) {
+        clickedCard.classList.toggle('expanded');
+        const content = clickedCard.querySelector('.room-card-content');
+        if (content) {
+            content.style.display = clickedCard.classList.contains('expanded') ? 'block' : 'none';
+        }
+    }
+}
 
-    const displayName = row.querySelector('.therm-display-name').value;
-    const room = row.querySelector('.therm-room').value;
+async function saveThermometer(mac) {
+    const card = document.querySelector(`div[data-mac="${mac}"]`);
+    if (!card) return;
+
+    const displayName = card.querySelector('.thermometer-name').value;
+    const room = card.querySelector('.thermometer-room').value;
 
     try {
         const response = await apiFetch('api/update-thermometer', {
@@ -504,10 +617,46 @@ async function saveThermometer(mac) {
             throw new Error(response.error || 'Failed to update thermometer');
         }
 
-        // Reload just the thermometer list
+        // Reload all necessary data
         await Promise.all([
             loadThermometerList(),
-            loadInitialData()  // Also reload main UI to reflect changes
+            loadInitialData()
+        ]);
+
+    } catch (error) {
+        console.error('Error saving thermometer:', error);
+        showError('Failed to save thermometer: ' + error.message);
+    }
+}
+
+async function saveThermometer(mac) {
+    const card = document.querySelector(`div[data-mac="${mac}"]`);
+    if (!card) return;
+
+    const displayName = card.querySelector('.thermometer-name').value;
+    const room = card.querySelector('.thermometer-room').value;
+
+    try {
+        const response = await apiFetch('api/update-thermometer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                mac: mac,
+                display_name: displayName,
+                room: room
+            })
+        });
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to update thermometer');
+        }
+
+        // Reload all necessary data
+        await Promise.all([
+            loadThermometerList(),
+            loadInitialData()
         ]);
 
     } catch (error) {

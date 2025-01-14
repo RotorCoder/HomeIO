@@ -825,6 +825,10 @@ $app->get('/thermometer-list', function (Request $request, Response $response) u
                 t.model,
                 t.room as room_id,
                 r.room_name,
+                t.temp,
+                t.humidity,
+                t.rssi,
+                t.battery,
                 t.updated
             FROM thermometers t
             LEFT JOIN rooms r ON t.room = r.id
