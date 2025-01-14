@@ -48,10 +48,10 @@ function hideAllTempsPopup() {
 
 function calculateHourlyAverages(data, hours = 24) {
     const timeGroups = {};
-    const interval = hours == 24 ? 15 : 60; // 15 min for 24h view, 1 hour otherwise
+    const interval = hours == 24 ? 15 : (hours == 720 ? 240 : 60);
     
     console.error('Hours: ', hours);
-    console.error('IntervaL: ', interval);
+    console.error('Interval: ', interval);
     
     // First sort data by timestamp
     data.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -62,7 +62,12 @@ function calculateHourlyAverages(data, hours = 24) {
         if (interval === 15) {
             const minutes = date.getMinutes();
             date.setMinutes(Math.floor(minutes / 15) * 15, 0, 0);
+        } else if (interval === 240) {
+            // For 4-hour intervals, round to nearest 4 hours
+            const hours = date.getHours();
+            date.setHours(Math.floor(hours / 4) * 4, 0, 0, 0);
         } else {
+            // For hourly intervals
             date.setMinutes(0, 0, 0);
         }
         const timeKey = date.getTime();
@@ -111,6 +116,8 @@ function calculateHourlyAverages(data, hours = 24) {
             // Increment by interval
             if (interval === 15) {
                 time = new Date(time.setMinutes(time.getMinutes() + 15));
+            } else if (interval === 240) {
+                time = new Date(time.setHours(time.getHours() + 4));
             } else {
                 time = new Date(time.setHours(time.getHours() + 1));
             }
@@ -203,7 +210,8 @@ async function loadTempHistory() {
                         })),
                         borderColor: tempColor,
                         tension: 0.3,
-                        pointRadius: 2
+                        pointRadius: 2,
+                        spanGaps: true
                     },
                     {
                         label: 'Humidity',
@@ -214,7 +222,8 @@ async function loadTempHistory() {
                         borderColor: humidityColor,
                         borderDash: [5, 5],
                         tension: 0.3,
-                        pointRadius: 2
+                        pointRadius: 2,
+                        spanGaps: true
                     }
                 ]
             },
@@ -302,7 +311,7 @@ async function loadAllTempHistory() {
         // Calculate hourly averages for each device
         const hourlyDeviceData = {};
         Object.entries(deviceData).forEach(([deviceName, records]) => {
-            hourlyDeviceData[deviceName] = calculateHourlyAverages(records);
+            hourlyDeviceData[deviceName] = calculateHourlyAverages(records, hours);
         });
         
         // Create datasets for the chart
@@ -319,7 +328,8 @@ async function loadAllTempHistory() {
                 })),
                 borderColor: color,
                 tension: 0.3,
-                pointRadius: 2
+                pointRadius: 2,
+                spanGaps: true
             });
 
             datasets.push({
@@ -331,7 +341,8 @@ async function loadAllTempHistory() {
                 borderColor: color,
                 borderDash: [5, 5],
                 tension: 0.3,
-                pointRadius: 2
+                pointRadius: 2,
+                spanGaps: true
             });
         });
 
