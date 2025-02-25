@@ -159,3 +159,11 @@ WantedBy=multi-user.target
 //file end
 
 
+sudo crontab -e
+*/5 * * * * sudo /home/sjones/venv/bin/python3 update_vesync_devices.py
+
+C:\HomeIO\nssm install GoveeThermometerService "C:\Users\steve\AppData\Local\Programs\Python\Python313\python.exe" "C:\HomeIO\prod\govee_thermometer_receiver.py"
+C:\HomeIO\nssm install GoveeRemoteService "C:\Users\steve\AppData\Local\Programs\Python\Python313\python.exe" "C:\HomeIO\prod\govee_remote_receiver.py"
+
+C:\HomeIO\nssm restart GoveeThermometerService
+C:\HomeIO\nssm restart GoveeRemoteService
