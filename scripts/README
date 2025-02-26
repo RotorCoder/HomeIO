@@ -1,7 +1,8 @@
 --Various references and commands--
 
 dos2unix update_repo.sh
-sh /var/www/html/homeio/scripts/update_repo.sh ""
+sh /var/www/html/homeio/scripts/update_repo.sh "Update"
+sh /var/www/html/homeio/scripts/combine_files.sh
 
 ///manually run a service process
 php /var/www/html/homeio/scripts/govee_processor.php
@@ -23,6 +24,14 @@ sudo nano /etc/systemd/system/hue-updater.service
 
 //reload the services (after modifying a /etc/systemd/system/*.service file)
 sudo systemctl daemon-reload
+
+sudo systemctl enable govee-processor.service
+sudo systemctl enable hue-processor.service
+sudo systemctl enable vesync-processor.service
+
+sudo systemctl enable ble-remote-monitor.service
+sudo systemctl enable govee-updater.service
+sudo systemctl enable hue-updater.service
 
 //start/restart a service
 sudo service govee-processor restart

@@ -377,8 +377,8 @@ class HueRoutes {
             CURLOPT_POSTFIELDS => json_encode($hueCmd)
         ));
     
-        $this->log->logInfoMsg("Sending command to Hue bridge: $url");
-        $this->log->logInfoMsg("Command payload: " . json_encode($hueCmd));
+        //$this->log->logInfoMsg("Sending command to Hue bridge: $url");
+        //$this->log->logInfoMsg("Command payload: " . json_encode($hueCmd));
     
         $response = curl_exec($curl);
         
@@ -392,7 +392,7 @@ class HueRoutes {
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
         
-        $this->log->logInfoMsg("Hue bridge response (HTTP $httpCode): $response");
+        //$this->log->logInfoMsg("Hue bridge response (HTTP $httpCode): $response");
         
         if ($httpCode === 0) {
             throw new Exception("Failed to connect to Hue bridge at {$this->bridgeIP}");
@@ -421,7 +421,7 @@ class HueRoutes {
         }
     
         global $log;
-        $log->logInfoMsg("Raw Hue device data: " . json_encode($device, JSON_PRETTY_PRINT));
+        //$log->logInfoMsg("Raw Hue device data: " . json_encode($device, JSON_PRETTY_PRINT));
         
         $stmt = $this->pdo->prepare("SELECT * FROM devices WHERE device = ?");
         $stmt->execute([$device['id']]);

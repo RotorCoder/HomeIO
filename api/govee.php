@@ -313,7 +313,7 @@ class GoveeRoutes {
     }
 
     public function getDeviceState($device) {
-        $this->log->logInfoMsg("Getting state for Govee device: {$device['device']}");
+        //$this->log->logInfoMsg("Getting state for Govee device: {$device['device']}");
         
         if (!$this->canMakeRequest()) {
             throw new Exception("Rate limit reached. Please try again later.");
@@ -543,7 +543,7 @@ class GoveeRoutes {
             'cmd' => $goveeCmd
         ]);
 
-        $this->log->logInfoMsg("Command payload: " . $payload);
+        //$this->log->logInfoMsg("Command payload: " . $payload);
         
         curl_setopt_array($curl, array(
             CURLOPT_URL => 'https://developer-api.govee.com/v1/devices/control',
@@ -577,7 +577,7 @@ class GoveeRoutes {
         
         curl_close($curl);
         
-        $this->log->logInfoMsg("Govee API response (HTTP $httpCode): $body");
+        //$this->log->logInfoMsg("Govee API response (HTTP $httpCode): $body");
         
         // Log API rate limits
         $this->logAPICall($headers);
@@ -633,7 +633,7 @@ class GoveeRoutes {
             throw new Exception("Database connection not initialized");
         }
     
-        $this->log->logInfoMsg("Raw Govee device data: " . json_encode($device, JSON_PRETTY_PRINT));
+        //$this->log->logInfoMsg("Raw Govee device data: " . json_encode($device, JSON_PRETTY_PRINT));
         
         try {
             // Get device state separately since Govee requires individual calls
