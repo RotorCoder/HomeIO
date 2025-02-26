@@ -402,7 +402,7 @@ def process_commands():
                                 logger.info(f"Command {cmd_result['command_id']} failed: {cmd_result['error']}")
                                 
                 # Sleep briefly between batches
-                time.sleep(0.05)  # 50ms pause between checks
+                time.sleep(0.01)  # 100ms pause between checks
                 
             except Exception as e:
                 logger.error(f"Error processing batch: {str(e)}")

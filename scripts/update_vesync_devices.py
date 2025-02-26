@@ -118,7 +118,7 @@ class VeSyncAPI:
         self.dbConfig = dbConfig
         self.commandQueue = None
         self.last_update = 0
-        self.update_interval = 60  # Update device status every 60 seconds
+        self.update_interval = 10  # Update device status every 10 seconds
         
         if dbConfig:
             # Initialize database connection
