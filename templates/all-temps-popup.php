@@ -8,6 +8,11 @@
             </button>
         </div>
         <div class="popup-content">
+            <div class="external-link-container" style="margin-bottom: 15px; text-align: center;">
+                <a href="https://rotorcoder.com/homeio/temps.html" target="_blank" class="external-link">
+                    <i class="fas fa-external-link-alt"></i> Open Full Temperature Dashboard
+                </a>
+            </div>
             <div class="history-controls">
                 <select id="all-temps-history-range" onchange="loadAllTempHistory()">
                     <option value="24">Last 24 Hours</option>
