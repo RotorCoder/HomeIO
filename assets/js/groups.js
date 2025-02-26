@@ -409,7 +409,6 @@ async function loadGroups() {
 
         // Sort groups by name
         const sortedGroups = response.groups
-            .filter(group => group.name !== 'Unassigned')
             .sort((a, b) => a.name.localeCompare(b.name));
 
         // Build the group cards HTML

@@ -189,7 +189,6 @@ async function loadTargets(type, selectedId = null) {
                 });
         } else {
             response.groups
-                .filter(group => group.name !== 'Unassigned')
                 .sort((a, b) => a.name.localeCompare(b.name))
                 .forEach(group => {
                     const option = document.createElement('option');

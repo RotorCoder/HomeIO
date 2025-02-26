@@ -454,7 +454,6 @@ async function loadRoomList() {
         }
 
         const sortedRooms = data.rooms
-            .filter(room => room.room_name !== 'Unassigned')
             .sort((a, b) => a.tab_order - b.tab_order);
 
         const roomCardsHtml = sortedRooms.map((room, index) => {
@@ -660,7 +659,6 @@ async function saveNewRoom() {
 
         // Calculate the new tab order by finding the highest current order and adding 1
         const maxTabOrder = data.rooms
-            .filter(room => room.room_name !== 'Unassigned')
             .reduce((max, room) => Math.max(max, parseInt(room.tab_order) || 0), 0);
         
         const newTabOrder = maxTabOrder + 1;
