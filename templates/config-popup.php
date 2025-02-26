@@ -12,6 +12,11 @@
                 <!-- Hidden inputs -->
                 <input type="hidden" id="config-device-id">
                 <input type="hidden" id="config-device-name">
+                
+                <div class="form-group">
+                    <label>Preferred Name:</label>
+                    <input type="text" id="config-preferred-name" style="width: 100%;">
+                </div>
         
                 <div class="form-group" style="display: flex; gap: 10px;">
                     <div style="flex: 1;">
@@ -23,28 +28,21 @@
                         <input type="text" id="config-model" readonly style="width: 100%;">
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label>Preferred Name:</label>
-                    <input type="text" id="config-preferred-name" style="width: 100%;">
-                </div>
 
                 <div id="config-error-message" class="config-error-message" style="display: none;"></div>
 
                 <div class="form-group">
                     <label>Rooms:</label>
-                    <select id="config-rooms" multiple>
-                        <!-- Room options will be populated by JavaScript -->
-                    </select>
-                    <small>Hold Ctrl (Windows) or Command (Mac) to select multiple rooms</small>
+                    <div id="config-rooms" class="checkbox-list">
+                        <!-- Room checkboxes will be populated by JavaScript -->
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>Groups:</label>
-                    <select id="config-groups" multiple>
-                        <!-- Group options will be populated by JavaScript -->
-                    </select>
-                    <small>Hold Ctrl (Windows) or Command (Mac) to select multiple groups</small>
+                    <div id="config-groups" class="checkbox-list">
+                        <!-- Group checkboxes will be populated by JavaScript -->
+                    </div>
                 </div>
 
                 <!-- Regular device settings -->
