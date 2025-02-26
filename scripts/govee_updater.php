@@ -40,8 +40,8 @@ try {
                 $log->logErrorMsg("API request failed with code $httpCode: $response");
             }
             
-            // Sleep for 30 seconds before next update
-            sleep(30);
+            // Sleep for 300 seconds before next update
+            sleep(300);
             
         } catch (Exception $e) {
             $log->logErrorMsg("Error updating devices: " . $e->getMessage());
