@@ -23,18 +23,35 @@ function getDeviceIcon(deviceName, preferredPowerState = 'off') {
 function handleDevicesUpdate(devices) {
     if (devices.length === 0) return;
     
-    // First, get all rooms that have updates
+    // First, collect all rooms that need updating
     const updatedRooms = new Set();
+    
+    // Add rooms containing individual devices
     devices.forEach(device => {
         if (device.room_ids) {
             device.room_ids.split(',').forEach(roomId => updatedRooms.add(roomId));
         }
     });
     
-    // Clear affected room containers
+    // Always include ALL rooms that have groups
+    if (window.apiResponse && window.apiResponse.groups) {
+        window.apiResponse.groups.forEach(group => {
+            try {
+                const groupRooms = JSON.parse(group.rooms || '[]');
+                groupRooms.forEach(roomId => updatedRooms.add(roomId.toString()));
+            } catch (e) {
+                console.error('Error parsing group rooms:', e);
+            }
+        });
+    }
+    
+    // Clear ALL affected room containers - this ensures rooms with only groups get cleared too
     updatedRooms.forEach(roomId => {
         const roomGrid = document.getElementById(`room-${roomId}-devices`);
-        if (roomGrid) roomGrid.innerHTML = '';
+        if (roomGrid) {
+            // Clear the room grid completely
+            roomGrid.innerHTML = '';
+        }
     });
 
     // Create map of devices by device ID for quick lookup
