@@ -13,12 +13,6 @@
                 <input type="hidden" id="config-device-id">
                 <input type="hidden" id="config-device-name">
         
-                <!-- Add preferred name field here -->
-                <div class="form-group">
-                    <label>Preferred Name:</label>
-                    <input type="text" id="config-preferred-name" style="width: 100%;">
-                </div>
-        
                 <div class="form-group" style="display: flex; gap: 10px;">
                     <div style="flex: 1;">
                         <label>Brand:</label>
@@ -29,16 +23,10 @@
                         <input type="text" id="config-model" readonly style="width: 100%;">
                     </div>
                 </div>
-
-                <div class="form-group" style="display: flex; gap: 10px;">
-                    <div style="flex: 1;">
-                        <label>X10 Letter:</label>
-                        <select id="config-x10-letter" style="width: 100%;"></select>
-                    </div>
-                    <div style="flex: 1;">
-                        <label>X10 Number:</label>
-                        <select id="config-x10-number" style="width: 100%;"></select>
-                    </div>
+                
+                <div class="form-group">
+                    <label>Preferred Name:</label>
+                    <input type="text" id="config-preferred-name" style="width: 100%;">
                 </div>
 
                 <div id="config-error-message" class="config-error-message" style="display: none;"></div>
