@@ -510,19 +510,19 @@ body {
 
 .form-group {
 	background: white;
-	padding: .4rem;
+	padding-top: .4rem;
 }
 
 .form-group label {
 	display: block;
 	font-weight: 500;
-	margin-bottom: 0.5rem;
+	
 	color: #374151;
 }
 
 .form-group input,
 .form-group select {
-	width: 100%;
+	
 	padding: 0.5rem;
 	border: 1px solid #d1d5db;
 	border-radius: 4px;
@@ -1497,4 +1497,34 @@ body {
 
 .remote-button-mapping span {
     color: #374151;
+}
+
+.checkbox-list {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px;
+    padding-bottom: 0;
+    margin-top: 5px;
+    background-color: #f9f9f9;
+}
+
+.checkbox-item input[type="checkbox"] {
+    width: 25px;
+    height: 25px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+/* Adjust the vertical alignment and font size to match larger checkboxes */
+.checkbox-item {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-item label {
+    font-size: 15px;
+    cursor: pointer;
 }

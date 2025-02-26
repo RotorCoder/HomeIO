@@ -8,8 +8,6 @@ function hideConfigMenu() {
     }
 }
 
-// In config.js, update the showConfigMenu function
-
 async function showConfigMenu(deviceId) {
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const popup = document.getElementById('config-popup');
@@ -51,44 +49,37 @@ async function showConfigMenu(deviceId) {
         setInputValue('config-high', configData.high);
         setInputValue('config-color-temp', configData.preferredColorTem);
 
-        // Update rooms multiselect
-        const roomsSelect = document.getElementById('config-rooms');
-        if (roomsSelect) {
-            roomsSelect.innerHTML = rooms.map(room => 
-                `<option value="${room.id}">${room.room_name}</option>`
+        const roomsList = document.getElementById('config-rooms');
+        if (roomsList) {
+            roomsList.innerHTML = rooms.map(room => 
+                `<div class="checkbox-item">
+                    <input type="checkbox" id="room-${room.id}" value="${room.id}" 
+                        ${configData.rooms && configData.rooms.includes(parseInt(room.id)) ? 'checked' : ''}>
+                    <label for="room-${room.id}">${room.room_name}</label>
+                </div>`
             ).join('');
-
-            // Set selected rooms
-            if (configData.rooms) {
-                Array.from(roomsSelect.options).forEach(option => {
-                    option.selected = configData.rooms.includes(parseInt(option.value));
-                });
+        }
+        
+        const groupsList = document.getElementById('config-groups');
+        if (groupsList && window.apiResponse && window.apiResponse.groups) {
+            groupsList.innerHTML = window.apiResponse.groups
+                .map(group => 
+                    `<div class="checkbox-item">
+                        <input type="checkbox" id="group-${group.id}" value="${group.id}" 
+                            ${configData.groups && configData.groups.includes(parseInt(group.id)) ? 'checked' : ''}>
+                        <label for="group-${group.id}">${group.name}</label>
+                    </div>`
+                ).join('');
+        }
+        
+                // Finally show the popup
+                popup.style.display = 'block';
+        
+            } catch (error) {
+                console.error('Configuration error:', error);
+                showError('Failed to load device configuration: ' + error.message);
             }
         }
-
-        // Update groups multiselect
-        const groupsSelect = document.getElementById('config-groups');
-        if (groupsSelect && window.apiResponse && window.apiResponse.groups) {
-            groupsSelect.innerHTML = window.apiResponse.groups
-                .map(group => `<option value="${group.id}">${group.name}</option>`)
-                .join('');
-
-            // Set selected groups
-            if (configData.groups) {
-                Array.from(groupsSelect.options).forEach(option => {
-                    option.selected = configData.groups.includes(parseInt(option.value));
-                });
-            }
-        }
-
-        // Finally show the popup
-        popup.style.display = 'block';
-
-    } catch (error) {
-        console.error('Configuration error:', error);
-        showError('Failed to load device configuration: ' + error.message);
-    }
-}
 
 async function saveDeviceConfig() {
     const deviceId = document.getElementById('config-device-id').value;
@@ -102,12 +93,14 @@ async function saveDeviceConfig() {
             document.getElementById('regular-config-elements');
             
         // Get selected rooms
-        const selectedRooms = Array.from(document.getElementById('config-rooms').selectedOptions)
-            .map(option => parseInt(option.value));
-
+        const selectedRooms = Array.from(
+            document.querySelectorAll('#config-rooms input[type="checkbox"]:checked')
+        ).map(cb => parseInt(cb.value));
+        
         // Get selected groups
-        const selectedGroups = Array.from(document.getElementById('config-groups').selectedOptions)
-            .map(option => parseInt(option.value));
+        const selectedGroups = Array.from(
+            document.querySelectorAll('#config-groups input[type="checkbox"]:checked')
+        ).map(cb => parseInt(cb.value));
 
         const config = {
             device: deviceId,
