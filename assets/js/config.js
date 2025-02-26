@@ -81,19 +81,6 @@ async function showConfigMenu(deviceId) {
             }
         }
 
-        // Initialize and set X10 code if exists
-        initializeX10Dropdowns();
-        if (configData.x10Code && configData.x10Code.trim()) {
-            const letter = configData.x10Code.charAt(0).toLowerCase();
-            const number = configData.x10Code.substring(1);
-            setInputValue('config-x10-letter', letter);
-            setInputValue('config-x10-number', number);
-        }
-
-        // Setup X10 validation
-        const validateX10 = setupX10CodeValidation();
-        popup.dataset.validateX10 = 'true';
-
         // Finally show the popup
         popup.style.display = 'block';
 
@@ -108,13 +95,6 @@ async function saveDeviceConfig() {
     const deviceElement = document.getElementById(`device-${deviceId}`);
     const model = document.getElementById('config-model').value;
     const groupId = deviceElement?.dataset.groupId;
-    
-    const letterSelect = document.getElementById('config-x10-letter');
-    const numberSelect = document.getElementById('config-x10-number');
-    let x10Code = null;
-    if (letterSelect.value && numberSelect.value) {
-        x10Code = letterSelect.value + numberSelect.value;
-    }
     
     try {
         const formContainer = groupId ? 
@@ -138,7 +118,6 @@ async function saveDeviceConfig() {
             medium: parseInt(formContainer.querySelector('input[id$="config-medium"]').value) || 0,
             high: parseInt(formContainer.querySelector('input[id$="config-high"]').value) || 0,
             preferredColorTem: parseInt(formContainer.querySelector('input[id$="config-color-temp"]').value) || 0,
-            x10Code: x10Code
         };
 
         const configResponse = await apiFetch('api/update-device-config', {
@@ -214,85 +193,6 @@ async function deleteDeviceGroup(groupId) {
         
     } catch (error) {
         showError('Failed to delete group: ' + error.message);
-    }
-}
-
-async function checkX10CodeDuplicate(x10Code, currentDeviceId) {
-    try {
-        const response = await apiFetch(`api/check-x10-code?x10Code=${x10Code}&currentDevice=${currentDeviceId}`);
-        const data = await response;
-        return data;
-    } catch (error) {
-        console.error('Error checking X10 code:', error);
-        throw error;
-    }
-}
-
-function setupX10CodeValidation() {
-    const letterSelect = document.getElementById('config-x10-letter');
-    const numberSelect = document.getElementById('config-x10-number');
-    
-    if (!letterSelect || !numberSelect) return;
-
-    async function checkX10Selection() {
-        const letter = letterSelect.value;
-        const number = numberSelect.value;
-        const deviceId = document.getElementById('config-device-id').value;
-
-        if (letter && number) {
-            const x10Code = letter + number;
-            try {
-                const duplicateCheck = await checkX10CodeDuplicate(x10Code, deviceId);
-                if (duplicateCheck.isDuplicate) {
-                    showConfigError(`X10 code ${x10Code.toUpperCase()} is already in use by device: ${duplicateCheck.deviceName}`);
-                    return false;
-                } else {
-                    document.getElementById('config-error-message').style.display = 'none';
-                    return true;
-                }
-            } catch (error) {
-                console.error('Error checking X10 code:', error);
-                showError('Failed to validate X10 code: ' + error.message);
-                return false;
-            }
-        }
-        return true;
-    }
-
-    letterSelect.addEventListener('change', checkX10Selection);
-    numberSelect.addEventListener('change', checkX10Selection);
-
-    return checkX10Selection;
-}
-
-function initializeX10Dropdowns() {
-    const letterSelect = document.getElementById('config-x10-letter');
-    const numberSelect = document.getElementById('config-x10-number');
-
-    if (!letterSelect || !numberSelect) {
-        console.error('X10 select elements not found');
-        return;
-    }
-
-    letterSelect.innerHTML = '';
-    numberSelect.innerHTML = '';
-    
-    letterSelect.appendChild(new Option('Select Letter', ''));
-    numberSelect.appendChild(new Option('Select Number', ''));
-
-    for (let i = 65; i <= 80; i++) {
-        const letter = String.fromCharCode(i);
-        const option = document.createElement('option');
-        option.value = letter.toLowerCase();
-        option.textContent = letter;
-        letterSelect.appendChild(option);
-    }
-
-    for (let i = 1; i <= 16; i++) {
-        const option = document.createElement('option');
-        option.value = i.toString();
-        option.textContent = i.toString();
-        numberSelect.appendChild(option);
     }
 }
 

@@ -25,6 +25,4 @@ $config['govee_api_url'] = 'https://developer-api.govee.com/v1/devices';
 $config['hue_bridge_ip'] = '192.168.1.x';
 $config['hue_api_key'] = 'your_hue_api_key';
 
-$config['x10_log_file'] = '/mnt/X10Commander/X10 Commander.log';
-
 ?>

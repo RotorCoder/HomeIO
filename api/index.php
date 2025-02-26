@@ -135,28 +135,6 @@ $hueRoutes->register();
 $vesyncRoutes = new VeSyncRoutes($app, $config, $log);
 $vesyncRoutes->register();
 
-// Common API Routes
-$app->get('/check-x10-code', function (Request $request, Response $response) use ($config, $log) {
-    try {
-        validateRequiredParams($request->getQueryParams(), ['x10Code']);
-        $x10Code = $request->getQueryParams()['x10Code'];
-        $currentDevice = $request->getQueryParams()['currentDevice'] ?? null;
-        
-        $pdo = getDatabaseConnection($config);
-        $stmt = $pdo->prepare("SELECT device, device_name FROM devices WHERE x10Code = ? AND device != ?");
-        $stmt->execute([$x10Code, $currentDevice]);
-        $existingDevice = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        return sendSuccessResponse($response, [
-            'isDuplicate' => (bool)$existingDevice,
-            'deviceName' => $existingDevice ? $existingDevice['device_name'] : null,
-            'device' => $existingDevice ? $existingDevice['device'] : null
-        ]);
-    } catch (Exception $e) {
-        return sendErrorResponse($response, $e, $log);
-    }
-});
-
 $app->post('/delete-device-group', function (Request $request, Response $response) use ($config, $log) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
@@ -242,7 +220,6 @@ $app->post('/update-device-group', function (Request $request, Response $respons
                 SET name = ?,
                     model = ?,
                     devices = ?,
-                    x10Code = ?,
                     rooms = ?
                 WHERE id = ?
             ");
@@ -251,7 +228,6 @@ $app->post('/update-device-group', function (Request $request, Response $respons
                 $data['name'],
                 $data['model'],
                 json_encode($data['devices'] ?? []),
-                $data['x10Code'] ?? null,
                 json_encode($data['rooms'] ?? []),  // Store rooms as JSON array
                 $data['id']
             ]);
@@ -262,7 +238,7 @@ $app->post('/update-device-group', function (Request $request, Response $respons
             
             $stmt = $pdo->prepare("
                 INSERT INTO device_groups 
-                (name, model, devices, x10Code, rooms) 
+                (name, model, devices, rooms) 
                 VALUES (?, ?, ?, ?, ?)
             ");
             
@@ -270,7 +246,6 @@ $app->post('/update-device-group', function (Request $request, Response $respons
                 $data['name'],
                 $data['model'], 
                 json_encode($data['devices'] ?? []),
-                $data['x10Code'] ?? null,
                 json_encode($data['rooms'] ?? [])  // Store rooms as JSON array
             ]);
             
@@ -412,17 +387,7 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         $group = $groupStmt->fetch(PDO::FETCH_ASSOC);
         
         if ($isGroup) {
-            // Update group configuration
-            $stmt = $pdo->prepare("
-                UPDATE device_groups 
-                SET x10Code = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                (!empty($data['x10Code'])) ? $data['x10Code'] : null,
-                $data['device']
-            ]);
-        
+
             // Update settings for all devices in the group
             $deviceStmt = $pdo->prepare("
                 UPDATE devices 
@@ -477,7 +442,7 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         }
         
         // Get device configuration
-        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, x10Code, show_in_room, preferredName FROM devices WHERE device = ?");
+        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, show_in_room, preferredName FROM devices WHERE device = ?");
         $stmt->execute([$deviceId]);
         $deviceConfig = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -512,16 +477,6 @@ $app->post('/update-device-config', function (Request $request, Response $respon
         $isGroup = $groupCheck->fetch(PDO::FETCH_ASSOC);
 
         if ($isGroup) {
-            // Update group configuration
-            $stmt = $pdo->prepare("
-                UPDATE device_groups 
-                SET x10Code = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([
-                (!empty($data['x10Code'])) ? $data['x10Code'] : null,
-                $data['device']
-            ]);
 
             // Update settings for all devices in the group
             $deviceStmt = $pdo->prepare("
@@ -546,7 +501,6 @@ $app->post('/update-device-config', function (Request $request, Response $respon
             ]);
         } else {
             // Update device configuration
-            $x10Code = (!empty($data['x10Code'])) ? $data['x10Code'] : null;
             $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1;
             
             $stmt = $pdo->prepare("
@@ -555,7 +509,6 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                     medium = ?,
                     high = ?,
                     preferredColorTem = ?,
-                    x10Code = ?,
                     show_in_room = ?,
                     preferredName = ? 
                 WHERE device = ?
@@ -565,7 +518,6 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                 $data['medium'],
                 $data['high'],
                 $data['preferredColorTem'],
-                $x10Code,
                 $show_in_room,
                 $data['preferredName'] ?? null,  // Add the preferredName field
                 $data['device']
@@ -1030,7 +982,6 @@ $app->post('/update-device-details', function (Request $request, Response $respo
 
         // Map fields to database columns (removed 'room' from the mappings)
         $fieldMappings = [
-            'x10Code' => 'x10Code',
             'preferredName' => 'preferredName',
             'low' => 'low',
             'medium' => 'medium', 

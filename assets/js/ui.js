@@ -150,7 +150,6 @@ async function saveDeviceDetails(deviceId) {
     const data = {
         device: deviceId,
         preferredName: row.querySelector('.pref-name').value,
-        x10Code: row.querySelector('.x10-code').value,
         rooms: selectedRooms,
         groups: selectedGroups,
         preferredPowerState: row.querySelector('.pref-power').value,
