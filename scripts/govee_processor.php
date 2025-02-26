@@ -35,7 +35,7 @@ try {
             }
             
             // Short sleep between checks
-            usleep(100000); // 500ms pause
+            usleep(100000); // 100ms pause
             
         } catch (Exception $e) {
             $log->logErrorMsg("Error processing batch: " . $e->getMessage());
