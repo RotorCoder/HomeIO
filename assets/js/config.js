@@ -70,7 +70,6 @@ async function showConfigMenu(deviceId) {
         const groupsSelect = document.getElementById('config-groups');
         if (groupsSelect && window.apiResponse && window.apiResponse.groups) {
             groupsSelect.innerHTML = window.apiResponse.groups
-                .filter(group => group.name !== 'Unassigned')
                 .map(group => `<option value="${group.id}">${group.name}</option>`)
                 .join('');
 
