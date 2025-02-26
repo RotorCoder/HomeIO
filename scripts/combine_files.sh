@@ -30,30 +30,40 @@ add_file() {
 
 # Add each file individually instead of using an array
 add_file "index.php"
-add_file "api/index.php"
-add_file "api/vesync.php"
-add_file "api/govee.php"
-add_file "api/hue.php"
+
+add_file "config/config.php"
+
 add_file "scripts/govee_processor.php"
 add_file "scripts/hue_processor.php"
 add_file "scripts/hue_updater.php"
 add_file "scripts/vesync_processor.py"
 add_file "scripts/ble_remote_monitor.php"
-add_file "config/config.php"
-add_file "templates/config-popup.php"
-add_file "templates/history-popup.php"
+
+add_file "api/index.php"
+add_file "api/vesync.php"
+add_file "api/govee.php"
+add_file "api/hue.php"
+
 add_file "templates/all-temps-popup.php"
-add_file "templates/room-popup.php"
+add_file "templates/config-popup.php"
 add_file "templates/group-popup.php"
+add_file "templates/history-popup.php"
+add_file "templates/remote-popup.php"
+add_file "templates/room-popup.php"
+add_file "templates/thermometer-popup.php"
+
 add_file "assets/js/api.js"
 add_file "assets/js/config.js"
 add_file "assets/js/devices.js"
 add_file "assets/js/groups.js"
 add_file "assets/js/main.js"
+add_file "assets/js/remote.js"
+add_file "assets/js/rooms.js"
 add_file "assets/js/temperature.js"
 add_file "assets/js/ui.js"
-add_file "assets/js/rooms.js"
+
 add_file "assets/css/styles.css"
+
 add_file "../shared/logger.php"
 
 echo "Reference file created: $output_file"
