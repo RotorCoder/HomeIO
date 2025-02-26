@@ -385,7 +385,6 @@ $app->post('/delete-room', function (Request $request, Response $response) use (
     }
 });
 
-// Replace the existing device-config endpoint with this:
 $app->get('/device-config', function (Request $request, Response $response) use ($config) {
     try {
         validateRequiredParams($request->getQueryParams(), ['device']);
@@ -478,7 +477,7 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         }
         
         // Get device configuration
-        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, x10Code, show_in_room FROM devices WHERE device = ?");
+        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, x10Code, show_in_room, preferredName FROM devices WHERE device = ?");
         $stmt->execute([$deviceId]);
         $deviceConfig = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -500,7 +499,6 @@ $app->get('/device-config', function (Request $request, Response $response) use 
     }
 });
 
-// Replace the existing update-device-config endpoint with this:
 $app->post('/update-device-config', function (Request $request, Response $response) use ($config) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);
