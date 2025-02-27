@@ -12,6 +12,7 @@ python3 /var/www/html/homeio/scripts/vesync_processor.py
 php /var/www/html/homeio/scripts/ble_remote_monitor.php
 php /var/www/html/homeio/scripts/govee_updater.php
 php /var/www/html/homeio/scripts/hue_updater.php
+python3 /var/www/html/homeio/scripts/vesync_updater.py
  
 //edit the services
 sudo nano /etc/systemd/system/govee-processor.service
@@ -21,6 +22,7 @@ sudo nano /etc/systemd/system/vesync-processor.service
 sudo nano /etc/systemd/system/ble-remote-monitor.service
 sudo nano /etc/systemd/system/govee-updater.service
 sudo nano /etc/systemd/system/hue-updater.service
+sudo nano /etc/systemd/system/vesync-updater.service
 
 //reload the services (after modifying a /etc/systemd/system/*.service file)
 sudo systemctl daemon-reload
@@ -32,6 +34,7 @@ sudo systemctl enable vesync-processor.service
 sudo systemctl enable ble-remote-monitor.service
 sudo systemctl enable govee-updater.service
 sudo systemctl enable hue-updater.service
+sudo systemctl enable vesync-updater.service
 
 //start/restart a service
 sudo service govee-processor restart
@@ -42,6 +45,7 @@ sudo service x10-monitor restart
 sudo service ble-remote-monitor restart
 sudo service govee-updater restart
 sudo service hue-updater restart
+sudo service vesync-updater restart
 
 sudo service ble-remote-monitor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service vesync-processor restart && sudo service govee-updater restart && sudo service hue-updater restart
 
@@ -53,6 +57,7 @@ sudo service vesync-processor status
 sudo service ble-remote-monitor status
 sudo service govee-updater status
 sudo service hue-updater status
+sudo service vesync-updater status
 
 //stop a service
 sudo service govee-processor stop
@@ -150,7 +155,7 @@ RestartSec=3
 WantedBy=multi-user.target
 //file end
 
-//contents of etc/systemd/system/vesync_processor.service
+//contents of etc/systemd/system/vesync-updater.service
 [Unit]
 Description=VeSync Command Processor
 After=network.target mysql.service
@@ -160,6 +165,23 @@ Type=simple
 User=www-data
 Group=www-data
 ExecStart=/home/sjones/venv/bin/python3 /var/www/html/homeio/scripts/vesync_processor.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
+//contents of etc/systemd/system/vesync-updater.service
+[Unit]
+Description=VeSync Command Processor
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/home/sjones/venv/bin/python3 /var/www/html/homeio/scripts/vesync_updater.py
 Restart=always
 RestartSec=3
 

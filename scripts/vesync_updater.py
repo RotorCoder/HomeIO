@@ -7,6 +7,7 @@ import time
 from typing import Dict, Any, List, Optional
 import mysql.connector
 from pyvesync import VeSync
+import re
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -403,7 +404,7 @@ def process_device_update(vesync, device_type, device):
         }
 
 def update_devices():
-    """Main function to update VeSync devices"""
+    """Update VeSync devices"""
     try:
         # Get config file path
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -457,10 +458,32 @@ def update_devices():
     except Exception as e:
         logger.error(f"Error updating devices: {str(e)}")
         raise
-    
+
+def main_loop():
+    """Main loop that runs continuously with a delay"""
+    while True:
+        try:
+            # Update devices
+            result = update_devices()
+            device_count = len(result['devices']) if result and 'devices' in result else 0
+            logger.info(f"Updated {device_count} VeSync devices.")
+            
+            # Wait for 60 seconds before next update
+            logger.info("Sleeping for 60 seconds before next update...")
+            time.sleep(60)
+            
+        except Exception as e:
+            logger.error(f"Error in main loop: {str(e)}")
+            # Still sleep on error to prevent rapid error loops
+            logger.info("Error occurred. Sleeping for 5 seconds before retry...")
+            time.sleep(10)
+
 if __name__ == "__main__":
     try:
-        update_devices()
+        # Run the continuous update loop
+        main_loop()
+    except KeyboardInterrupt:
+        logger.info("Script terminated by user")
     except Exception as e:
-        logger.error(f"Script error: {str(e)}")
+        logger.error(f"Fatal script error: {str(e)}")
         sys.exit(1)
