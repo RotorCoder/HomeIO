@@ -13,6 +13,7 @@ php /var/www/html/homeio/scripts/ble_remote_monitor.php
 php /var/www/html/homeio/scripts/govee_updater.php
 php /var/www/html/homeio/scripts/hue_updater.php
 php /var/www/html/homeio/scripts/vesync_updater.php
+php /var/www/html/homeio/scripts/state_synchronizer.php
  
 //edit the services
 sudo nano /etc/systemd/system/govee-processor.service
@@ -23,6 +24,7 @@ sudo nano /etc/systemd/system/ble-remote-monitor.service
 sudo nano /etc/systemd/system/govee-updater.service
 sudo nano /etc/systemd/system/hue-updater.service
 sudo nano /etc/systemd/system/vesync-updater.service
+sudo nano /etc/systemd/system/state-synchronizer.service
 
 //reload the services (after modifying a /etc/systemd/system/*.service file)
 sudo systemctl daemon-reload
@@ -35,6 +37,7 @@ sudo systemctl enable ble-remote-monitor.service
 sudo systemctl enable govee-updater.service
 sudo systemctl enable hue-updater.service
 sudo systemctl enable vesync-updater.service
+sudo systemctl enable state-synchronizer.service
 
 //start/restart a service
 sudo service govee-processor restart
@@ -46,8 +49,9 @@ sudo service ble-remote-monitor restart
 sudo service govee-updater restart
 sudo service hue-updater restart
 sudo service vesync-updater restart
+sudo service state-synchronizer restart
 
-sudo service ble-remote-monitor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service vesync-processor restart && sudo service govee-updater restart && sudo service hue-updater restart
+sudo service ble-remote-monitor restart && sudo service govee-processor restart && sudo service hue-processor restart && sudo service vesync-processor restart && sudo service govee-updater restart && sudo service hue-updater restart && sudo service vesync-updater restart && sudo service state-synchronizer restart
 
 //monitor a service
 sudo service govee-processor status
@@ -58,6 +62,7 @@ sudo service ble-remote-monitor status
 sudo service govee-updater status
 sudo service hue-updater status
 sudo service vesync-updater status
+sudo service state-synchronizer status
 
 //stop a service
 sudo service govee-processor stop
@@ -67,8 +72,10 @@ sudo service vesync-processor stop
 sudo service ble-remote-monitor stop
 sudo service govee-updater stop
 sudo service hue-updater stop
+sudo service vesync-updater stop
+sudo service state-synchronizer stop
 
-sudo service ble-remote-monitor stop && sudo service govee-processor stop && sudo service hue-processor stop && sudo service vesync-processor stop && sudo service govee-updater stop & sudo service hue-updater stop
+sudo service ble-remote-monitor stop && sudo service govee-processor stop && sudo service hue-processor stop && sudo service vesync-processor stop && sudo service govee-updater stop && sudo service hue-updater stop && sudo service vesync-updater stop && sudo service state-synchronizer stop
 
 //contents of etc/systemd/system/ble-remote-monitor.service
 [Unit]
@@ -174,7 +181,7 @@ WantedBy=multi-user.target
 
 //contents of etc/systemd/system/vesync-updater.service
 [Unit]
-Description=VeSync Command Processor
+Description=VeSync Device Updater
 After=network.target mysql.service
 
 [Service]
@@ -182,6 +189,23 @@ Type=simple
 User=www-data
 Group=www-data
 ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_updater.php
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+//file end
+
+/contents of etc/systemd/system/state-synchronizer.service
+[Unit]
+Description=Device State Synchronizer
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/state_synchronizer.php
 Restart=always
 RestartSec=3
 
