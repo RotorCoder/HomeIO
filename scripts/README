@@ -196,7 +196,7 @@ RestartSec=3
 WantedBy=multi-user.target
 //file end
 
-/contents of etc/systemd/system/state-synchronizer.service
+//contents of etc/systemd/system/state-synchronizer.service
 [Unit]
 Description=Device State Synchronizer
 After=network.target mysql.service
