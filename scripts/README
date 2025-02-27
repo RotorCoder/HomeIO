@@ -7,12 +7,12 @@ sh /var/www/html/homeio/scripts/combine_files.sh
 ///manually run a service process
 php /var/www/html/homeio/scripts/govee_processor.php
 php /var/www/html/homeio/scripts/hue_processor.php
-python3 /var/www/html/homeio/scripts/vesync_processor.py
+php /var/www/html/homeio/scripts/vesync_processor.php
 
 php /var/www/html/homeio/scripts/ble_remote_monitor.php
 php /var/www/html/homeio/scripts/govee_updater.php
 php /var/www/html/homeio/scripts/hue_updater.php
-python3 /var/www/html/homeio/scripts/vesync_updater.py
+php /var/www/html/homeio/scripts/vesync_updater.php
  
 //edit the services
 sudo nano /etc/systemd/system/govee-processor.service
@@ -155,7 +155,7 @@ RestartSec=3
 WantedBy=multi-user.target
 //file end
 
-//contents of etc/systemd/system/vesync-updater.service
+//contents of etc/systemd/system/vesync-processor.service
 [Unit]
 Description=VeSync Command Processor
 After=network.target mysql.service
@@ -164,7 +164,7 @@ After=network.target mysql.service
 Type=simple
 User=www-data
 Group=www-data
-ExecStart=/home/sjones/venv/bin/python3 /var/www/html/homeio/scripts/vesync_processor.py
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_processor.php
 Restart=always
 RestartSec=3
 
@@ -181,7 +181,7 @@ After=network.target mysql.service
 Type=simple
 User=www-data
 Group=www-data
-ExecStart=/home/sjones/venv/bin/python3 /var/www/html/homeio/scripts/vesync_updater.py
+ExecStart=/usr/bin/php /var/www/html/homeio/scripts/vesync_updater.php
 Restart=always
 RestartSec=3
 
