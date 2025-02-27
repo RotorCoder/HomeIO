@@ -377,8 +377,8 @@ class HueRoutes {
             CURLOPT_POSTFIELDS => json_encode($hueCmd)
         ));
     
-        //$this->log->logInfoMsg("Sending command to Hue bridge: $url");
-        //$this->log->logInfoMsg("Command payload: " . json_encode($hueCmd));
+        $this->log->logInfoMsg("Sending command to Hue bridge: $url");
+        $this->log->logInfoMsg("Command payload: " . json_encode($hueCmd));
     
         $response = curl_exec($curl);
         
@@ -392,7 +392,7 @@ class HueRoutes {
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
         
-        //$this->log->logInfoMsg("Hue bridge response (HTTP $httpCode): $response");
+        $this->log->logInfoMsg("Hue bridge response (HTTP $httpCode): $response");
         
         if ($httpCode === 0) {
             throw new Exception("Failed to connect to Hue bridge at {$this->bridgeIP}");
@@ -430,17 +430,21 @@ class HueRoutes {
         // Update the online status to use the device's reachable status
         $new_values = [
             'device' => $device['id'],
-            'model' => $device['type'],
+            'model' => $device['metadata']['archetype'],
             'device_name' => $device['metadata']['name'],
             'controllable' => 1,
             'retrievable' => 1,
-            'supportCmds' => json_encode(['brightness', 'colorTem', 'color']),
+            'supportCmds' => json_encode(['turn','brightness', 'colorTem', 'color']),
             'brand' => 'hue',
             'online' => isset($device['status']) && isset($device['status']['reachable']) ? $device['status']['reachable'] : true,
             'powerState' => $device['on']['on'] ? 'on' : 'off',
             'brightness' => isset($device['dimming']) ? round($device['dimming']['brightness']) : null,
             'colorTemp' => isset($device['color_temperature']) ? $device['color_temperature']['mirek'] : null
         ];
+        
+        if($device['metadata']['archetype'] == 'plug') {
+            $new_values['supportCmds'] = json_encode(['turn']);
+        }
         
         if (!$current) {
             $log->logInfoMsg("New Hue device detected: {$device['id']}");
@@ -473,6 +477,10 @@ class HueRoutes {
             if ($key === 'online') {
                 $current_value = (bool)$current[$key];
                 $new_value = (bool)$value;
+            } else if (is_numeric($value) && isset($current[$key]) && is_numeric($current[$key])) {
+                // For numeric values like brightness, ensure we're comparing as numbers
+                $current_value = (float)$current[$key];
+                $new_value = (float)$value;
             } else {
                 $current_value = $current[$key];
                 $new_value = $value;
