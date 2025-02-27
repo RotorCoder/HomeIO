@@ -51,8 +51,8 @@ try {
                 $log->logInfoMsg("Synchronized $updatedRows devices' preferred states with actual states");
             }
             
-            // Sleep for 5 seconds before next check
-            sleep(5);
+            // Sleep for 1 seconds before next check
+            sleep(1);
             
         } catch (Exception $e) {
             $log->logErrorMsg("Error synchronizing states: " . $e->getMessage());
