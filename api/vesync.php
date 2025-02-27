@@ -448,15 +448,15 @@ class VeSyncRoutes {
         }
     }
 
-    private function sendCommand($deviceId, $deviceModel, $command) {
+    public function sendCommand($deviceId, $deviceModel, $command) {
         if (!isset($command['name'])) {
             throw new Exception('Invalid command format');
         }
-
+    
         if (!isset($this->token) || !isset($this->account_id)) {
             throw new Exception('Not logged in to VeSync API');
         }
-
+    
         // Process command based on device type and command
         try {
             $result = false;
@@ -482,11 +482,20 @@ class VeSyncRoutes {
                 case 'Core600S':
                     $result = $this->sendAirPurifierCommand($deviceId, $command);
                     break;
+                
+                case 'LUH-A602S-WUS': // Levoit LV600S model humidifier
+                case 'LUH-A602S-WUSR':
+                case 'LUH-A602S-WEUR':
+                case 'LUH-A602S-WEU':
+                case 'LUH-A602S-WJP':
+                case 'LUH-A602S-WUSC':
+                    $result = $this->sendHumidifierCommand($deviceId, $command);
+                    break;
                     
                 default:
                     throw new Exception('Unsupported device model: ' . $deviceModel);
             }
-
+    
             if ($result) {
                 // Update device state in database
                 $pdo = getDatabaseConnection($this->config);
@@ -512,15 +521,94 @@ class VeSyncRoutes {
                         break;
                 }
             }
-
+    
             return [
                 'success' => $result,
                 'message' => $result ? 'Command sent successfully' : 'Command failed'
             ];
-
+    
         } catch (Exception $e) {
             throw new Exception('Failed to send command: ' . $e->getMessage());
         }
+    }
+    
+    // Add new method to handle humidifier commands
+    private function sendHumidifierCommand($deviceId, $command) {
+        // Humidifiers use the bypass V2 API - similar to air purifiers
+        $endpoint = '/cloud/v2/deviceManaged/bypassV2';
+        
+        $basePayload = [
+            'timeZone' => 'America/New_York',
+            'acceptLanguage' => 'en',
+            'accountID' => $this->account_id,
+            'token' => $this->token,
+            'appVersion' => '2.8.6',
+            'phoneBrand' => 'SM N9005',
+            'phoneOS' => 'Android',
+            'traceId' => time(),
+            'cid' => $deviceId,
+            'configModule' => 'VeSyncHumid200300S', // This matches the Python client
+            'deviceRegion' => 'US'
+        ];
+        
+        switch ($command['name']) {
+            case 'turn':
+                $basePayload['payload'] = [
+                    'data' => [
+                        'enabled' => ($command['value'] === 'on'),
+                        'id' => 0
+                    ],
+                    'method' => 'setSwitch',
+                    'source' => 'APP'
+                ];
+                break;
+                
+            case 'mode':
+                $basePayload['payload'] = [
+                    'data' => [
+                        'mode' => $command['value']
+                    ],
+                    'method' => 'setHumidityMode',
+                    'source' => 'APP'
+                ];
+                break;
+                
+            case 'brightness':
+            case 'speed':
+                // For this model, the "mist level" command should be used for brightness/speed
+                $basePayload['payload'] = [
+                    'data' => [
+                        'id' => 0,
+                        'level' => (int)$command['value'],
+                        'type' => 'mist'
+                    ],
+                    'method' => 'setVirtualLevel',
+                    'source' => 'APP'
+                ];
+                break;
+                
+            default:
+                throw new Exception('Unsupported command for Humidifier: ' . $command['name']);
+        }
+        
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => 'https://smartapi.vesync.com' . $endpoint,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => json_encode($basePayload),
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'User-Agent: okhttp/3.12.1'
+            ),
+        ));
+    
+        $response = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+    
+        $result = json_decode($response, true);
+        return (isset($result['code']) && $result['code'] === 0);
     }
     
     private function send7ACommand($deviceId, $command) {
