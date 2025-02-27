@@ -275,71 +275,177 @@ class VeSyncRoutes {
         // You can add similar implementations for other device types
     }
 
-    private function processBatch($maxCommands = 5) {
+    private function getNextBatchWithSuperseding($limit = 20) {
         $pdo = getDatabaseConnection($this->config);
-        
-        // Get pending commands
-        $stmt = $pdo->prepare("
-            SELECT id, device, model, command 
-            FROM command_queue
-            WHERE status = 'pending'
-            AND brand = 'vesync'
-            ORDER BY created_at ASC
-            LIMIT :limit
-        ");
-        $stmt->bindValue(':limit', $maxCommands, PDO::PARAM_INT);
-        $stmt->execute();
-        $commands = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Login first if we need to process commands
-        if (count($commands) > 0 && !$this->login()) {
-            throw new Exception('Failed to login to VeSync API for command processing');
-        }
-        
-        $results = [];
-        foreach ($commands as $command) {
-            try {
-                $cmd = json_decode($command['command'], true);
-                $result = $this->sendCommand($command['device'], $command['model'], $cmd);
-                
-                // Mark command as completed
-                $stmt = $pdo->prepare("
-                    UPDATE command_queue 
-                    SET status = 'completed',
-                        processed_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                ");
-                $stmt->execute([$command['id']]);
-                
-                $results[] = [
-                    'command_id' => $command['id'],
-                    'result' => $result,
-                    'success' => true
-                ];
-            } catch (Exception $e) {
-                // Mark command as failed
-                $stmt = $pdo->prepare("
-                    UPDATE command_queue 
-                    SET status = 'failed',
-                        processed_at = CURRENT_TIMESTAMP,
-                        error_message = ?
-                    WHERE id = ?
-                ");
-                $stmt->execute([$e->getMessage(), $command['id']]);
-                
-                $results[] = [
-                    'command_id' => $command['id'],
-                    'error' => $e->getMessage(),
-                    'success' => false
-                ];
+        $pdo->beginTransaction();
+        try {
+            // Add timeout check - reset commands stuck processing for >5 minutes
+            $stmt = $pdo->prepare("
+                UPDATE command_queue 
+                SET status = 'pending',
+                    processed_at = NULL
+                WHERE status = 'processing' 
+                AND processed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                AND brand = 'vesync'
+            ");
+            $stmt->execute();
+    
+            // First, get all pending commands for VeSync devices
+            $stmt = $pdo->prepare("
+                SELECT cq.id, cq.device, cq.model, cq.command, cq.created_at
+                FROM command_queue cq
+                WHERE cq.status = 'pending'
+                AND cq.brand = 'vesync'
+                ORDER BY cq.created_at ASC
+            ");
+            $stmt->execute();
+            $allCommands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Group commands by device
+            $commandsByDevice = [];
+            foreach ($allCommands as $command) {
+                $deviceId = $command['device'];
+                if (!isset($commandsByDevice[$deviceId])) {
+                    $commandsByDevice[$deviceId] = [];
+                }
+                $commandsByDevice[$deviceId][] = $command;
             }
+            
+            // For each device, keep only the latest command of each type
+            $finalCommands = [];
+            foreach ($commandsByDevice as $deviceId => $deviceCommands) {
+                $latestByType = [];
+                
+                foreach ($deviceCommands as $command) {
+                    $cmdData = json_decode($command['command'], true);
+                    $cmdType = $cmdData['name'] ?? 'unknown';
+                    
+                    // For each command type, keep track of the latest command
+                    if (!isset($latestByType[$cmdType]) || 
+                        strtotime($command['created_at']) > strtotime($latestByType[$cmdType]['created_at'])) {
+                        $latestByType[$cmdType] = $command;
+                    }
+                }
+                
+                // Add all latest commands to final list
+                foreach ($latestByType as $type => $command) {
+                    $finalCommands[] = $command;
+                }
+            }
+            
+            // Sort by created_at and limit to requested number
+            usort($finalCommands, function($a, $b) {
+                return strtotime($a['created_at']) - strtotime($b['created_at']);
+            });
+            $finalCommands = array_slice($finalCommands, 0, $limit);
+            
+            // Mark selected commands as processing
+            if (!empty($finalCommands)) {
+                $ids = array_column($finalCommands, 'id');
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $stmt = $pdo->prepare("
+                    UPDATE command_queue
+                    SET status = 'processing',
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id IN ($placeholders)
+                ");
+                $stmt->execute($ids);
+                
+                // Mark superseded commands as skipped
+                if (count($allCommands) > count($finalCommands)) {
+                    // Get IDs of commands we're not processing
+                    $processedIds = array_column($finalCommands, 'id');
+                    $skippedIds = array_values(array_filter(array_column($allCommands, 'id'), function($id) use ($processedIds) {
+                        return !in_array($id, $processedIds);
+                    }));
+                    
+                    if (!empty($skippedIds)) {
+                        $skipPlaceholders = implode(',', array_fill(0, count($skippedIds), '?'));
+                        $stmt = $pdo->prepare("
+                            UPDATE command_queue
+                            SET status = 'skipped',
+                                processed_at = CURRENT_TIMESTAMP,
+                                error_message = 'Superseded by newer command'
+                            WHERE id IN ($skipPlaceholders)
+                        ");
+                        $stmt->execute($skippedIds);
+                        
+                        $this->log->logInfoMsg("Skipped " . count($skippedIds) . " superseded commands");
+                    }
+                }
+            }
+            
+            $pdo->commit();
+            return $finalCommands;
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            throw $e;
         }
+    }
+
+    private function markCommandComplete($id, $success = true, $errorMessage = null) {
+        $pdo = getDatabaseConnection($this->config);
+        $stmt = $pdo->prepare("
+            UPDATE command_queue
+            SET 
+                status = :status,
+                processed_at = CURRENT_TIMESTAMP,
+                error_message = :error_message
+            WHERE id = :id
+        ");
         
-        return [
-            'success' => true,
-            'processed' => count($results),
-            'results' => $results
-        ];
+        $stmt->execute([
+            'status' => $success ? 'completed' : 'failed',
+            'error_message' => $errorMessage,
+            'id' => $id
+        ]);
+    }
+
+    private function processBatch($maxCommands = 5) {
+        try {
+            // Login first if we need to process commands
+            if (!$this->login()) {
+                throw new Exception('Failed to login to VeSync API for command processing');
+            }
+            
+            // Get next batch of commands with superseding logic
+            $commands = $this->getNextBatchWithSuperseding($maxCommands);
+            
+            $results = [];
+            foreach ($commands as $command) {
+                try {
+                    $cmd = json_decode($command['command'], true);
+                    $result = $this->sendCommand($command['device'], $command['model'], $cmd);
+                    
+                    // Mark command as completed
+                    $this->markCommandComplete($command['id'], true);
+                    
+                    $results[] = [
+                        'command_id' => $command['id'],
+                        'result' => $result,
+                        'success' => true
+                    ];
+                } catch (Exception $e) {
+                    // Mark command as failed
+                    $this->markCommandComplete($command['id'], false, $e->getMessage());
+                    
+                    $results[] = [
+                        'command_id' => $command['id'],
+                        'error' => $e->getMessage(),
+                        'success' => false
+                    ];
+                }
+            }
+            
+            return [
+                'success' => true,
+                'processed' => count($results),
+                'results' => $results
+            ];
+        } catch (Exception $e) {
+            throw new Exception('Failed to process VeSync commands: ' . $e->getMessage());
+        }
     }
 
     private function sendCommand($deviceId, $deviceModel, $command) {

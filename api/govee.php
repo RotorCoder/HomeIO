@@ -359,7 +359,7 @@ class GoveeRoutes {
         return $result['data']['properties'] ?? null;
     }
 
-    public function getNextBatch($limit = 5) {
+    public function getNextBatch($limit = 20) {
         $this->pdo->beginTransaction();
         try {
             // Add timeout check - reset commands stuck processing for >5 minutes
