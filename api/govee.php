@@ -434,7 +434,7 @@ class GoveeRoutes {
             }
             
             // Get next batch of commands
-            $commands = $this->getNextBatch($maxCommands);
+            $commands = $this->getNextBatchWithSuperseding($maxCommands);
             
             // Process commands
             $results = [];
@@ -480,6 +480,114 @@ class GoveeRoutes {
             
         } catch (Exception $e) {
             throw new Exception('Failed to process Govee commands: ' . $e->getMessage());
+        }
+    }
+    
+    // New method to get commands with superseding logic
+    public function getNextBatchWithSuperseding($limit = 20) {
+        $this->pdo->beginTransaction();
+        try {
+            // Add timeout check - reset commands stuck processing for >5 minutes
+            $stmt = $this->pdo->prepare("
+                UPDATE command_queue 
+                SET status = 'pending',
+                    processed_at = NULL
+                WHERE status = 'processing' 
+                AND processed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ");
+            $stmt->execute();
+    
+            // First, get all pending commands for Govee devices
+            $stmt = $this->pdo->prepare("
+                SELECT cq.id, cq.device, cq.model, cq.command, cq.created_at
+                FROM command_queue cq
+                WHERE cq.status = 'pending'
+                AND cq.brand = 'govee'
+                ORDER BY cq.created_at ASC
+            ");
+            $stmt->execute();
+            $allCommands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Group commands by device
+            $commandsByDevice = [];
+            foreach ($allCommands as $command) {
+                $deviceId = $command['device'];
+                if (!isset($commandsByDevice[$deviceId])) {
+                    $commandsByDevice[$deviceId] = [];
+                }
+                $commandsByDevice[$deviceId][] = $command;
+            }
+            
+            // For each device, keep only the latest command of each type
+            $finalCommands = [];
+            foreach ($commandsByDevice as $deviceId => $deviceCommands) {
+                $latestByType = [];
+                
+                foreach ($deviceCommands as $command) {
+                    $cmdData = json_decode($command['command'], true);
+                    $cmdType = $cmdData['name'] ?? 'unknown';
+                    
+                    // For each command type, keep track of the latest command
+                    if (!isset($latestByType[$cmdType]) || 
+                        strtotime($command['created_at']) > strtotime($latestByType[$cmdType]['created_at'])) {
+                        $latestByType[$cmdType] = $command;
+                    }
+                }
+                
+                // Add all latest commands to final list
+                foreach ($latestByType as $type => $command) {
+                    $finalCommands[] = $command;
+                }
+            }
+            
+            // Sort by created_at and limit to requested number
+            usort($finalCommands, function($a, $b) {
+                return strtotime($a['created_at']) - strtotime($b['created_at']);
+            });
+            $finalCommands = array_slice($finalCommands, 0, $limit);
+            
+            // Mark selected commands as processing
+            if (!empty($finalCommands)) {
+                $ids = array_column($finalCommands, 'id');
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                $stmt = $this->pdo->prepare("
+                    UPDATE command_queue
+                    SET status = 'processing',
+                        processed_at = CURRENT_TIMESTAMP
+                    WHERE id IN ($placeholders)
+                ");
+                $stmt->execute($ids);
+                
+                // Mark superseded commands as skipped
+                if (count($allCommands) > count($finalCommands)) {
+                    // Get IDs of commands we're not processing
+                    $processedIds = array_column($finalCommands, 'id');
+                    $skippedIds = array_values(array_filter(array_column($allCommands, 'id'), function($id) use ($processedIds) {
+                        return !in_array($id, $processedIds);
+                    }));
+                    
+                    if (!empty($skippedIds)) {
+                        $skipPlaceholders = implode(',', array_fill(0, count($skippedIds), '?'));
+                        $stmt = $this->pdo->prepare("
+                            UPDATE command_queue
+                            SET status = 'skipped',
+                                processed_at = CURRENT_TIMESTAMP,
+                                error_message = 'Superseded by newer command'
+                            WHERE id IN ($skipPlaceholders)
+                        ");
+                        $stmt->execute($skippedIds);
+                        
+                        $this->log->logInfoMsg("Skipped " . count($skippedIds) . " superseded commands");
+                    }
+                }
+            }
+            
+            $this->pdo->commit();
+            return $finalCommands;
+            
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
         }
     }
 

@@ -285,9 +285,10 @@ class VeSyncRoutes {
             WHERE status = 'pending'
             AND brand = 'vesync'
             ORDER BY created_at ASC
-            LIMIT ?
+            LIMIT :limit
         ");
-        $stmt->execute([$maxCommands]);
+        $stmt->bindValue(':limit', $maxCommands, PDO::PARAM_INT);
+        $stmt->execute();
         $commands = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Login first if we need to process commands
