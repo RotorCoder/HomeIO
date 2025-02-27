@@ -119,7 +119,7 @@ function getGroupDevices($pdo, $groupId) {
 $app = AppFactory::create();
 $app->setBasePath('/homeio/api');
 $app->addRoutingMiddleware();
-//$app->add('validateApiKey');
+$app->add('validateApiKey');
 $app->addErrorMiddleware(true, true, true);
 
 // Initialize logger
