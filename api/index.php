@@ -1177,12 +1177,12 @@ $app->get('/service-status', function (Request $request, Response $response) {
     try {
         // Services to monitor
         $services = [
-            'ble-remote-monitor' => 'BLE Remote Monitor',
+            'ble-remote-monitor' => 'Bluetooth Remote Processor',
+            'state-synchronizer' => 'Device State Synchronizer',
             'govee-processor' => 'Govee Command Processor',
             'govee-updater' => 'Govee Device Updater',
             'hue-processor' => 'Hue Command Processor', 
             'hue-updater' => 'Hue Device Updater',
-            'state-synchronizer' => 'Device State Synchronizer',
             'vesync-processor' => 'VeSync Command Processor',
             'vesync-updater' => 'VeSync Device Updater'
         ];
