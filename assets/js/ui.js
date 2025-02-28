@@ -327,6 +327,10 @@ function showServicesManagement() {
                                     class="service-btn restart-btn">
                                 <i class="fas fa-redo"></i> Restart
                             </button>
+                            <button onclick="showServiceLogs('${service.name}')" 
+                                    class="service-btn logs-btn">
+                                <i class="fas fa-file-alt"></i> Logs
+                            </button>
                         </div>
                     </div>
                 `;
@@ -341,6 +345,82 @@ function showServicesManagement() {
                 </div>
             `;
         });
+}
+
+async function showServiceLogs(serviceName) {
+    try {
+        // Create popup to display logs
+        const popup = document.createElement('div');
+        popup.className = 'popup-overlay';
+        popup.innerHTML = `
+            <div class="popup-container">
+                <div class="popup-header">
+                    <h3><i class="fas fa-file-alt"></i> Logs for ${serviceName}</h3>
+                    <button onclick="this.closest('.popup-overlay').remove()" class="close-popup-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="popup-content">
+                    <div class="logs-container">
+                        
+                        <pre id="service-logs" class="service-logs"></pre>
+                    </div>
+                    <div class="logs-actions">
+                        <button onclick="refreshServiceLogs('${serviceName}')" class="refresh-logs-btn">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(popup);
+        
+        // Load the logs
+        await refreshServiceLogs(serviceName);
+        
+    } catch (error) {
+        console.error('Error showing logs:', error);
+        showError('Failed to load logs: ' + error.message);
+    }
+}
+
+async function refreshServiceLogs(serviceName) {
+    const logsElement = document.getElementById('service-logs');
+    if (!logsElement) return;
+    
+    // Show loading state
+    logsElement.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading logs...</div>';
+    
+    try {
+        const response = await fetch(`api/service-logs?service=${serviceName}`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to fetch logs');
+        }
+        
+        // Clear the loading message completely
+        logsElement.innerHTML = '';
+        
+        // Display logs
+        if (data.logs.length > 0) {
+            // Add a divider between each log entry
+            logsElement.innerHTML = data.logs.map(log => 
+                `<div class="log-entry">${log}</div>`
+            ).join('');
+        } else {
+            logsElement.innerHTML = '<div class="empty-logs">No logs available.</div>';
+        }
+        
+    } catch (error) {
+        console.error('Error fetching logs:', error);
+        logsElement.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+    }
 }
 
 async function controlService(serviceName, action) {
