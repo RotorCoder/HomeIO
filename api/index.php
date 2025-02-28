@@ -1208,6 +1208,45 @@ $app->get('/service-status', function (Request $request, Response $response) {
     }
 });
 
+$app->get('/service-logs', function (Request $request, Response $response) use ($config) {
+    try {
+        validateRequiredParams($request->getQueryParams(), ['service']);
+        $serviceName = $request->getQueryParams()['service'];
+        
+        // Whitelist of allowed services
+        $allowedServices = [
+            'govee-processor', 
+            'hue-processor', 
+            'vesync-processor',
+            'ble-remote-monitor',
+            'govee-updater',
+            'hue-updater',
+            'vesync-updater',
+            'state-synchronizer'
+        ];
+
+        // Validate service name
+        if (!in_array($serviceName, $allowedServices)) {
+            throw new Exception('Invalid service name');
+        }
+        
+        // Use journalctl to fetch the logs
+        $command = "journalctl -u $serviceName.service -n 100 --no-pager -r";
+        exec($command, $output, $returnVar);
+        
+        if ($returnVar !== 0) {
+            throw new Exception("Failed to fetch logs for $serviceName");
+        }
+        
+        return sendSuccessResponse($response, [
+            'logs' => $output
+        ]);
+        
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
 $app->post('/control-service', function (Request $request, Response $response) {
     try {
         $data = json_decode($request->getBody()->getContents(), true);

@@ -1670,3 +1670,69 @@ body {
     padding: 20px;
     color: #721c24;
 }
+
+/* Service logs styles */
+.logs-popup {
+    display: flex;
+    flex-direction: column;
+    height: 85vh;
+}
+
+.popup-content {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.logs-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.popup-header, .logs-actions {
+    flex-shrink: 0;
+}
+
+.service-logs {
+    padding: 5px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.logs-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.refresh-logs-btn {
+    padding: 8px 16px;
+    background-color: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.refresh-logs-btn:hover {
+    background-color: #e0e0e0;
+}
+
+.empty-logs {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+}
+
+.log-entry {
+    padding: 4px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
