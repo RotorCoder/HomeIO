@@ -360,7 +360,7 @@ async function showServiceLogs(serviceName) {
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
-                <div class="popup-content">
+                <div class="popup-content popup-log-content">
                     <div class="logs-container">
                         
                         <pre id="service-logs" class="service-logs"></pre>
