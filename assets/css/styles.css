@@ -1529,19 +1529,144 @@ body {
     cursor: pointer;
 }
 
-.service-status {
-    padding: 5px 10px;
-    border-radius: 4px;
+/* Service Management Styles */
+.services-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    width: 100%;
+}
+
+.service-card {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    padding: 15px;
+    transition: all 0.3s ease;
+}
+
+.service-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+}
+
+.service-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.service-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.service-icon {
+    color: #555;
+    width: 24px;
+    text-align: center;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
     font-size: 0.8rem;
-    text-transform: uppercase;
+    font-weight: 500;
 }
 
-.service-status.status-active {
-    background-color: #e6f7ee;
-    color: #2ecc71;
+.status-active {
+    background-color: #d4edda;
+    color: #155724;
 }
 
-.service-status.status-inactive {
-    background-color: #fdedec;
-    color: #e74c3c;
+.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-other {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.service-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.service-btn {
+    flex: 1;
+    padding: 8px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: background-color 0.2s;
+}
+
+.start-btn {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.start-btn:hover:not(:disabled) {
+    background-color: #c3e6cb;
+}
+
+.stop-btn {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.stop-btn:hover:not(:disabled) {
+    background-color: #f5c6cb;
+}
+
+.restart-btn {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.restart-btn:hover:not(:disabled) {
+    background-color: #d6d8db;
+}
+
+.service-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.service-description {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 15px;
+}
+
+.services-container .loading-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 20px;
+    color: #6c757d;
+    width: 100%;
+}
+
+.services-container .error-message {
+    width: 100%;
+    text-align: center;
+    padding: 20px;
+    color: #721c24;
 }
