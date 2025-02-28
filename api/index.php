@@ -119,7 +119,7 @@ function getGroupDevices($pdo, $groupId) {
 $app = AppFactory::create();
 $app->setBasePath('/homeio/api');
 $app->addRoutingMiddleware();
-$app->add('validateApiKey'); // commant out to disable API key requirement (degugging only)
+// $app->add('validateApiKey'); // commant out to disable API key requirement (degugging only)
 $app->addErrorMiddleware(true, true, true);
 
 // Initialize logger
@@ -1170,6 +1170,101 @@ $app->post('/delete-remote-mapping', function (Request $request, Response $respo
         return sendSuccessResponse($response, ['message' => 'Mapping deleted successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
+    }
+});
+
+$app->get('/service-status', function (Request $request, Response $response) {
+    try {
+        // Services to monitor
+        $services = [
+            'govee-processor' => 'Govee Command Processor',
+            'hue-processor' => 'Hue Command Processor', 
+            'vesync-processor' => 'VeSync Command Processor',
+            'ble-remote-monitor' => 'BLE Remote Monitor',
+            'govee-updater' => 'Govee Device Updater',
+            'hue-updater' => 'Hue Device Updater',
+            'vesync-updater' => 'VeSync Device Updater',
+            'state-synchronizer' => 'Device State Synchronizer'
+        ];
+
+        $serviceStatuses = [];
+        
+        foreach ($services as $serviceName => $serviceTitle) {
+            // Use systemctl to get service status
+            exec("systemctl is-active $serviceName.service 2>&1", $output, $returnVar);
+            $status = trim(implode('', $output));
+            $output = [];
+            
+            $serviceStatuses[] = [
+                'name' => $serviceName,
+                'title' => $serviceTitle,
+                'status' => $status
+            ];
+        }
+
+        return sendSuccessResponse($response, ['services' => $serviceStatuses]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e);
+    }
+});
+
+$app->post('/control-service', function (Request $request, Response $response) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['service', 'action']);
+
+        // Whitelist of allowed services
+        $allowedServices = [
+            'govee-processor', 
+            'hue-processor', 
+            'vesync-processor',
+            'ble-remote-monitor',
+            'govee-updater',
+            'hue-updater',
+            'vesync-updater',
+            'state-synchronizer'
+        ];
+
+        // Validate service name
+        $serviceName = $data['service'];
+        if (!in_array($serviceName, $allowedServices)) {
+            throw new Exception('Invalid service name');
+        }
+
+        // Validate action
+        $action = $data['action'];
+        if (!in_array($action, ['start', 'stop', 'restart'])) {
+            throw new Exception('Invalid action');
+        }
+
+        // Construct systemctl command
+        $fullServiceName = $serviceName . '.service';
+        
+        // Use exec with escapeshellcmd to prevent command injection
+        $output = [];
+        $returnVar = null;
+        $command = escapeshellcmd("sudo systemctl $action $fullServiceName");
+        exec($command, $output, $returnVar);
+
+        // Check if the command was successful
+        if ($returnVar !== 0) {
+            throw new Exception("Failed to $action service: " . implode("\n", $output));
+        }
+
+        // Give a short pause to allow service state to update
+        sleep(1);
+
+        // Verify the new service status
+        exec("systemctl is-active $fullServiceName 2>&1", $statusOutput, $statusReturnVar);
+        $status = trim(implode('', $statusOutput));
+
+        return sendSuccessResponse($response, [
+            'message' => ucfirst($action) . ' command sent successfully',
+            'status' => $status
+        ]);
+
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
     }
 });
 
