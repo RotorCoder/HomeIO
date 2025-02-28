@@ -1688,6 +1688,7 @@ body {
     flex-grow: 1;
     overflow-y: auto;
     min-height: 0;
+    margin-bottom: 10px;
 }
 
 .popup-header, .logs-actions {
@@ -1695,7 +1696,6 @@ body {
 }
 
 .service-logs {
-    padding: 5px;
     font-family: monospace;
     font-size: 11px;
     white-space: pre-wrap;
