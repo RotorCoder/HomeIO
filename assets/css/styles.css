@@ -1678,7 +1678,7 @@ body {
     height: 85vh;
 }
 
-.popup-content {
+.popup-log-content {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
