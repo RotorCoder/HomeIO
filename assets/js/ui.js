@@ -264,14 +264,16 @@ function showServicesManagement() {
     popup.innerHTML = `
         <div class="popup-container">
             <div class="popup-header">
-                <h3>System Services Management</h3>
+                <h3><i class="fas fa-server"></i> System Services</h3>
                 <button onclick="this.closest('.popup-overlay').remove()" class="close-popup-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="popup-content">
-                <div class="room-cards-container" id="services-list">
-                    <div class="loading-state">Loading services...</div>
+                <div class="services-container" id="services-list">
+                    <div class="loading-state">
+                        <i class="fas fa-spinner fa-spin"></i> Loading services...
+                    </div>
                 </div>
             </div>
         </div>
@@ -288,34 +290,56 @@ function showServicesManagement() {
         })
         .then(data => {
             const servicesList = document.getElementById('services-list');
-            servicesList.innerHTML = data.services.map(service => `
-                <div class="room-card expanded">
-                    <div>
-                        <span class="room-card-header">${service.title}</span>
-                        <span class="service-status ${service.status === 'active' ? 'status-active' : 'status-inactive'}">
-                            ${service.status}
-                        </span>
-                    </div>
-                    <div class="room-card-content">
-                        <div class="room-actions">
-                            <button onclick="controlService('${service.name}', 'start')" ${service.status === 'active' ? 'disabled' : ''}>
+            
+            
+            
+            servicesList.innerHTML = data.services.map(service => {
+                
+                const statusClass = service.status === 'active' ? 'status-active' : 
+                                   service.status === 'inactive' ? 'status-inactive' : 'status-other';
+                
+                return `
+                    <div class="service-card">
+                        <div class="service-header">
+                            <div class="service-title">
+                                
+                                ${service.title}
+                            </div>
+                            <span class="status-badge ${statusClass}">
+                                ${service.status === 'active' ? 
+                                  '<i class="fas fa-check-circle"></i> Running' : 
+                                  '<i class="fas fa-times-circle"></i> Stopped'}
+                            </span>
+                        </div>
+                        
+                        <div class="service-actions">
+                            <button onclick="controlService('${service.name}', 'start')" 
+                                    class="service-btn start-btn" 
+                                    ${service.status === 'active' ? 'disabled' : ''}>
                                 <i class="fas fa-play"></i> Start
                             </button>
-                            <button onclick="controlService('${service.name}', 'stop')" ${service.status !== 'active' ? 'disabled' : ''}>
+                            <button onclick="controlService('${service.name}', 'stop')" 
+                                    class="service-btn stop-btn" 
+                                    ${service.status !== 'active' ? 'disabled' : ''}>
                                 <i class="fas fa-stop"></i> Stop
                             </button>
-                            <button onclick="controlService('${service.name}', 'restart')">
+                            <button onclick="controlService('${service.name}', 'restart')" 
+                                    class="service-btn restart-btn">
                                 <i class="fas fa-redo"></i> Restart
                             </button>
                         </div>
                     </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         })
         .catch(error => {
             console.error('Error:', error);
             const servicesList = document.getElementById('services-list');
-            servicesList.innerHTML = `<div class="error-message">${error.message}</div>`;
+            servicesList.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i> ${error.message}
+                </div>
+            `;
         });
 }
 
