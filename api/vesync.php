@@ -532,11 +532,10 @@ class VeSyncRoutes {
         }
     }
     
-    // Add new method to handle humidifier commands
     private function sendHumidifierCommand($deviceId, $command) {
-        // Humidifiers use the bypass V2 API - similar to air purifiers
         $endpoint = '/cloud/v2/deviceManaged/bypassV2';
         
+        // Base payload - ensure structure matches Python's Helpers.bypass_body_v2()
         $basePayload = [
             'timeZone' => 'America/New_York',
             'acceptLanguage' => 'en',
@@ -547,49 +546,28 @@ class VeSyncRoutes {
             'phoneOS' => 'Android',
             'traceId' => time(),
             'cid' => $deviceId,
-            'configModule' => 'VeSyncHumid200300S', // This matches the Python client
+            'configModule' => 'VeSyncHumid200300S',
+            'method' => 'bypassV2',
+            'debugMode' => false,
             'deviceRegion' => 'US'
         ];
         
-        switch ($command['name']) {
-            case 'turn':
-                $basePayload['payload'] = [
-                    'data' => [
-                        'enabled' => ($command['value'] === 'on'),
-                        'id' => 0
-                    ],
-                    'method' => 'setSwitch',
-                    'source' => 'APP'
-                ];
-                break;
-                
-            case 'mode':
-                $basePayload['payload'] = [
-                    'data' => [
-                        'mode' => $command['value']
-                    ],
-                    'method' => 'setHumidityMode',
-                    'source' => 'APP'
-                ];
-                break;
-                
-            case 'brightness':
-            case 'speed':
-                // For this model, the "mist level" command should be used for brightness/speed
-                $basePayload['payload'] = [
-                    'data' => [
-                        'id' => 0,
-                        'level' => (int)$command['value'],
-                        'type' => 'mist'
-                    ],
-                    'method' => 'setVirtualLevel',
-                    'source' => 'APP'
-                ];
-                break;
-                
-            default:
-                throw new Exception('Unsupported command for Humidifier: ' . $command['name']);
+        if ($command['name'] === 'turn') {
+            $basePayload['payload'] = [
+                'data' => [
+                    'enabled' => ($command['value'] === 'on'), // Make sure this is a PHP boolean
+                    'id' => 0
+                ],
+                'method' => 'setSwitch',
+                'source' => 'APP'
+            ];
         }
+        
+        // For headers, make sure to exactly match Python's Helpers.bypass_header()
+        $headers = [
+            'Content-Type: application/json; charset=UTF-8',
+            'User-Agent: okhttp/3.12.1'
+        ];
         
         $curl = curl_init();
         curl_setopt_array($curl, array(
@@ -597,16 +575,17 @@ class VeSyncRoutes {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST => 'POST',
             CURLOPT_POSTFIELDS => json_encode($basePayload),
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/json',
-                'User-Agent: okhttp/3.12.1'
-            ),
+            CURLOPT_HTTPHEADER => $headers,
         ));
-    
+        
         $response = curl_exec($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
-    
+        
+        // Log the response
+        //$this->log->logInfoMsg("Humidifier command response: " . $response);
+        //$this->log->logInfoMsg("Sent payload: " . json_encode($basePayload));
+        
         $result = json_decode($response, true);
         return (isset($result['code']) && $result['code'] === 0);
     }
