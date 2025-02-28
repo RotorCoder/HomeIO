@@ -1528,3 +1528,20 @@ body {
     font-size: 15px;
     cursor: pointer;
 }
+
+.service-status {
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.service-status.status-active {
+    background-color: #e6f7ee;
+    color: #2ecc71;
+}
+
+.service-status.status-inactive {
+    background-color: #fdedec;
+    color: #e74c3c;
+}

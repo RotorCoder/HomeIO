@@ -258,8 +258,90 @@ function generateConfigTab(savedTab) {
         </button>`;
 }
 
-// Update the generateConfigContent function in ui.js
-// Replace only the config-content section
+function showServicesManagement() {
+    const popup = document.createElement('div');
+    popup.className = 'popup-overlay';
+    popup.innerHTML = `
+        <div class="popup-container">
+            <div class="popup-header">
+                <h3>System Services Management</h3>
+                <button onclick="this.closest('.popup-overlay').remove()" class="close-popup-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="popup-content">
+                <div class="room-cards-container" id="services-list">
+                    <div class="loading-state">Loading services...</div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // Fetch service statuses
+    fetch('api/service-status')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch service statuses');
+            }
+            return response.json();
+        })
+        .then(data => {
+            const servicesList = document.getElementById('services-list');
+            servicesList.innerHTML = data.services.map(service => `
+                <div class="room-card expanded">
+                    <div>
+                        <span class="room-card-header">${service.title}</span>
+                        <span class="service-status ${service.status === 'active' ? 'status-active' : 'status-inactive'}">
+                            ${service.status}
+                        </span>
+                    </div>
+                    <div class="room-card-content">
+                        <div class="room-actions">
+                            <button onclick="controlService('${service.name}', 'start')" ${service.status === 'active' ? 'disabled' : ''}>
+                                <i class="fas fa-play"></i> Start
+                            </button>
+                            <button onclick="controlService('${service.name}', 'stop')" ${service.status !== 'active' ? 'disabled' : ''}>
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                            <button onclick="controlService('${service.name}', 'restart')">
+                                <i class="fas fa-redo"></i> Restart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const servicesList = document.getElementById('services-list');
+            servicesList.innerHTML = `<div class="error-message">${error.message}</div>`;
+        });
+}
+
+async function controlService(serviceName, action) {
+    try {
+        const response = await fetch('api/control-service', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ service: serviceName, action })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to control service');
+        }
+
+        // Reload services list
+        showServicesManagement();
+    } catch (error) {
+        console.error('Error:', error);
+        showError(error.message);
+    }
+}
 
 function generateConfigContent() {
     return `<div class="tab-content" data-room="config">
@@ -291,7 +373,7 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-gamepad"></i>
                 <span>Remotes</span>
             </button>
-            <button class="config-button">
+            <button onclick="showServicesManagement()" class="config-button">
                 <i class="fas fa-xl fa-gears"></i>
                 <span>Services</span>
             </button>
@@ -334,7 +416,7 @@ function generateConfigContent() {
                     <i class="fas fa-xl fa-gamepad"></i>
                     <span>Remotes</span>
                 </button>
-                <button class="config-button">
+                <button onclick="showServicesManagement()" class="config-button">
                     <i class="fas fa-xl fa-gears"></i>
                     <span>Services</span>
                 </button>
