@@ -1307,4 +1307,110 @@ $app->post('/control-service', function (Request $request, Response $response) {
     }
 });
 
+// Get all users
+$app->get('/users', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->query("
+            SELECT id, username, is_admin, created_at, last_login 
+            FROM users 
+            ORDER BY username
+        ");
+        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        return sendSuccessResponse($response, ['users' => $users]);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+// Update or create user
+$app->post('/update-user', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        $pdo = getDatabaseConnection($config);
+        
+        if (isset($data['id']) && $data['id']) {
+            // Update existing user
+            if ($data['password']) {
+                // Update with new password
+                $stmt = $pdo->prepare("
+                    UPDATE users 
+                    SET username = ?, 
+                        email = ?, 
+                        password = ?, 
+                        is_admin = ? 
+                    WHERE id = ?
+                ");
+                
+                $password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
+                $stmt->execute([
+                    $data['username'],
+                    $data['email'],
+                    $password_hash,
+                    $data['is_admin'],
+                    $data['id']
+                ]);
+            } else {
+                // Update without changing password
+                $stmt = $pdo->prepare("
+                    UPDATE users 
+                    SET username = ?, 
+                        email = ?, 
+                        is_admin = ? 
+                    WHERE id = ?
+                ");
+                
+                $stmt->execute([
+                    $data['username'],
+                    $data['email'],
+                    $data['is_admin'],
+                    $data['id']
+                ]);
+            }
+            
+            return sendSuccessResponse($response, ['message' => 'User updated successfully']);
+        } else {
+            // Create new user
+            validateRequiredParams($data, ['username', 'email', 'password', 'is_admin']);
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO users (username, email, password, is_admin, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ");
+            
+            $password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
+            $stmt->execute([
+                $data['username'],
+                $data['email'],
+                $password_hash,
+                $data['is_admin']
+            ]);
+            
+            return sendSuccessResponse($response, [
+                'message' => 'User created successfully',
+                'user_id' => $pdo->lastInsertId()
+            ]);
+        }
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
+// Delete user
+$app->post('/delete-user', function (Request $request, Response $response) use ($config, $log) {
+    try {
+        $data = json_decode($request->getBody()->getContents(), true);
+        validateRequiredParams($data, ['id']);
+        
+        $pdo = getDatabaseConnection($config);
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $stmt->execute([$data['id']]);
+        
+        return sendSuccessResponse($response, ['message' => 'User deleted successfully']);
+    } catch (Exception $e) {
+        return sendErrorResponse($response, $e, $log);
+    }
+});
+
 $app->run();
