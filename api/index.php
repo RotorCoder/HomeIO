@@ -119,7 +119,7 @@ function getGroupDevices($pdo, $groupId) {
 $app = AppFactory::create();
 $app->setBasePath('/homeio/api');
 $app->addRoutingMiddleware();
-//$app->add('validateApiKey'); // commant out to disable API key requirement (degugging only)
+$app->add('validateApiKey'); // commant out to disable API key requirement (degugging only)
 $app->addErrorMiddleware(true, true, true);
 
 // Initialize logger

@@ -4,6 +4,20 @@
 
 require_once __DIR__ . '/config/config.php';
 
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    // Return JSON error response instead of redirecting
+    header('Content-Type: application/json');
+    http_response_code(401); // Unauthorized
+    echo json_encode([
+        'success' => false,
+        'error' => 'Authentication required'
+    ]);
+    exit;
+}
+
 // CORS headers to allow requests from your domain
 header('Access-Control-Allow-Origin: ' . (isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*'));
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
