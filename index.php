@@ -30,9 +30,11 @@
         <?php require __DIR__ . '/templates/remote-popup.php'; ?>
         
         <script>
-            const API_KEY = <?php echo json_encode($config['homeio_api_key']); ?>;
+            const API_CONFIG = {
+                apiProxy: "api-proxy.php"
+            };
         </script>
-        <script src="assets/js/api.js"></script>
+        <script src="assets/js/api-secure.js"></script>
         <script src="assets/js/ui.js"></script>
         <script src="assets/js/devices.js"></script>
         <script src="assets/js/groups.js"></script>

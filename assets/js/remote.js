@@ -26,7 +26,7 @@ function hideButtonTargetPicker() {
 async function loadRemoteButtonMappings() {
     try {
         // Get remote button mappings from the database
-        const response = await apiFetch('api/remote-mappings');
+        const response = await apiFetch('remote-mappings');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load remote mappings');
         }
@@ -131,7 +131,7 @@ async function showButtonTargetPicker(remoteName, buttonNumber) {
 
     try {
         // Get current mapping if it exists
-        const response = await apiFetch(`api/remote-mapping?remote=${remoteName}&button=${buttonNumber}`);
+        const response = await apiFetch(`remote-mapping?remote=${remoteName}&button=${buttonNumber}`);
         if (!response.success) {
             throw new Error(response.error || 'Failed to load button mapping');
         }
@@ -169,7 +169,7 @@ async function showButtonTargetPicker(remoteName, buttonNumber) {
 
 async function loadTargets(type, selectedId = null) {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error('Failed to load targets');
         }
@@ -244,7 +244,7 @@ async function saveButtonMapping() {
             }
         }
 
-        const response = await apiFetch('api/update-remote-mapping', {
+        const response = await apiFetch('update-remote-mapping', {
             method: 'POST',
             body: JSON.stringify({
                 remote_name: currentRemoteName,

@@ -40,7 +40,7 @@ async function saveRoom(roomId) {
     const tabOrder = roomCard.dataset.tabOrder || '0'; // Use the data attribute instead
 
     try {
-        const response = await apiFetch('api/update-room', {
+        const response = await apiFetch('update-room', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ async function deleteRoom(roomId) {
     }
 
     try {
-        const response = await apiFetch('api/delete-room', {
+        const response = await apiFetch('delete-room', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -154,7 +154,7 @@ async function moveRoom(roomId, direction) {
     try {
         // Update both rooms' orders simultaneously
         await Promise.all([
-            apiFetch('api/update-room', {
+            apiFetch('update-room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -164,7 +164,7 @@ async function moveRoom(roomId, direction) {
                     tab_order: parseInt(targetCard.dataset.tabOrder)
                 })
             }),
-            apiFetch('api/update-room', {
+            apiFetch('update-room', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -191,7 +191,7 @@ async function moveRoom(roomId, direction) {
 
 async function loadDeviceList(roomId) {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load devices');
         }
@@ -261,7 +261,7 @@ async function saveDeviceSelection() {
 
         // Update each device's room assignment
         for (const deviceId of selectedDevices) {
-            await apiFetch('api/update-device-details', {
+            await apiFetch('update-device-details', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -298,7 +298,7 @@ function hideGroupPicker() {
 
 async function loadGroupList(roomId) {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load groups');
         }
@@ -359,7 +359,7 @@ async function saveGroupSelection() {
         ).map(cb => cb.value);
 
         // Get original group data first
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error('Failed to fetch group data');
         }
@@ -398,7 +398,7 @@ async function saveGroupSelection() {
             }
 
             // Send the complete group data
-            await apiFetch('api/update-device-group', {
+            await apiFetch('update-device-group', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -425,7 +425,7 @@ async function saveGroupSelection() {
 
 async function loadRoomList() {
     try {
-        const response = await apiFetch('api/rooms');
+        const response = await apiFetch('rooms');
         const data = await response;
         
         if (!data.success) {
@@ -439,7 +439,7 @@ async function loadRoomList() {
         }
 
         // Get device counts for each room
-        const deviceResponse = await apiFetch('api/all-devices');
+        const deviceResponse = await apiFetch('all-devices');
         const deviceCounts = {};
         
         if (deviceResponse.success) {
@@ -650,7 +650,7 @@ async function saveNewRoom() {
 
     try {
         // Get the current max tab order
-        const response = await apiFetch('api/rooms');
+        const response = await apiFetch('rooms');
         const data = await response;
         
         if (!data.success) {
@@ -664,7 +664,7 @@ async function saveNewRoom() {
         const newTabOrder = maxTabOrder + 1;
 
         // Send request to add the new room
-        const addResponse = await apiFetch('api/add-room', {
+        const addResponse = await apiFetch('add-room', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

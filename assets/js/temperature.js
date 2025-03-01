@@ -134,7 +134,7 @@ async function loadTempHistory() {
     const hours = document.getElementById('history-range').value;
     
     try {
-        const response = await apiFetch(`api/thermometer-history?mac=${mac}&hours=${hours}`);
+        const response = await apiFetch(`thermometer-history?mac=${mac}&hours=${hours}`);
         const data = await response;
         
         if (!data.success) {
@@ -289,7 +289,7 @@ async function loadAllTempHistory() {
     const hours = document.getElementById('all-temps-history-range').value;
     
     try {
-        const response = await apiFetch(`api/all-thermometer-history?hours=${hours}`);
+        const response = await apiFetch(`all-thermometer-history?hours=${hours}`);
         const data = await response;
         
         if (!data.success) {
@@ -434,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadThermometerList() {
     try {
-        const response = await apiFetch('api/thermometer-list');
+        const response = await apiFetch('thermometer-list');
         const data = await response;
         
         if (!data.success) {
@@ -601,7 +601,7 @@ async function saveThermometer(mac) {
     const room = card.querySelector('.thermometer-room').value;
 
     try {
-        const response = await apiFetch('api/update-thermometer', {
+        const response = await apiFetch('update-thermometer', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -637,7 +637,7 @@ async function saveThermometer(mac) {
     const room = card.querySelector('.thermometer-room').value;
 
     try {
-        const response = await apiFetch('api/update-thermometer', {
+        const response = await apiFetch('update-thermometer', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
