@@ -71,15 +71,15 @@ async function createTabs() {
     });
 
     if (savedTab) {
-        console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
+        //console.log(`[${new Date().toLocaleTimeString()}] Loading saved tab: ${savedTab}`);
         switchTab(savedTab);
     }
 }
 
 function switchTab(roomId) {
-    console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+    //console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
     if (roomId !== 'config') {
-        console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
+        //console.log(`[${new Date().toLocaleTimeString()}] Saving selected tab: ${roomId}`);
         localStorage.setItem('selectedTab', roomId);
     }
     

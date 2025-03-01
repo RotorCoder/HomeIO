@@ -22,80 +22,6 @@ if (!isset($_SESSION['user_id'])) {
         <link rel="stylesheet" href="assets/css/styles.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-        <style>
-            /* Add user menu styles */
-            .user-menu {
-                position: fixed;
-                top: 6px;
-                right: 8px;
-                z-index: 1000;
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                padding: 8px;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            
-            .user-menu .username {
-                font-weight: 500;
-                color: #1e293b;
-            }
-            
-            .user-menu .menu-button {
-                background: none;
-                border: none;
-                padding: 4px 8px;
-                border-radius: 4px;
-                cursor: pointer;
-                color: #64748b;
-                transition: background 0.2s;
-            }
-            
-            .user-menu .menu-button:hover {
-                background: #f1f5f9;
-                color: #1e293b;
-            }
-            
-            .user-menu .dropdown {
-                position: absolute;
-                top: 100%;
-                right: 0;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-                padding: 8px;
-                display: none;
-                min-width: 150px;
-            }
-            
-            .user-menu .dropdown.active {
-                display: block;
-            }
-            
-            .user-menu .dropdown a {
-                display: block;
-                padding: 8px;
-                color: #1e293b;
-                text-decoration: none;
-                border-radius: 4px;
-            }
-            
-            .user-menu .dropdown a:hover {
-                background: #f1f5f9;
-            }
-            
-            .user-menu .dropdown .separator {
-                height: 1px;
-                background: #e2e8f0;
-                margin: 8px 0;
-            }
-            
-            .user-menu .dropdown .logout {
-                color: #ef4444;
-            }
-        </style>
     </head>
     <body>
         <?php require_once __DIR__ . '/config/config.php'; ?>
@@ -118,23 +44,6 @@ if (!isset($_SESSION['user_id'])) {
             const API_CONFIG = {
                 apiProxy: "api-proxy.php"
             };
-            
-            // User menu dropdown
-            document.addEventListener('DOMContentLoaded', function() {
-                const menuToggle = document.getElementById('userMenuToggle');
-                const dropdown = document.getElementById('userDropdown');
-                
-                menuToggle.addEventListener('click', function() {
-                    dropdown.classList.toggle('active');
-                });
-                
-                // Close the dropdown when clicking outside
-                document.addEventListener('click', function(event) {
-                    if (!event.target.closest('.user-menu')) {
-                        dropdown.classList.remove('active');
-                    }
-                });
-            });
         </script>
         <script src="assets/js/api-secure.js"></script>
         <script src="assets/js/ui.js"></script>

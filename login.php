@@ -33,10 +33,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['is_admin'] = $user['is_admin'];
                 
+
+                $stmt = $pdo->prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?");
+                $stmt->execute([$_SESSION['user_id']]);
+                
+                logLoginAttempt($username, true, $user['id']);
+                
                 // Redirect to home page
                 header('Location: index.php');
                 exit;
             } else {
+                $failReason = !$user ? 'User not found' : 'Invalid password';
+                logLoginAttempt($username, false, null, $failReason);
+        
                 $error = 'Invalid username or password';
             }
         } catch (PDOException $e) {
@@ -44,6 +53,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+function logLoginAttempt($username, $success, $userId = null, $notes = null) {
+    global $config;
+    
+    try {
+        $pdo = new PDO(
+            "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
+            $config['db_config']['user'],
+            $config['db_config']['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO login_logs 
+            (username, ip_address, user_agent, success, user_id, notes) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        
+        $stmt->execute([
+            $username,
+            $_SERVER['REMOTE_ADDR'],
+            $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+            $success ? 1 : 0,
+            $userId,
+            $notes
+        ]);
+    } catch (Exception $e) {
+        // Silently fail - don't stop login process for logging errors
+        error_log("Failed to log login attempt: " . $e->getMessage());
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
