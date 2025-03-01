@@ -112,6 +112,7 @@ if (!isset($_SESSION['user_id'])) {
         <?php require __DIR__ . '/templates/group-popup.php'; ?>
         <?php require __DIR__ . '/templates/thermometer-popup.php'; ?>
         <?php require __DIR__ . '/templates/remote-popup.php'; ?>
+        <?php require __DIR__ . '/templates/user-popup.php'; ?>
         
         <script>
             const API_CONFIG = {
@@ -144,5 +145,6 @@ if (!isset($_SESSION['user_id'])) {
         <script src="assets/js/main.js"></script>
         <script src="assets/js/rooms.js"></script>
         <script src="assets/js/remote.js"></script>
+        <script src="assets/js/users.js"></script>
     </body>
 </html>

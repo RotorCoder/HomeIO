@@ -480,7 +480,7 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-gears"></i>
                 <span>Services</span>
             </button>
-            <button onclick="window.location.href='users.php'" class="config-button">
+            <button onclick="showUserManagement()" class="config-button">
                 <i class="fas fa-xl fa-user"></i>
                 <span>Users</span>
             </button>
@@ -527,7 +527,7 @@ function generateConfigContent() {
                     <i class="fas fa-xl fa-gears"></i>
                     <span>Services</span>
                 </button>
-                <button onclick="window.location.href='users.php'" class="config-button">
+                <button onclick="showUserManagement()" class="config-button">
                     <i class="fas fa-xl fa-user"></i>
                     <span>Users</span>
                 </button>
