@@ -36,5 +36,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_id'])) {
 }
 
 // Redirect back to the user management page
-header('Location: register.php');
+header('Location: users.php');
 exit;
