@@ -258,7 +258,7 @@ function generateConfigTab(savedTab) {
         </button>`;
 }
 
-function showServicesManagement() {
+async function showServicesManagement() {
     const popup = document.createElement('div');
     popup.className = 'popup-overlay';
     popup.innerHTML = `
@@ -280,71 +280,64 @@ function showServicesManagement() {
     `;
     document.body.appendChild(popup);
 
-    // Fetch service statuses
-    apiFetch(`service-status`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to fetch service statuses');
-            }
-            return response.json();
-        })
-        .then(data => {
-            const servicesList = document.getElementById('services-list');
+    // Fetch service statuses using the API instead of direct fetching
+    try {
+        const response = await apiFetch('service-status');
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to load service status');
+        }
+        
+        const servicesList = document.getElementById('services-list');
+        
+        servicesList.innerHTML = response.services.map(service => {
+            const statusClass = service.status === 'active' ? 'status-active' : 
+                               service.status === 'inactive' ? 'status-inactive' : 'status-other';
             
-            
-            
-            servicesList.innerHTML = data.services.map(service => {
-                
-                const statusClass = service.status === 'active' ? 'status-active' : 
-                                   service.status === 'inactive' ? 'status-inactive' : 'status-other';
-                
-                return `
-                    <div class="service-card">
-                        <div class="service-header">
-                            <div class="service-title">
-                                
-                                ${service.title}
-                            </div>
-                            <span class="status-badge ${statusClass}">
-                                ${service.status === 'active' ? 
-                                  '<i class="fas fa-check-circle"></i> Running' : 
-                                  '<i class="fas fa-times-circle"></i> Stopped'}
-                            </span>
+            return `
+                <div class="service-card">
+                    <div class="service-header">
+                        <div class="service-title">
+                            ${service.title}
                         </div>
-                        
-                        <div class="service-actions">
-                            <button onclick="controlService('${service.name}', 'start')" 
-                                    class="service-btn start-btn" 
-                                    ${service.status === 'active' ? 'disabled' : ''}>
-                                <i class="fas fa-play"></i> Start
-                            </button>
-                            <button onclick="controlService('${service.name}', 'stop')" 
-                                    class="service-btn stop-btn" 
-                                    ${service.status !== 'active' ? 'disabled' : ''}>
-                                <i class="fas fa-stop"></i> Stop
-                            </button>
-                            <button onclick="controlService('${service.name}', 'restart')" 
-                                    class="service-btn restart-btn">
-                                <i class="fas fa-redo"></i> Restart
-                            </button>
-                            <button onclick="showServiceLogs('${service.name}')" 
-                                    class="service-btn logs-btn">
-                                <i class="fas fa-file-alt"></i> Logs
-                            </button>
-                        </div>
+                        <span class="status-badge ${statusClass}">
+                            ${service.status === 'active' ? 
+                              '<i class="fas fa-check-circle"></i> Running' : 
+                              '<i class="fas fa-times-circle"></i> Stopped'}
+                        </span>
                     </div>
-                `;
-            }).join('');
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            const servicesList = document.getElementById('services-list');
-            servicesList.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i> ${error.message}
+                    
+                    <div class="service-actions">
+                        <button onclick="controlService('${service.name}', 'start')" 
+                                class="service-btn start-btn" 
+                                ${service.status === 'active' ? 'disabled' : ''}>
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                        <button onclick="controlService('${service.name}', 'stop')" 
+                                class="service-btn stop-btn" 
+                                ${service.status !== 'active' ? 'disabled' : ''}>
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                        <button onclick="controlService('${service.name}', 'restart')" 
+                                class="service-btn restart-btn">
+                            <i class="fas fa-redo"></i> Restart
+                        </button>
+                        <button onclick="showServiceLogs('${service.name}')" 
+                                class="service-btn logs-btn">
+                            <i class="fas fa-file-alt"></i> Logs
+                        </button>
+                    </div>
                 </div>
             `;
-        });
+        }).join('');
+    } catch (error) {
+        console.error('Error loading services:', error);
+        const servicesList = document.getElementById('services-list');
+        servicesList.innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i> ${error.message}
+            </div>
+        `;
+    }
 }
 
 async function showServiceLogs(serviceName) {
@@ -425,7 +418,7 @@ async function refreshServiceLogs(serviceName) {
 
 async function controlService(serviceName, action) {
     try {
-        const response = await apiFetch('control-service', {
+        const response = await apiFetch(`control-service?service=${serviceName}&action=${action}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
