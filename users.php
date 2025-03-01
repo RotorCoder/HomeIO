@@ -75,7 +75,7 @@ try {
     <link rel="manifest" href="assets/images/site.webmanifest">
     <link rel="stylesheet" href="assets/css/styles.css">
     <style>
-        .container {
+        .containerx {
             max-width: 800px;
             margin: 2rem auto;
             padding: 1rem;
@@ -85,8 +85,8 @@ try {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
+            padding: 0.8rem;
+            margin-top: 0.5rem;
         }
         
         .card-header {
@@ -130,6 +130,7 @@ try {
             align-items: center;
             gap: 0.5rem;
             margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
         }
         
         .submit-btn {
@@ -155,6 +156,7 @@ try {
             cursor: pointer;
             text-decoration: none;
             font-size: 0.875rem;
+            
         }
         
         .back-btn:hover {
@@ -243,7 +245,7 @@ try {
                     <i class="fas fa-users"></i> User Management
                 </h1>
                 <a href="index.php" class="back-btn">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    <i class="fas fa-arrow-left"></i> Exit
                 </a>
             </div>
 
