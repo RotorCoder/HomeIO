@@ -5,7 +5,7 @@ let rooms = [];
 
 async function loadInitialData() {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load devices');
         }

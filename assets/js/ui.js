@@ -19,7 +19,7 @@ async function createTabs() {
         if (room.id !== 1) {
             let tempInfo = '';
             try {
-                const response = await apiFetch(`api/room-temperature?room=${room.id}`);
+                const response = await apiFetch(`room-temperature?room=${room.id}`);
                 const data = await response;
                 if (data.success && data.thermometers) {
                     tempInfo = data.thermometers.map(therm => {
@@ -117,7 +117,7 @@ function showDefaultRoomDevices() {
 
 async function loadAllDevices() {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         const data = await response;
         
         if (!data.success) {
@@ -161,7 +161,7 @@ async function saveDeviceDetails(deviceId) {
     };
 
     try {
-        const response = await apiFetch('api/update-device-details', {
+        const response = await apiFetch('update-device-details', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -177,7 +177,7 @@ async function saveDeviceDetails(deviceId) {
         // Add device to selected groups
         if (selectedGroups.length > 0) {
             for (const groupId of selectedGroups) {
-                await apiFetch('api/update-device-group', {
+                await apiFetch('update-device-group', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -198,7 +198,7 @@ async function saveDeviceDetails(deviceId) {
             .map(option => parseInt(option.value));
 
         if (unselectedGroups.length > 0) {
-            await apiFetch('api/update-device-group', {
+            await apiFetch('update-device-group', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -281,7 +281,7 @@ function showServicesManagement() {
     document.body.appendChild(popup);
 
     // Fetch service statuses
-    fetch('api/service-status')
+    fetch('service-status')
         .then(response => {
             if (!response.ok) {
                 throw new Error('Failed to fetch service statuses');
@@ -392,7 +392,7 @@ async function refreshServiceLogs(serviceName) {
     logsElement.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading logs...</div>';
     
     try {
-        const response = await fetch(`api/service-logs?service=${serviceName}`);
+        const response = await fetch(`service-logs?service=${serviceName}`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -425,7 +425,7 @@ async function refreshServiceLogs(serviceName) {
 
 async function controlService(serviceName, action) {
     try {
-        const response = await fetch('api/control-service', {
+        const response = await fetch('control-service', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

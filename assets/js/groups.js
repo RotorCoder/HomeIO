@@ -137,7 +137,7 @@ async function saveGroup(groupId) {
     
     try {
         // First get current group data
-        const getGroupResponse = await apiFetch('api/all-devices');
+        const getGroupResponse = await apiFetch('all-devices');
         if (!getGroupResponse.success) {
             throw new Error('Failed to fetch current group data');
         }
@@ -148,7 +148,7 @@ async function saveGroup(groupId) {
         }
 
         // Update group while preserving existing data
-        const response = await apiFetch('api/update-device-group', {
+        const response = await apiFetch('update-device-group', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ async function deleteGroup(groupId) {
     }
 
     try {
-        const response = await apiFetch('api/delete-device-group', {
+        const response = await apiFetch('delete-device-group', {
             method: 'POST',
             body: JSON.stringify({ groupId })
         });
@@ -234,7 +234,7 @@ async function moveGroup(groupId, direction) {
 
 async function loadDeviceList(groupId) {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error('Failed to load devices');
         }
@@ -300,7 +300,7 @@ async function saveDeviceSelection() {
         ).map(cb => cb.value);
 
         // Get original group data first
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error('Failed to fetch group data');
         }
@@ -311,7 +311,7 @@ async function saveDeviceSelection() {
         }
 
         // Update group with new device selection
-        await apiFetch('api/update-device-group', {
+        await apiFetch('update-device-group', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -344,7 +344,7 @@ async function saveNewGroup() {
     }
 
     try {
-        const response = await apiFetch('api/update-device-group', {
+        const response = await apiFetch('update-device-group', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -378,7 +378,7 @@ async function saveNewGroup() {
 
 async function updateGroupOrder(groupId, newOrder) {
     try {
-        const response = await apiFetch('api/update-device-group', {
+        const response = await apiFetch('update-device-group', {
             method: 'POST',
             body: JSON.stringify({
                 id: groupId,
@@ -396,7 +396,7 @@ async function updateGroupOrder(groupId, newOrder) {
 
 async function loadGroups() {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load groups');
         }

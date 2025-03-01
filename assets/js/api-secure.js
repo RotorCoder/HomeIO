@@ -1,10 +1,9 @@
-// api.js
+// api-secure.js - Secure replacement for api.js
 
 async function apiFetch(url, options = {}) {
     try {
         const defaultOptions = {
             headers: {
-                'X-API-Key': API_KEY,
                 'Content-Type': 'application/json'
             }
         };
@@ -18,7 +17,15 @@ async function apiFetch(url, options = {}) {
             }
         };
         
-        const response = await fetch(url, mergedOptions);
+        // Remove any API key from the headers to ensure it's not accidentally included
+        if (mergedOptions.headers['X-API-Key']) {
+            delete mergedOptions.headers['X-API-Key'];
+        }
+        
+        // Construct the proxy URL
+        const proxyUrl = `${API_CONFIG.apiProxy}?endpoint=${encodeURIComponent(url)}`;
+        
+        const response = await fetch(proxyUrl, mergedOptions);
         return await response.json();
     } catch (error) {
         console.error('Fetch Error:', url, error);
@@ -28,7 +35,7 @@ async function apiFetch(url, options = {}) {
 
 async function fetchRooms() {
     try {
-        const data = await apiFetch('api/rooms');
+        const data = await apiFetch('rooms');
         if (!data.success) {
             throw new Error(data.error || 'Failed to fetch rooms');
         }
@@ -43,7 +50,7 @@ async function fetchRooms() {
 
 async function loadInitialData() {
     try {
-        const response = await apiFetch('api/all-devices');
+        const response = await apiFetch('all-devices');
         if (!response.success) {
             throw new Error(response.error || 'Failed to load devices');
         }
@@ -73,7 +80,7 @@ async function sendCommand(type, id, command, value) {
     updateDeviceUI(id, newState);
     
     try {
-        const response = await apiFetch('api/queue-command', {
+        const response = await apiFetch('queue-command', {
             method: 'POST',
             body: JSON.stringify({
                 type,
@@ -112,8 +119,8 @@ function startAutoUpdate() {
 async function autoUpdate() {
     try {
         const [devicesResponse, roomsResponse] = await Promise.all([
-            apiFetch('api/all-devices'),
-            apiFetch('api/rooms')
+            apiFetch('all-devices'),
+            apiFetch('rooms')
         ]);
 
         if (!devicesResponse.success || !roomsResponse.success) {
@@ -127,7 +134,7 @@ async function autoUpdate() {
         rooms = roomsResponse.rooms;
         for (const room of rooms) {
             if (room.id !== 1) {
-                const tempResponse = await apiFetch(`api/room-temperature?room=${room.id}`);
+                const tempResponse = await apiFetch(`room-temperature?room=${room.id}`);
                 if (tempResponse.success && tempResponse.thermometers) {
                     const tempInfo = tempResponse.thermometers.map(therm => {
                         const displayName = therm.display_name || therm.name || 'Unknown Sensor';
