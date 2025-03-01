@@ -484,6 +484,10 @@ function generateConfigContent() {
                 <i class="fas fa-xl fa-user"></i>
                 <span>Users</span>
             </button>
+            <button onclick="window.location.href='logout.php'" class="config-button">
+                <i class="fas fa-xl fa-right-from-bracket"></i>
+                <span>Logout</span>
+            </button>
         </div>
     </div>
     <div class="config-popup-desktop" id="config-popup-desktop">
@@ -526,6 +530,10 @@ function generateConfigContent() {
                 <button onclick="window.location.href='users.php'" class="config-button">
                     <i class="fas fa-xl fa-user"></i>
                     <span>Users</span>
+                </button>
+                <button onclick="window.location.href='logout.php'" class="config-button">
+                    <i class="fas fa-xl fa-right-from-bracket"></i>
+                    <span>Logout</span>
                 </button>
             </div>
         </div>

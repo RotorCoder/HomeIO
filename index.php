@@ -26,8 +26,8 @@ if (!isset($_SESSION['user_id'])) {
             /* Add user menu styles */
             .user-menu {
                 position: fixed;
-                top: 10px;
-                right: 10px;
+                top: 6px;
+                right: 8px;
                 z-index: 1000;
                 background-color: white;
                 border-radius: 8px;
@@ -100,27 +100,6 @@ if (!isset($_SESSION['user_id'])) {
     <body>
         <?php require_once __DIR__ . '/config/config.php'; ?>
         <div class="container">
-            <!-- User Menu -->
-            <div class="user-menu">
-                <span class="username">
-                    <i class="fas fa-user"></i> <?php echo htmlspecialchars($_SESSION['username']); ?>
-                </span>
-                <button class="menu-button" id="userMenuToggle">
-                    <i class="fas fa-chevron-down"></i>
-                </button>
-                <div class="dropdown" id="userDropdown">
-                    <?php if ($_SESSION['is_admin']): ?>
-                        <a href="register.php">
-                            <i class="fas fa-users"></i> User Management
-                        </a>
-                        <div class="separator"></div>
-                    <?php endif; ?>
-                    <a href="logout.php" class="logout">
-                        <i class="fas fa-sign-out-alt"></i> Log Out
-                    </a>
-                </div>
-            </div>
-            
             <div class="error-message" id="error-message"></div>
             <div id="tabs" class="tabs"></div>
             <div id="tab-contents"></div>
