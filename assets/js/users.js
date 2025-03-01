@@ -21,9 +21,8 @@ function showNewUserCard() {
     document.getElementById('user-form-title').textContent = 'Add New User';
     document.getElementById('user-id').value = '';
     document.getElementById('username').value = '';
-    document.getElementById('email').value = '';
     document.getElementById('password').value = '';
-    document.getElementById('user-role').value = 'user';
+    document.getElementById('is-admin').value = '0';
     document.getElementById('password').required = true;
     document.getElementById('password-help').style.display = 'none';
     
@@ -188,7 +187,6 @@ async function loadUserList() {
                 </div>
                 <div class="room-card-content">
                     <div class="user-details">
-                        <div><strong>Email:</strong> ${user.email}</div>
                         <div><strong>Role:</strong> ${user.is_admin == 1 ? 'Administrator' : 'Regular User'}</div>
                         <div><strong>Created:</strong> ${user.created_at || 'Unknown'}</div>
                         <div><strong>Last Login:</strong> ${user.last_login || 'Never'}</div>
