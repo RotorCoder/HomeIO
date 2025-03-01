@@ -281,7 +281,7 @@ function showServicesManagement() {
     document.body.appendChild(popup);
 
     // Fetch service statuses
-    fetch('service-status')
+    apiFetch(`service-status`)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Failed to fetch service statuses');
@@ -392,7 +392,7 @@ async function refreshServiceLogs(serviceName) {
     logsElement.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading logs...</div>';
     
     try {
-        const response = await fetch(`service-logs?service=${serviceName}`);
+        const response = await apiFetch(`service-logs?service=${serviceName}`);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -425,7 +425,7 @@ async function refreshServiceLogs(serviceName) {
 
 async function controlService(serviceName, action) {
     try {
-        const response = await fetch('control-service', {
+        const response = await apiFetch('control-service', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
