@@ -226,26 +226,3 @@ async function loadUserList() {
         showError('Failed to load users: ' + error.message);
     }
 }
-
-// CSS for user management
-document.addEventListener('DOMContentLoaded', function() {
-    const style = document.createElement('style');
-    style.textContent = `
-        .admin-badge {
-            background: #0284c7;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-left: 8px;
-        }
-        
-        .user-details {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-    `;
-    document.head.appendChild(style);
-});

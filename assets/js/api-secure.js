@@ -26,7 +26,7 @@ async function apiFetch(url, options = {}) {
         // Construct the proxy URL
         const proxyUrl = `api-proxy.php?endpoint=${encodeURIComponent(url)}`;
         
-        console.log(`Fetching API: ${url} via proxy`);
+        //console.log(`Fetching API: ${url} via proxy`);
         
         // Execute the fetch with timeout
         const controller = new AbortController();
