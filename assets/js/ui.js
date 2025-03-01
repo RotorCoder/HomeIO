@@ -280,7 +280,7 @@ async function showServicesManagement() {
     `;
     document.body.appendChild(popup);
 
-    // Fetch service statuses using the API instead of direct fetching
+    // Fetch service statuses using the API
     try {
         const response = await apiFetch('service-status');
         if (!response.success) {
@@ -288,47 +288,7 @@ async function showServicesManagement() {
         }
         
         const servicesList = document.getElementById('services-list');
-        
-        servicesList.innerHTML = response.services.map(service => {
-            const statusClass = service.status === 'active' ? 'status-active' : 
-                               service.status === 'inactive' ? 'status-inactive' : 'status-other';
-            
-            return `
-                <div class="service-card">
-                    <div class="service-header">
-                        <div class="service-title">
-                            ${service.title}
-                        </div>
-                        <span class="status-badge ${statusClass}">
-                            ${service.status === 'active' ? 
-                              '<i class="fas fa-check-circle"></i> Running' : 
-                              '<i class="fas fa-times-circle"></i> Stopped'}
-                        </span>
-                    </div>
-                    
-                    <div class="service-actions">
-                        <button onclick="controlService('${service.name}', 'start')" 
-                                class="service-btn start-btn" 
-                                ${service.status === 'active' ? 'disabled' : ''}>
-                            <i class="fas fa-play"></i> Start
-                        </button>
-                        <button onclick="controlService('${service.name}', 'stop')" 
-                                class="service-btn stop-btn" 
-                                ${service.status !== 'active' ? 'disabled' : ''}>
-                            <i class="fas fa-stop"></i> Stop
-                        </button>
-                        <button onclick="controlService('${service.name}', 'restart')" 
-                                class="service-btn restart-btn">
-                            <i class="fas fa-redo"></i> Restart
-                        </button>
-                        <button onclick="showServiceLogs('${service.name}')" 
-                                class="service-btn logs-btn">
-                            <i class="fas fa-file-alt"></i> Logs
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        updateServicesList(servicesList, response.services);
     } catch (error) {
         console.error('Error loading services:', error);
         const servicesList = document.getElementById('services-list');
@@ -387,23 +347,18 @@ async function refreshServiceLogs(serviceName) {
     try {
         const response = await apiFetch(`service-logs?service=${serviceName}`);
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to fetch logs');
+        // response is already the JSON data, no need to check .ok or call .json()
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to fetch logs');
         }
         
         // Clear the loading message completely
         logsElement.innerHTML = '';
         
         // Display logs
-        if (data.logs.length > 0) {
+        if (response.logs && response.logs.length > 0) {
             // Add a divider between each log entry
-            logsElement.innerHTML = data.logs.map(log => 
+            logsElement.innerHTML = response.logs.map(log => 
                 `<div class="log-entry">${log}</div>`
             ).join('');
         } else {
@@ -418,26 +373,77 @@ async function refreshServiceLogs(serviceName) {
 
 async function controlService(serviceName, action) {
     try {
-        const response = await apiFetch(`control-service?service=${serviceName}&action=${action}`, {
+        const response = await apiFetch('control-service', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
             body: JSON.stringify({ service: serviceName, action })
         });
 
-        const data = await response.json();
-
-        if (!data.success) {
-            throw new Error(data.error || 'Failed to control service');
+        if (!response.success) {
+            throw new Error(response.error || 'Failed to control service');
         }
 
-        // Reload services list
-        showServicesManagement();
+        // Instead of creating a new popup, refresh the services list in the existing popup
+        const servicesList = document.getElementById('services-list');
+        if (servicesList) {
+            servicesList.innerHTML = '<div class="loading-state"><i class="fas fa-spinner fa-spin"></i> Loading services...</div>';
+            
+            // Fetch updated service statuses
+            const updatedResponse = await apiFetch('service-status');
+            if (!updatedResponse.success) {
+                throw new Error(updatedResponse.error || 'Failed to load service status');
+            }
+            
+            // Update the existing services list with new data
+            updateServicesList(servicesList, updatedResponse.services);
+        }
     } catch (error) {
         console.error('Error:', error);
         showError(error.message);
     }
+}
+
+// Add a new helper function to update the services list
+function updateServicesList(servicesList, services) {
+    servicesList.innerHTML = services.map(service => {
+        const statusClass = service.status === 'active' ? 'status-active' : 
+                            service.status === 'inactive' ? 'status-inactive' : 'status-other';
+        
+        return `
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-title">
+                        ${service.title}
+                    </div>
+                    <span class="status-badge ${statusClass}">
+                        ${service.status === 'active' ? 
+                          '<i class="fas fa-check-circle"></i> Running' : 
+                          '<i class="fas fa-times-circle"></i> Stopped'}
+                    </span>
+                </div>
+                
+                <div class="service-actions">
+                    <button onclick="controlService('${service.name}', 'start')" 
+                            class="service-btn start-btn" 
+                            ${service.status === 'active' ? 'disabled' : ''}>
+                        <i class="fas fa-play"></i> Start
+                    </button>
+                    <button onclick="controlService('${service.name}', 'stop')" 
+                            class="service-btn stop-btn" 
+                            ${service.status !== 'active' ? 'disabled' : ''}>
+                        <i class="fas fa-stop"></i> Stop
+                    </button>
+                    <button onclick="controlService('${service.name}', 'restart')" 
+                            class="service-btn restart-btn">
+                        <i class="fas fa-redo"></i> Restart
+                    </button>
+                    <button onclick="showServiceLogs('${service.name}')" 
+                            class="service-btn logs-btn">
+                        <i class="fas fa-file-alt"></i> Logs
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function generateConfigContent() {
