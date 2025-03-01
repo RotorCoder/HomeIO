@@ -1337,7 +1337,6 @@ $app->post('/update-user', function (Request $request, Response $response) use (
                 $stmt = $pdo->prepare("
                     UPDATE users 
                     SET username = ?, 
-                        email = ?, 
                         password = ?, 
                         is_admin = ? 
                     WHERE id = ?
@@ -1346,7 +1345,6 @@ $app->post('/update-user', function (Request $request, Response $response) use (
                 $password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
                 $stmt->execute([
                     $data['username'],
-                    $data['email'],
                     $password_hash,
                     $data['is_admin'],
                     $data['id']
@@ -1356,14 +1354,12 @@ $app->post('/update-user', function (Request $request, Response $response) use (
                 $stmt = $pdo->prepare("
                     UPDATE users 
                     SET username = ?, 
-                        email = ?, 
                         is_admin = ? 
                     WHERE id = ?
                 ");
                 
                 $stmt->execute([
                     $data['username'],
-                    $data['email'],
                     $data['is_admin'],
                     $data['id']
                 ]);
@@ -1372,17 +1368,16 @@ $app->post('/update-user', function (Request $request, Response $response) use (
             return sendSuccessResponse($response, ['message' => 'User updated successfully']);
         } else {
             // Create new user
-            validateRequiredParams($data, ['username', 'email', 'password', 'is_admin']);
+            validateRequiredParams($data, ['username', 'password', 'is_admin']);
             
             $stmt = $pdo->prepare("
-                INSERT INTO users (username, email, password, is_admin, created_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO users (username, password, is_admin, created_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             ");
             
             $password_hash = password_hash($data['password'], PASSWORD_DEFAULT);
             $stmt->execute([
                 $data['username'],
-                $data['email'],
                 $password_hash,
                 $data['is_admin']
             ]);
