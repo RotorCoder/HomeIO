@@ -123,8 +123,9 @@ async function loadInitialData() {
 }
 
 async function sendCommand(type, id, command, value) {
-    const deviceElement = document.getElementById(`device-${id}`);
-    if (!deviceElement) return;
+    // Look for the device in both the main UI and the All Devices popup
+    const deviceElements = document.querySelectorAll(`#device-${id}`);
+    if (deviceElements.length === 0) return;
 
     // Store previous state
     const previousState = {...deviceStates.get(id)};
@@ -136,7 +137,11 @@ async function sendCommand(type, id, command, value) {
         
     // Update UI immediately
     deviceStates.set(id, newState);
-    updateDeviceUI(id, newState);
+    
+    // Update all instances of this device card (both in main UI and in popup)
+    deviceElements.forEach(element => {
+        updateDeviceUI(id, newState, element);
+    });
     
     try {
         const response = await apiFetch('queue-command', {
@@ -160,13 +165,22 @@ async function sendCommand(type, id, command, value) {
 
         // Keep the successful state
         deviceStates.set(id, newState);
-        updateDeviceUI(id, newState);
+        
+        // Update all instances again (for consistency)
+        deviceElements.forEach(element => {
+            updateDeviceUI(id, newState, element);
+        });
 
     } catch (error) {
         console.error('Command error:', error);
         // Revert to previous state on error
         deviceStates.set(id, previousState);
-        updateDeviceUI(id, previousState);
+        
+        // Revert UI on error
+        deviceElements.forEach(element => {
+            updateDeviceUI(id, previousState, element);
+        });
+        
         showError('Failed to send command: ' + error.message);
     }
 }
