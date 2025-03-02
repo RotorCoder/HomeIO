@@ -208,7 +208,7 @@ class HueRoutes {
             if (!empty($finalCommands)) {
                 $ids = array_column($finalCommands, 'id');
                 $placeholders = implode(',', array_fill(0, count($ids), '?'));
-                $stmt = $pdo->prepare("
+                $stmt = $this->pdo->prepare("
                     UPDATE `command_queue`
                     SET `status` = 'processing',
                         `processed_at` = CURRENT_TIMESTAMP
@@ -226,7 +226,7 @@ class HueRoutes {
                     
                     if (!empty($skippedIds)) {
                         $skipPlaceholders = implode(',', array_fill(0, count($skippedIds), '?'));
-                        $stmt = $pdo->prepare("
+                        $stmt = $this->pdo->prepare("
                             UPDATE `command_queue`
                             SET `status` = 'skipped',
                                 `processed_at` = CURRENT_TIMESTAMP,

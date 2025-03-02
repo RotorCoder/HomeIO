@@ -16,7 +16,7 @@ try {
                 CURLOPT_URL => "https://rotorcoder.com/homeio/api/process-govee-commands?max=5",
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => [
-                    'X-API-Key: ' . $config['api_keys'][0],
+                    'X-API-Key: ' . $config['homeio_api_key'],
                     'Content-Type: application/json'
                 ]
             ]);
