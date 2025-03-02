@@ -192,7 +192,7 @@ function createDeviceCard(device) {
             controlButtons = `
                 <div class="device-controls">
                     <button onclick="sendCommand('${device.isGroup ? 'group' : 'device'}', '${device.device}', 'turn', '${preferredPowerState === 'off' ? 'on' : 'off'}')"
-                            class="btn">${preferredPowerState === 'off' ? 'Turn On' : 'Turn Off'}</button>
+                            class="btn toggle-btn">${preferredPowerState === 'off' ? 'Turn On' : 'Turn Off'}</button>
                 </div>`;
         }
     }
@@ -241,8 +241,9 @@ function createDeviceCard(device) {
     `;
 }
 
-function updateDeviceUI(deviceId, state) {
-    const deviceElement = document.getElementById(`device-${deviceId}`);
+function updateDeviceUI(deviceId, state, targetElement = null) {
+    // Use the provided targetElement if given, otherwise find it by ID
+    const deviceElement = targetElement || document.getElementById(`device-${deviceId}`);
     if (!deviceElement) return;
 
     const device = {...deviceStates.get(deviceId), ...state};
@@ -283,8 +284,19 @@ function updateDeviceUI(deviceId, state) {
                 button.classList.toggle('active', 
                     device.preferredPowerState === 'on' && device.preferredBrightness === brightnessValue);
             }
-        } else {
+        } else if (button.classList.contains('toggle-btn')) {
+            // Update the button text
             button.textContent = device.preferredPowerState === 'off' ? 'Turn On' : 'Turn Off';
+            
+            // Update the onclick handler with a new one
+            button.onclick = function() {
+                sendCommand(
+                    deviceElement.dataset.groupId ? 'group' : 'device', 
+                    deviceId, 
+                    'turn', 
+                    device.preferredPowerState === 'off' ? 'on' : 'off'
+                );
+            };
         }
     });
 }
