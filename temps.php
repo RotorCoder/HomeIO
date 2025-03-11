@@ -1,4 +1,15 @@
-<!DOCTYPE html>
+<?php
+// Start the session
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    // Redirect to login page
+    header('Location: login.php');
+    exit;
+}
+?>
+
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -41,6 +52,17 @@
             border-radius: 0.375rem;
             margin-bottom: 1rem;
             display: none;
+        }
+
+        .login-link {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            text-decoration: none;
+            font-weight: 500;
+            margin-top: 10px;
         }
 
         .controls {
@@ -220,6 +242,44 @@
             }
         }
     </style>
+    <script>
+        // Function to get the API key stored in session/local storage
+        function getApiKey() {
+            // Try to get homeio_api_key first
+            const apiKey = localStorage.getItem('homeio_api_key') || sessionStorage.getItem('homeio_api_key');
+            if (apiKey) return apiKey;
+            
+            // If no dedicated API key, try to use the token
+            return localStorage.getItem('homeio_token') || sessionStorage.getItem('homeio_token');
+        }
+
+        // Modified fetch function to include authentication
+        // Replace the secureApiFetch function with this
+        async function secureApiFetch(endpoint) {
+            try {
+                const response = await fetch(`api-proxy.php?endpoint=${encodeURIComponent(endpoint)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API fetch error:', error);
+                throw error;
+            }
+        }
+
+        // Function to show authentication error
+        function showAuthError() {
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = 'Authentication required. Please log in again.';
+            errorElement.style.display = 'block';
+            
+            // Add a login button
+            errorElement.innerHTML += '<br><a href="/homeio/login.php" class="login-link">Log In</a>';
+        }
+    </script>
 </head>
 <body>
     <div class="container">
@@ -337,7 +397,12 @@
                     await loadData();
                 }
             } catch (error) {
-                showError('Failed to initialize page: ' + error.message);
+                console.error('Failed to initialize page:', error);
+                if (error.message && error.message.includes('401')) {
+                    showAuthError();
+                } else {
+                    showError('Failed to initialize page: ' + error.message);
+                }
             }
         }
 
@@ -353,16 +418,7 @@
 
         async function loadThermometers() {
             try {
-                const response = await fetch('https://rotorcoder.com/homeio/api/thermometer-list');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Server returned non-JSON response');
-                }
-                const data = await response.json();
+                const data = await secureApiFetch('thermometer-list');
                 
                 if (data.success) {
                     const select = document.getElementById('thermometer');
@@ -401,7 +457,12 @@
                     throw new Error(data.error || 'Failed to load thermometer list');
                 }
             } catch (error) {
-                showError('Error loading thermometers: ' + error.message);
+                console.error('Error loading thermometers:', error);
+                if (error.message && error.message.includes('401')) {
+                    showAuthError();
+                } else {
+                    showError('Error loading thermometers: ' + error.message);
+                }
                 throw error;
             }
         }
@@ -455,6 +516,7 @@
                 }
             } else {
                 document.getElementById('maxTemp').textContent = '--°F';
+                document.getElementById('minTemp').textContent = '--°F';
             }
         }
 
@@ -474,22 +536,12 @@
 
             try {
                 // Load selected thermometer data
-                const response = await fetch(`https://rotorcoder.com/homeio/api/thermometer-history?mac=${mac}&hours=${hours}`);
-                let outsideResponse = null;
+                const data = await secureApiFetch(`thermometer-history?mac=${mac}&hours=${hours}`);
+                let outsideData = null;
                 
                 // Load outside data if toggle is on and outside thermometer exists
                 if (showOutside && outsideThermometer) {
-                    outsideResponse = await fetch(`https://rotorcoder.com/homeio/api/thermometer-history?mac=${outsideThermometer.mac}&hours=${hours}`);
-                }
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const data = await response.json();
-                let outsideData = null;
-                if (outsideResponse && outsideResponse.ok) {
-                    outsideData = await outsideResponse.json();
+                    outsideData = await secureApiFetch(`thermometer-history?mac=${outsideThermometer.mac}&hours=${hours}`);
                 }
 
                 if (data.success) {
@@ -520,7 +572,12 @@
                     throw new Error(data.error || 'Failed to load history data');
                 }
             } catch (error) {
-                showError('Error loading data: ' + error.message);
+                console.error('Error loading data:', error);
+                if (error.message && error.message.includes('401')) {
+                    showAuthError();
+                } else {
+                    showError('Error loading data: ' + error.message);
+                }
             } finally {
                 if (loadingIndicator) loadingIndicator.style.display = 'none';
             }
@@ -587,8 +644,8 @@
                     
                     if (interval === 15) {
                         time = new Date(time.setMinutes(time.getMinutes() + 15));
-                    } else if (interval === 240) {
-                        time = new Date(time.setHours(time.getHours() + 4));
+                    } else if (interval === 180) {
+                        time = new Date(time.setHours(time.getHours() + 3));
                     } else {
                         time = new Date(time.setHours(time.getHours() + 1));
                     }

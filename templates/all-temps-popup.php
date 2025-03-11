@@ -9,7 +9,7 @@
         </div>
         <div class="popup-content">
             <div class="external-link-container" style="margin-bottom: 15px; text-align: center;">
-                <a href="https://rotorcoder.com/homeio/temps.html" target="_blank" class="external-link">
+                <a href="https://rotorcoder.com/homeio/temps.php" target="_blank" class="external-link">
                     <i class="fas fa-external-link-alt"></i> Open Full Temperature Dashboard
                 </a>
             </div>
