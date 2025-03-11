@@ -3,6 +3,7 @@
 dos2unix update_repo.sh
 sh /var/www/html/homeio/scripts/update_repo.sh "Update"
 sh /var/www/html/homeio/scripts/combine_files.sh
+sudo visudo -f /etc/sudoers.d/homeio-services
 
 ///manually run a service process
 php /var/www/html/homeio/scripts/govee_processor.php

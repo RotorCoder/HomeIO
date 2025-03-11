@@ -42,8 +42,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['is_admin'] = $user['is_admin'];
                 
-                // Generate session token
+                // Generate basic token
                 $token = hash('sha256', $user['username'] . $_SERVER['HTTP_USER_AGENT']);
+                $_SESSION['token'] = $token;
+                
+                // Check if user_sessions table exists
+                try {
+                    $checkTableStmt = $pdo->query("SHOW TABLES LIKE 'user_sessions'");
+                    $tableExists = $checkTableStmt->rowCount() > 0;
+                    
+                    if ($tableExists) {
+                        // Only try to use the table if it exists
+                        // Set expiration based on remember me option
+                        $expiresAt = $rememberMe 
+                            ? date('Y-m-d H:i:s', strtotime('+30 days')) 
+                            : date('Y-m-d H:i:s', strtotime('+24 hours'));
+                        
+                        // Store session in database with simple query
+                        $sessionStmt = $pdo->prepare("
+                            INSERT INTO user_sessions 
+                            (user_id, token, refresh_token, user_agent, ip_address, created_at, expires_at, last_active_at)
+                            VALUES (?, ?, ?, ?, ?, NOW(), ?, NOW())
+                        ");
+                        $sessionStmt->execute([
+                            $user['id'],
+                            $token,
+                            $token, // use same token as refresh_token for simplicity
+                            $_SERVER['HTTP_USER_AGENT'],
+                            $_SERVER['REMOTE_ADDR'],
+                            $expiresAt
+                        ]);
+                    }
+                } catch (Exception $tableEx) {
+                    // Just continue if there's an issue with the sessions table
+                    // We don't want this to block the login process
+                }
                 
                 // Update last login time
                 $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
@@ -186,16 +219,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <script src="assets/js/login-session.js"></script>
     <script>
-        // Store login session when form is submitted
-        document.getElementById('login-form').addEventListener('submit', function(e) {
-            const username = document.getElementById('username').value;
-            const rememberMe = document.getElementById('remember_me').checked;
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Process login session storage when the form is submitted
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    const username = document.getElementById('username').value;
+                    const rememberMe = document.getElementById('remember_me').checked;
+                    
+                    // Generate a simple token for client storage
+                    const token = btoa(username + ':' + navigator.userAgent);
+                    
+                    // Store in browser
+                    storeLoginSession(username, token, rememberMe);
+                });
+            }
             
-            // Generate a simple token (in a real app, the server would provide this)
-            const token = btoa(username + ':' + navigator.userAgent);
-            
-            // Store in browser
-            storeLoginSession(username, token, rememberMe);
+            // Auto login attempt
+            attemptAutoLogin();
         });
     </script>
 </body>
