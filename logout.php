@@ -2,6 +2,34 @@
 // logout.php
 session_start();
 
+// Get the token from session
+$token = $_SESSION['token'] ?? null;
+
+// Invalidate the token in the database if it exists
+if ($token) {
+    require_once __DIR__ . '/config/config.php';
+    
+    try {
+        $pdo = new PDO(
+            "mysql:host={$config['db_config']['host']};dbname={$config['db_config']['dbname']};charset=utf8mb4",
+            $config['db_config']['user'],
+            $config['db_config']['password'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        
+        // Mark session as inactive
+        $stmt = $pdo->prepare("
+            UPDATE user_sessions 
+            SET is_active = 0 
+            WHERE token = ?
+        ");
+        $stmt->execute([$token]);
+    } catch (PDOException $e) {
+        // Log error but continue with logout
+        error_log('Error invalidating token: ' . $e->getMessage());
+    }
+}
+
 // Clear the session
 $_SESSION = array();
 
@@ -18,6 +46,12 @@ if (ini_get("session.use_cookies")) {
         $params["httponly"]
     );
 }
+
+// Clear refresh token cookie if it exists
+setcookie('homeio_refresh_token', '', [
+    'expires' => time() - 3600,
+    'path' => '/'
+]);
 
 // Destroy the session
 session_destroy();

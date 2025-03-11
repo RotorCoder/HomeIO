@@ -20,7 +20,7 @@ if (empty($inputData) || !isset($inputData['username']) || !isset($inputData['to
 
 // Extract credentials
 $username = $inputData['username'];
-$token = $inputData['token'];
+$clientToken = $inputData['token']; // This is the client-generated token
 
 // Get database configuration
 require_once __DIR__ . '/config/config.php';
@@ -39,25 +39,88 @@ try {
     $stmt->execute([$username]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    // Check if session token matches (in a real implementation, you would store and verify tokens)
-    // For now, we're using a simplified validation since we don't have a token table
-    if ($user && $token === hash('sha256', $user['username'] . $_SERVER['HTTP_USER_AGENT'])) {
-        // Session is valid, set up PHP session
+    if (!$user) {
+        $response['message'] = 'User not found';
+        echo json_encode($response);
+        exit;
+    }
+    
+    // Check for any unexpired, active session for this user
+    $stmt = $pdo->prepare("
+        SELECT * FROM user_sessions 
+        WHERE user_id = ? AND expires_at > NOW() AND is_active = 1
+        ORDER BY created_at DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$user['id']]);
+    $session = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($session) {
+        // Found a valid session
+        $dbToken = $session['token'];
+        
+        // Set up PHP session
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
         $_SESSION['is_admin'] = $user['is_admin'];
+        $_SESSION['token'] = $dbToken;
         
-        // Update last login time
-        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-        $updateStmt->execute([$user['id']]);
+        // Update last active time
+        $updateStmt = $pdo->prepare("
+            UPDATE user_sessions 
+            SET last_active_at = NOW() 
+            WHERE id = ?
+        ");
+        $updateStmt->execute([$session['id']]);
         
         $response['success'] = true;
         $response['message'] = 'Session verified successfully';
+        $response['new_token'] = $dbToken; // Return token to update client storage
     } else {
-        $response['message'] = 'Invalid session';
+        // Try with refresh token from cookie
+        $refreshToken = $_COOKIE['homeio_refresh_token'] ?? null;
+        
+        if ($refreshToken) {
+            $stmt = $pdo->prepare("
+                SELECT * FROM user_sessions 
+                WHERE user_id = ? AND refresh_token = ? AND is_active = 1
+                LIMIT 1
+            ");
+            $stmt->execute([$user['id'], $refreshToken]);
+            $refreshSession = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($refreshSession) {
+                // Generate new token
+                $newToken = bin2hex(random_bytes(32));
+                
+                // Update session with new token and extended expiration
+                $updateStmt = $pdo->prepare("
+                    UPDATE user_sessions 
+                    SET token = ?, 
+                        expires_at = DATE_ADD(NOW(), INTERVAL 24 HOUR),
+                        last_active_at = NOW()
+                    WHERE id = ?
+                ");
+                $updateStmt->execute([$newToken, $refreshSession['id']]);
+                
+                // Set up PHP session
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['is_admin'] = $user['is_admin'];
+                $_SESSION['token'] = $newToken;
+                
+                $response['success'] = true;
+                $response['message'] = 'Session refreshed successfully';
+                $response['new_token'] = $newToken;
+            } else {
+                $response['message'] = 'Invalid refresh token';
+            }
+        } else {
+            $response['message'] = 'No valid session found';
+        }
     }
 } catch (PDOException $e) {
-    $response['message'] = 'Database error';
+    $response['message'] = 'Database error: ' . $e->getMessage();
 }
 
 // Return JSON response
