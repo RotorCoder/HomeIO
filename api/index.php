@@ -843,20 +843,37 @@ $app->get('/thermometer-history', function (Request $request, Response $response
         $stmt->execute([$mac]);
         $device = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        // Get the history
-        $stmt = $pdo->prepare("
-            SELECT 
-                temperature,
-                humidity,
-                battery,
-                rssi,
-                DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i') as timestamp
-            FROM thermometer_history 
-            WHERE mac = ? 
-            AND timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-            ORDER BY timestamp DESC
-        ");
-        $stmt->execute([$mac, $hours]);
+        // Get the history based on hours parameter
+        // Special case for 1 hour (60 minutes) view
+        if ($hours == 1) {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    temperature,
+                    humidity,
+                    battery,
+                    rssi,
+                    DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i:%s') as timestamp
+                FROM thermometer_history 
+                WHERE mac = ? 
+                AND timestamp >= DATE_SUB(NOW(), INTERVAL 60 MINUTE)
+                ORDER BY timestamp DESC
+            ");
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    temperature,
+                    humidity,
+                    battery,
+                    rssi,
+                    DATE_FORMAT(timestamp, '%Y-%m-%d %H:%i') as timestamp
+                FROM thermometer_history 
+                WHERE mac = ? 
+                AND timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                ORDER BY timestamp DESC
+            ");
+        }
+        
+        $stmt->execute($hours == 1 ? [$mac] : [$mac, $hours]);
         
         return sendSuccessResponse($response, [
             'history' => $stmt->fetchAll(PDO::FETCH_ASSOC),
