@@ -2,6 +2,7 @@
 
 async function apiFetch(url, options = {}) {
     try {
+        // Original functionality
         const defaultOptions = {
             headers: {
                 'Content-Type': 'application/json',
@@ -18,15 +19,13 @@ async function apiFetch(url, options = {}) {
             }
         };
         
-        // Remove any API key from the headers to ensure it's not accidentally included
+        // Remove any API key from the headers
         if (mergedOptions.headers['X-API-Key']) {
             delete mergedOptions.headers['X-API-Key'];
         }
         
         // Construct the proxy URL
         const proxyUrl = `api-proxy.php?endpoint=${encodeURIComponent(url)}`;
-        
-        //console.log(`Fetching API: ${url} via proxy`);
         
         // Execute the fetch with timeout
         const controller = new AbortController();
@@ -37,10 +36,9 @@ async function apiFetch(url, options = {}) {
         const response = await fetch(proxyUrl, mergedOptions);
         clearTimeout(timeoutId);
         
-        // Check for non-JSON response before trying to parse
+        // Check for non-JSON response
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
-            // Try to get the text response for debugging
             const textResponse = await response.text();
             console.error('Non-JSON response:', textResponse);
             
@@ -49,6 +47,18 @@ async function apiFetch(url, options = {}) {
         }
         
         const data = await response.json();
+        
+        // Check for authentication error (new code)
+        if (!response.ok && (response.status === 401 || (data && data.error && data.error.includes('Authentication')))) {
+            console.log('Session may have expired, attempting to refresh...');
+            
+            // Attempt to refresh the session
+            const refreshed = await refreshSession();
+            if (refreshed) {
+                // Retry the original request if session refresh was successful
+                return apiFetch(url, options);
+            }
+        }
         
         // Check for API error
         if (!response.ok) {
@@ -76,6 +86,97 @@ async function apiFetch(url, options = {}) {
             isApiError: true
         };
     }
+}
+
+// Add this new function to refresh the session
+async function refreshSession() {
+    try {
+        // Get stored session data
+        const session = getStoredSession();
+        if (!session) return false;
+        
+        // Call verify-session.php to refresh the session
+        const response = await fetch('verify-session.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: session.username,
+                token: session.token,
+                refresh_token: session.refreshToken
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update token if we received a new one
+            if (data.new_token) {
+                storeLoginSession(session.username, data.new_token, !!session.refreshToken);
+            }
+            return true;
+        }
+        
+        // If refresh failed, reload the page to prompt login
+        window.location.reload();
+        return false;
+    } catch (error) {
+        console.error('Session refresh error:', error);
+        return false;
+    }
+}
+
+// Make sure this function is accessible (copied from login-session.js)
+function getStoredSession() {
+    // Check localStorage first, then sessionStorage
+    let username = localStorage.getItem('homeio_username') || sessionStorage.getItem('homeio_username');
+    let token = localStorage.getItem('homeio_token') || sessionStorage.getItem('homeio_token');
+    let loginTime = localStorage.getItem('homeio_login_time') || sessionStorage.getItem('homeio_login_time');
+    let refreshToken = getRefreshToken();
+    
+    if (!username || (!token && !refreshToken)) {
+        return null;
+    }
+    
+    // Optionally check session age (e.g., expire after 7 days)
+    const MAX_SESSION_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+    if (loginTime && (Date.now() - parseInt(loginTime)) > MAX_SESSION_AGE) {
+        clearLoginSession();
+        return null;
+    }
+    
+    return {
+        username,
+        token,
+        refreshToken
+    };
+}
+
+// Also copy this function from login-session.js
+function getRefreshToken() {
+    const cookieString = document.cookie;
+    const cookies = cookieString.split(';');
+    
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.startsWith('homeio_refresh_token=')) {
+            return cookie.substring('homeio_refresh_token='.length, cookie.length);
+        }
+    }
+    
+    return null;
+}
+
+// And this one
+function storeLoginSession(username, token, rememberMe = false) {
+    // Choose storage type based on remember me option
+    const storage = rememberMe ? localStorage : sessionStorage;
+    
+    // Store login information
+    storage.setItem('homeio_username', username);
+    storage.setItem('homeio_token', token);
+    storage.setItem('homeio_login_time', Date.now());
 }
 
 async function fetchRooms() {
