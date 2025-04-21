@@ -19,7 +19,7 @@ async function showConfigMenu(deviceId) {
 
     try {
         // Load device config first
-        const configResponse = await apiFetch(`api/device-config?device=${deviceId}`);
+        const configResponse = await apiFetch(`device-config?device=${deviceId}`);
         if (!configResponse.success) {
             throw new Error(configResponse.error || 'Failed to load device configuration');
         }
@@ -113,7 +113,7 @@ async function saveDeviceConfig() {
             preferredColorTem: parseInt(formContainer.querySelector('input[id$="config-color-temp"]').value) || 0,
         };
 
-        const configResponse = await apiFetch('api/update-device-config', {
+        const configResponse = await apiFetch('update-device-config', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(config)

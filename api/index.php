@@ -367,98 +367,77 @@ $app->get('/device-config', function (Request $request, Response $response) use 
         
         $pdo = getDatabaseConnection($config);
         
-       $groupStmt = $pdo->prepare("
-            SELECT dg.*, d.low, d.medium, d.high, d.preferredColorTem,
-                   GROUP_CONCAT(DISTINCT r.room_name) as room_names,
-                   GROUP_CONCAT(DISTINCT r.id) as room_ids
-            FROM device_groups dg
-            LEFT JOIN (
-                SELECT d.* 
-                FROM devices d 
-                INNER JOIN device_groups dg2 ON JSON_CONTAINS(dg2.devices, JSON_QUOTE(d.device))
-                WHERE dg2.id = ?
-                LIMIT 1
-            ) d ON 1=1
-            LEFT JOIN rooms r ON JSON_CONTAINS(r.devices, JSON_QUOTE(dg.id))
-            WHERE dg.id = ?
-            GROUP BY dg.id
-        ");
-        $groupStmt->execute([$deviceId, $deviceId]);
-        $group = $groupStmt->fetch(PDO::FETCH_ASSOC);
+        // First check if this is a group ID
+        $groupStmt = $pdo->prepare("SELECT id FROM device_groups WHERE id = ?");
+        $groupStmt->execute([$deviceId]);
+        $isGroup = $groupStmt->fetch(PDO::FETCH_ASSOC);
         
         if ($isGroup) {
-
-            // Update settings for all devices in the group
-            $deviceStmt = $pdo->prepare("
-                UPDATE devices 
-                SET low = ?,
-                    medium = ?,
-                    high = ?,
-                    preferredColorTem = ?
-                WHERE device IN (
-                    SELECT d.device
-                    FROM devices d
-                    INNER JOIN device_groups dg ON JSON_CONTAINS(dg.devices, JSON_QUOTE(d.device))
-                    WHERE dg.id = ?
-                )
+            // Handle group configuration
+            $groupDataStmt = $pdo->prepare("
+                SELECT dg.*, 
+                       GROUP_CONCAT(DISTINCT r.id) as room_ids,
+                       d.low, d.medium, d.high, d.preferredColorTem
+                FROM device_groups dg
+                LEFT JOIN (
+                    SELECT d.* 
+                    FROM devices d 
+                    INNER JOIN device_groups dg2 ON JSON_CONTAINS(dg2.devices, JSON_QUOTE(d.device))
+                    WHERE dg2.id = ?
+                    LIMIT 1
+                ) d ON 1=1
+                LEFT JOIN rooms r ON JSON_CONTAINS(r.devices, JSON_QUOTE(dg.id))
+                WHERE dg.id = ?
+                GROUP BY dg.id
             ");
-            $deviceStmt->execute([
-                $data['low'],
-                $data['medium'],
-                $data['high'],
-                $data['preferredColorTem'],
-                $data['device']
-            ]);
-        
-            // Handle room assignments for groups
-            if (isset($data['rooms']) && is_array($data['rooms'])) {
-                // First remove group from all rooms
-                $stmt = $pdo->prepare("
-                    UPDATE rooms 
-                    SET devices = JSON_REMOVE(
-                        devices, 
-                        REPLACE(JSON_SEARCH(devices, 'one', ?), '\"', '')
-                    )
-                    WHERE JSON_CONTAINS(devices, ?)
-                ");
-                $stmt->execute([$data['device'], json_encode($data['device'])]);
-        
-                // Then add to selected rooms
-                if (!empty($data['rooms'])) {
-                    $stmt = $pdo->prepare("
-                        UPDATE rooms 
-                        SET devices = JSON_ARRAY_APPEND(
-                            COALESCE(devices, JSON_ARRAY()),
-                            '$',
-                            ?
-                        )
-                        WHERE id IN (" . implode(',', array_fill(0, count($data['rooms']), '?')) . ")
-                    ");
-                    $params = [$data['device']];
-                    $params = array_merge($params, $data['rooms']);
-                    $stmt->execute($params);
-                }
+            $groupDataStmt->execute([$deviceId, $deviceId]);
+            $groupData = $groupDataStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$groupData) {
+                throw new Exception('Group not found');
             }
-        }
-        
-        // Get device configuration
-        $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, show_in_room, preferredName FROM devices WHERE device = ?");
-        $stmt->execute([$deviceId]);
-        $deviceConfig = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$deviceConfig) {
-            throw new Exception('Device not found');
-        }
+            
+            // Parse the rooms JSON
+            $rooms = json_decode($groupData['rooms'] ?? '[]', true);
+            
+            return sendSuccessResponse($response, array_merge(
+                [
+                    'low' => $groupData['low'] ?? 25,
+                    'medium' => $groupData['medium'] ?? 50,
+                    'high' => $groupData['high'] ?? 100,
+                    'preferredColorTem' => $groupData['preferredColorTem'] ?? 3500,
+                    'preferredName' => $groupData['name'] ?? '',
+                ],
+                ['rooms' => $rooms ?? []]
+            ));
+        } else {
+            // Get device configuration
+            $stmt = $pdo->prepare("SELECT low, medium, high, preferredColorTem, show_in_room, preferredName FROM devices WHERE device = ?");
+            $stmt->execute([$deviceId]);
+            $deviceConfig = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$deviceConfig) {
+                throw new Exception('Device not found');
+            }
 
-        // Get rooms this device belongs to
-        $roomStmt = $pdo->prepare("SELECT id FROM rooms WHERE JSON_CONTAINS(devices, ?)");
-        $roomStmt->execute([json_encode($deviceId)]);
-        $rooms = $roomStmt->fetchAll(PDO::FETCH_COLUMN);
+            // Get rooms this device belongs to
+            $roomStmt = $pdo->prepare("SELECT id FROM rooms WHERE JSON_CONTAINS(devices, ?)");
+            $roomStmt->execute([json_encode($deviceId)]);
+            $rooms = $roomStmt->fetchAll(PDO::FETCH_COLUMN);
 
-        return sendSuccessResponse($response, array_merge(
-            $deviceConfig,
-            ['rooms' => $rooms]
-        ));
+            // Get groups this device belongs to
+            $groupStmt = $pdo->prepare("
+                SELECT id FROM device_groups 
+                WHERE JSON_CONTAINS(devices, ?)
+            ");
+            $groupStmt->execute([json_encode($deviceId)]);
+            $groups = $groupStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            return sendSuccessResponse($response, array_merge(
+                $deviceConfig,
+                ['rooms' => $rooms, 'groups' => $groups]
+            ));
+        }
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
