@@ -261,7 +261,8 @@ async function saveDeviceSelection() {
 
         // Update each device's room assignment
         for (const deviceId of selectedDevices) {
-            await apiFetch('update-device-details', {
+            // Change this line to use update-device-config instead of update-device-details
+            await apiFetch('update-device-config', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
