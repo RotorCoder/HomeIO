@@ -450,75 +450,59 @@ $app->post('/update-device-config', function (Request $request, Response $respon
         
         $pdo = getDatabaseConnection($config);
 
-        // First check if this is a group ID
-        $groupCheck = $pdo->prepare("SELECT id FROM device_groups WHERE id = ?");
-        $groupCheck->execute([$data['device']]);
-        $isGroup = $groupCheck->fetch(PDO::FETCH_ASSOC);
+        // Build update query dynamically based on provided fields
+        $updates = [];
+        $params = [];
 
-        if ($isGroup) {
+        // Map fields to database columns (removed 'room' from the mappings)
+        $fieldMappings = [
+            'preferredName' => 'preferredName',
+            'low' => 'low',
+            'medium' => 'medium', 
+            'high' => 'high',
+            'preferredPowerState' => 'preferredPowerState',
+            'preferredBrightness' => 'preferredBrightness',
+            'preferredColorTem' => 'preferredColorTem',
+            'deviceGroup' => 'deviceGroup'
+        ];
 
-            // Update settings for all devices in the group
-            $deviceStmt = $pdo->prepare("
-                UPDATE devices 
-                SET low = ?,
-                    medium = ?,
-                    high = ?,
-                    preferredColorTem = ?
-                WHERE device IN (
-                    SELECT d.device
-                    FROM devices d
-                    INNER JOIN device_groups dg ON JSON_CONTAINS(dg.devices, JSON_QUOTE(d.device))
-                    WHERE dg.id = ?
-                )
-            ");
-            $deviceStmt->execute([
-                $data['low'],
-                $data['medium'],
-                $data['high'],
-                $data['preferredColorTem'],
-                $data['device']
-            ]);
-        } else {
-            // Update device configuration
-            $show_in_room = isset($data['show_in_room']) ? ($data['show_in_room'] ? 1 : 0) : 1;
-            
+        foreach ($fieldMappings as $requestField => $dbField) {
+            if (isset($data[$requestField])) {
+                // Handle empty string values
+                if ($data[$requestField] === '') {
+                    $updates[] = "$dbField = NULL";
+                } else {
+                    $updates[] = "$dbField = :$dbField";
+                    $params[":$dbField"] = $data[$requestField];
+                }
+            }
+        }
+
+        // Add device parameter
+        $params[':device'] = $data['device'];
+        
+        if (!empty($updates)) {
+            $sql = "UPDATE devices SET " . implode(', ', $updates) . " WHERE device = :device";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+        }
+
+        // Handle room assignments if provided
+        if (isset($data['rooms']) && is_array($data['rooms'])) {
+            // First remove device from all rooms
             $stmt = $pdo->prepare("
-                UPDATE devices 
-                SET low = ?,
-                    medium = ?,
-                    high = ?,
-                    preferredColorTem = ?,
-                    show_in_room = ?,
-                    preferredName = ? 
-                WHERE device = ?
+                UPDATE rooms 
+                SET devices = JSON_REMOVE(
+                    devices, 
+                    REPLACE(JSON_SEARCH(devices, 'one', ?), '\"', '')
+                )
+                WHERE JSON_CONTAINS(devices, ?)
             ");
-            $stmt->execute([
-                $data['low'],
-                $data['medium'],
-                $data['high'],
-                $data['preferredColorTem'],
-                $show_in_room,
-                $data['preferredName'] ?? null,  // Add the preferredName field
-                $data['device']
-            ]);
+            $stmt->execute([$data['device'], json_encode($data['device'])]);
 
-            // Update room assignments
-            if (isset($data['rooms']) && is_array($data['rooms'])) {
-                // First remove device from all rooms
-                $stmt = $pdo->prepare("
-                    UPDATE rooms 
-                    SET devices = JSON_REMOVE(
-                        devices, 
-                        REPLACE(JSON_SEARCH(devices, 'one', ?), '\"', '')
-                    )
-                    WHERE JSON_CONTAINS(devices, ?)
-                ");
-                $stmt->execute([
-                    $data['device'],
-                    json_encode($data['device'])
-                ]);
-
-                // Then add to selected rooms
+            // Then add to selected rooms if any are selected
+            if (!empty($data['rooms'])) {
+                $placeholders = implode(',', array_fill(0, count($data['rooms']), '?'));
                 $stmt = $pdo->prepare("
                     UPDATE rooms 
                     SET devices = JSON_ARRAY_APPEND(
@@ -526,7 +510,7 @@ $app->post('/update-device-config', function (Request $request, Response $respon
                         '$',
                         ?
                     )
-                    WHERE id IN (" . implode(',', array_fill(0, count($data['rooms']), '?')) . ")
+                    WHERE id IN ($placeholders)
                 ");
                 $params = [$data['device']];
                 $params = array_merge($params, $data['rooms']);
@@ -534,7 +518,7 @@ $app->post('/update-device-config', function (Request $request, Response $respon
             }
         }
         
-        return sendSuccessResponse($response, ['message' => 'Device configuration updated successfully']);
+        return sendSuccessResponse($response, ['message' => 'Device updated successfully']);
     } catch (Exception $e) {
         return sendErrorResponse($response, $e);
     }
@@ -1022,8 +1006,9 @@ $app->post('/update-device-details', function (Request $request, Response $respo
             ");
             $stmt->execute([$data['device'], json_encode($data['device'])]);
 
-            // Then add to selected rooms
+            // Then add to selected rooms only if there are rooms selected
             if (!empty($data['rooms'])) {
+                $placeholders = implode(',', array_fill(0, count($data['rooms']), '?'));
                 $stmt = $pdo->prepare("
                     UPDATE rooms 
                     SET devices = JSON_ARRAY_APPEND(
@@ -1031,7 +1016,7 @@ $app->post('/update-device-details', function (Request $request, Response $respo
                         '$',
                         ?
                     )
-                    WHERE id IN (" . implode(',', array_fill(0, count($data['rooms']), '?')) . ")
+                    WHERE id IN ($placeholders)
                 ");
                 $params = [$data['device']];
                 $params = array_merge($params, $data['rooms']);
