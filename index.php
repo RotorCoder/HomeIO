@@ -1,17 +1,79 @@
 <?php
-
-header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
-header("X-Content-Type-Options: nosniff");
-header("X-Frame-Options: SAMEORIGIN");
-
 // Start the session at the very beginning of the file
 session_start();
 
-// Check if user is logged in
+// Check if user is logged in via PHP session
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
+    // Instead of immediately redirecting, check for stored tokens first
+    // and attempt session recovery
+    ?>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Session Recovery</title>
+        <script src="js/login-session.js"></script>
+        <script>
+            // Attempt to recover session using stored tokens
+            async function attemptSessionRecovery() {
+                const session = getStoredSession();
+                if (!session) {
+                    // No stored session found, redirect to login
+                    window.location.href = 'login.php';
+                    return;
+                }
+                
+                try {
+                    // Try to verify the session
+                    const response = await fetch('verify-session.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: session.username,
+                            token: session.token,
+                            refresh_token: session.refreshToken
+                        }),
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Session verified, reload the page
+                        // If we got a new token, update it
+                        if (data.new_token) {
+                            storeLoginSession(session.username, data.new_token, true);
+                        }
+                        window.location.reload();
+                    } else {
+                        // Session verification failed, redirect to login
+                        window.location.href = 'login.php';
+                    }
+                } catch (error) {
+                    console.error('Session recovery error:', error);
+                    window.location.href = 'login.php';
+                }
+            }
+            
+            // Try to recover the session immediately
+            attemptSessionRecovery();
+        </script>
+    </head>
+    <body>
+        <div style="text-align: center; margin-top: 100px;">
+            <p>Verifying your session...</p>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit; // Stop further processing
 }
+
+// If we got here, the user is logged in
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: SAMEORIGIN");
 ?>
 <!DOCTYPE html>
 <html lang="en">
