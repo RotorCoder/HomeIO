@@ -1,4 +1,4 @@
-// assets/js/main.js
+// js/main.js
 
 let deviceStates = new Map();
 let rooms = [];

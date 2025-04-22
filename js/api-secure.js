@@ -1,4 +1,4 @@
-// api-secure.js - Secure replacement for api.js with improved error handling
+// js/api-secure.js
 
 async function apiFetch(url, options = {}) {
     try {

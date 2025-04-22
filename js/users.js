@@ -1,4 +1,4 @@
-// assets/js/users.js
+// js/users.js
 
 let currentUserId = null;
 

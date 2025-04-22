@@ -1,4 +1,4 @@
-// assets/js/config.js
+// js/config.js
 
 // Configuration popup functions
 function hideConfigMenu() {
