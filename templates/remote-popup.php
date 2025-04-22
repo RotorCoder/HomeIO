@@ -1,4 +1,5 @@
 <!-- templates/remote-popup.php -->
+
 <div id="remote-popup" class="popup-overlay" style="display: none;">
     <div class="popup-container">
         <div class="popup-header">
