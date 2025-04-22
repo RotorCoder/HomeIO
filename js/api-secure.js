@@ -224,8 +224,11 @@ async function loadInitialData() {
 }
 
 async function sendCommand(type, id, command, value) {
+    // Escape the id to handle special characters like colons
+    const escapedId = CSS.escape(id);
+    
     // Look for the device in both the main UI and the All Devices popup
-    const deviceElements = document.querySelectorAll(`#device-${id}`);
+    const deviceElements = document.querySelectorAll(`#device-${escapedId}`);
     if (deviceElements.length === 0) return;
 
     // Store previous state
