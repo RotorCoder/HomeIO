@@ -1,4 +1,4 @@
-// assets/js/ui.js
+// js/ui.js
 
 function showError(message) {
     const errorElement = document.getElementById('error-message');

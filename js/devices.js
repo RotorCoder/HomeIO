@@ -1,4 +1,4 @@
-// devices.js
+// js/devices.js
 
 function getDeviceIcon(deviceName, preferredPowerState = 'off') {
     deviceName = deviceName.toLowerCase();

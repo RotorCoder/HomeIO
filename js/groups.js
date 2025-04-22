@@ -1,4 +1,4 @@
-// groups.js
+// js/groups.js
 
 let currentGroupDevices = new Set();
 let currentGroupId = null;

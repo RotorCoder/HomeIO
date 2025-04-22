@@ -50,15 +50,15 @@ if (!isset($_SESSION['user_id'])) {
                 apiProxy: "api-proxy.php"
             };
         </script>
-        <script src="assets/js/api-secure.js"></script>
-        <script src="assets/js/ui.js"></script>
-        <script src="assets/js/devices.js"></script>
-        <script src="assets/js/groups.js"></script>
-        <script src="assets/js/config.js"></script>
-        <script src="assets/js/temperature.js"></script>
-        <script src="assets/js/main.js"></script>
-        <script src="assets/js/rooms.js"></script>
-        <script src="assets/js/remote.js"></script>
-        <script src="assets/js/users.js"></script>
+        <script src="js/api-secure.js"></script>
+        <script src="js/ui.js"></script>
+        <script src="js/devices.js"></script>
+        <script src="js/groups.js"></script>
+        <script src="js/config.js"></script>
+        <script src="js/temperature.js"></script>
+        <script src="js/main.js"></script>
+        <script src="js/rooms.js"></script>
+        <script src="js/remote.js"></script>
+        <script src="js/users.js"></script>
     </body>
 </html>

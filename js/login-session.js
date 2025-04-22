@@ -1,4 +1,4 @@
-// login-session.js
+// js/login-session.js
 
 /**
  * Stores login session information in the browser's localStorage

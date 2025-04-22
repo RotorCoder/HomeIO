@@ -1,4 +1,4 @@
-// assets/js/rooms.js
+// js/rooms.js
 
 let currentRoomDevices = new Set();
 let currentRoomGroups = new Set();

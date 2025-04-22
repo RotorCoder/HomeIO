@@ -128,7 +128,7 @@ session_destroy();
         <a href="login.php" class="login-link">Log In Again</a>
     </div>
     
-    <script src="assets/js/login-session.js"></script>
+    <script src="js/login-session.js"></script>
     <script>
         // Clear login session from browser storage
         clearLoginSession();

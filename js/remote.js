@@ -1,4 +1,4 @@
-// remote.js
+// js/remote.js
 
 let currentRemoteName = null;
 let currentButtonNumber = null;
