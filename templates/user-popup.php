@@ -1,4 +1,5 @@
 <!-- templates/user-popup.php -->
+
 <div id="user-popup" class="popup-overlay" style="display: none;">
     <div class="popup-container">
         <div class="popup-header">

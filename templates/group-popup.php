@@ -1,4 +1,5 @@
 <!-- templates/group-popup.php -->
+
 <div id="group-popup" class="popup-overlay" style="display: none;">
     <div class="popup-container">
         <div class="popup-header">
