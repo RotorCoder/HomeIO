@@ -50,11 +50,10 @@ try {
     // Check for any unexpired, active session for this user
     $stmt = $pdo->prepare("
         SELECT * FROM user_sessions 
-        WHERE user_id = ? AND expires_at > NOW() AND is_active = 1
-        ORDER BY created_at DESC
+        WHERE user_id = ? AND token = ? AND expires_at > NOW() AND is_active = 1
         LIMIT 1
     ");
-    $stmt->execute([$user['id']]);
+    $stmt->execute([$user['id'], $clientToken]);
     $session = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if ($session) {
