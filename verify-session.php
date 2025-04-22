@@ -1,5 +1,7 @@
 <?php
+
 // verify-session.php
+
 session_start();
 
 // Get JSON data from request
@@ -79,44 +81,42 @@ try {
     } else {
         // Try with refresh token from cookie
         $refreshToken = $_COOKIE['homeio_refresh_token'] ?? null;
-        
+
         if ($refreshToken) {
             $stmt = $pdo->prepare("
-                SELECT * FROM user_sessions 
-                WHERE user_id = ? AND refresh_token = ? AND is_active = 1
+                SELECT us.*, u.username, u.is_admin 
+                FROM user_sessions us
+                JOIN users u ON us.user_id = u.id
+                WHERE us.refresh_token = ? AND us.expires_at > NOW() AND us.is_active = 1
                 LIMIT 1
             ");
-            $stmt->execute([$user['id'], $refreshToken]);
+            $stmt->execute([$refreshToken]);
             $refreshSession = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($refreshSession) {
                 // Generate new token
                 $newToken = bin2hex(random_bytes(32));
                 
-                // Update session with new token and extended expiration
+                // Update session with new token and extend expiration (30 days)
                 $updateStmt = $pdo->prepare("
                     UPDATE user_sessions 
                     SET token = ?, 
-                        expires_at = DATE_ADD(NOW(), INTERVAL 24 HOUR),
+                        expires_at = DATE_ADD(NOW(), INTERVAL 30 DAY),
                         last_active_at = NOW()
                     WHERE id = ?
                 ");
                 $updateStmt->execute([$newToken, $refreshSession['id']]);
                 
                 // Set up PHP session
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['is_admin'] = $user['is_admin'];
+                $_SESSION['user_id'] = $refreshSession['user_id'];
+                $_SESSION['username'] = $refreshSession['username'];
+                $_SESSION['is_admin'] = $refreshSession['is_admin'];
                 $_SESSION['token'] = $newToken;
                 
                 $response['success'] = true;
                 $response['message'] = 'Session refreshed successfully';
                 $response['new_token'] = $newToken;
-            } else {
-                $response['message'] = 'Invalid refresh token';
             }
-        } else {
-            $response['message'] = 'No valid session found';
         }
     }
 } catch (PDOException $e) {

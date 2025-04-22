@@ -88,12 +88,15 @@ async function apiFetch(url, options = {}) {
     }
 }
 
-// Add this new function to refresh the session
+// In js/api-secure.js - update the refreshSession function
+
 async function refreshSession() {
     try {
         // Get stored session data
         const session = getStoredSession();
         if (!session) return false;
+        
+        console.log('Attempting to refresh session...');
         
         // Call verify-session.php to refresh the session
         const response = await fetch('verify-session.php', {
@@ -105,21 +108,29 @@ async function refreshSession() {
                 username: session.username,
                 token: session.token,
                 refresh_token: session.refreshToken
-            })
+            }),
+            // Important: include credentials to send cookies
+            credentials: 'same-origin'
         });
         
         const data = await response.json();
         
         if (data.success) {
+            console.log('Session refreshed successfully');
             // Update token if we received a new one
             if (data.new_token) {
-                storeLoginSession(session.username, data.new_token, !!session.refreshToken);
+                storeLoginSession(session.username, data.new_token, true);
             }
             return true;
         }
         
-        // If refresh failed, reload the page to prompt login
-        window.location.reload();
+        console.log('Session refresh failed:', data.message);
+        // Only reload if session is really expired or invalid
+        if (data.message.includes('expired') || data.message.includes('invalid')) {
+            window.location.href = 'login.php';
+            return false;
+        }
+        
         return false;
     } catch (error) {
         console.error('Session refresh error:', error);
