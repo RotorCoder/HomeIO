@@ -2,11 +2,15 @@
 
 date_default_timezone_set('America/Detroit');
 
-$sharedPathDepth = (basename(__DIR__) === 'scripts' || basename(__DIR__) === 'api') ? '../../../shared' : '../../shared';
+if (basename(__DIR__) === 'scripts' || basename(__DIR__) === 'api') {
+    $sharedPathDepth = '../../../shared';
+} else {
+    $sharedPathDepth = '../../shared';
+}
 $config['sharedpath'] = __DIR__ . '/' . $sharedPathDepth;
 
-$config['base_url'] = 'https://xxxxxxxxxxxx.com/homeio/';
-$config['api_url'] = 'https://xxxxxxxxxxxx.com/homeio/api/';
+$config['base_url'] = 'https://rotorcoder.com/homeio/';
+$config['api_url'] = $config['base_url'].'api/';
 
 // Database configuration
 $config['db_config'] = [
