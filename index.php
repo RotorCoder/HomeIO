@@ -1,4 +1,9 @@
 <?php
+
+header("Strict-Transport-Security: max-age=31536000; includeSubDomains; preload");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: SAMEORIGIN");
+
 // Start the session at the very beginning of the file
 session_start();
 

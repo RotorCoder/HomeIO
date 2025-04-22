@@ -25,7 +25,7 @@ async function apiFetch(url, options = {}) {
         }
         
         // Construct the proxy URL
-        const proxyUrl = `api-proxy.php?endpoint=${encodeURIComponent(url)}`;
+        const proxyUrl = `https://${window.location.host}/homeio/api-proxy.php?endpoint=${encodeURIComponent(url)}`;
         
         // Execute the fetch with timeout
         const controller = new AbortController();

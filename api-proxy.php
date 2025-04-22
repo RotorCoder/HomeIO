@@ -40,7 +40,7 @@ if (empty($endpoint)) {
 }
 
 // Construct the full API URL 
-$baseApiUrl = 'https://rotorcoder.com/homeio/api/'; // Replace with your actual API base URL
+$baseApiUrl = $config['api_url'];
 $url = $baseApiUrl . $endpoint;
 
 // Setup cURL session
