@@ -88,8 +88,6 @@ async function apiFetch(url, options = {}) {
     }
 }
 
-// In js/api-secure.js - update the refreshSession function
-
 async function refreshSession() {
     try {
         // Get stored session data
@@ -109,9 +107,14 @@ async function refreshSession() {
                 token: session.token,
                 refresh_token: session.refreshToken
             }),
-            // Important: include credentials to send cookies
-            credentials: 'same-origin'
+            // Include credentials to send and receive cookies
+            credentials: 'same-origin' 
         });
+        
+        if (!response.ok) {
+            console.error('Session refresh HTTP error:', response.status);
+            return false;
+        }
         
         const data = await response.json();
         
@@ -119,15 +122,22 @@ async function refreshSession() {
             console.log('Session refreshed successfully');
             // Update token if we received a new one
             if (data.new_token) {
-                storeLoginSession(session.username, data.new_token, true);
+                // Use localStorage to ensure persistence
+                localStorage.setItem('homeio_username', session.username);
+                localStorage.setItem('homeio_token', data.new_token);
+                localStorage.setItem('homeio_login_time', Date.now());
             }
             return true;
         }
         
         console.log('Session refresh failed:', data.message);
-        // Only reload if session is really expired or invalid
-        if (data.message.includes('expired') || data.message.includes('invalid')) {
-            window.location.href = 'login.php';
+        
+        // Session is truly expired/invalid - redirect to login
+        if (data.message.includes('expired') || data.message.includes('invalid') || 
+            data.message.includes('not found')) {
+            setTimeout(() => {
+                window.location.href = 'login.php';
+            }, 500);
             return false;
         }
         

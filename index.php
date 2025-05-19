@@ -34,20 +34,30 @@ if (!isset($_SESSION['user_id'])) {
                             token: session.token,
                             refresh_token: session.refreshToken
                         }),
-                        credentials: 'include'
+                        credentials: 'same-origin' // Important: include credentials
                     });
+                    
+                    if (!response.ok) {
+                        console.error('Session recovery HTTP error:', response.status);
+                        window.location.href = 'login.php';
+                        return;
+                    }
                     
                     const data = await response.json();
                     
                     if (data.success) {
-                        // Session verified, reload the page
-                        // If we got a new token, update it
+                        // Session verified, update token if needed
                         if (data.new_token) {
-                            storeLoginSession(session.username, data.new_token, true);
+                            // Store in localStorage for persistence
+                            localStorage.setItem('homeio_username', session.username);
+                            localStorage.setItem('homeio_token', data.new_token);
+                            localStorage.setItem('homeio_login_time', Date.now());
                         }
+                        // Reload the page to complete the session recovery
                         window.location.reload();
                     } else {
                         // Session verification failed, redirect to login
+                        console.error('Session verification failed:', data.message);
                         window.location.href = 'login.php';
                     }
                 } catch (error) {
