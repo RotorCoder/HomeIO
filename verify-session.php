@@ -90,6 +90,9 @@ try {
     
     // If client token didn't work, try with refresh token
     if (!$sessionFound && $refreshToken) {
+        // Clean the refresh token (remove any potential cookie metadata)
+        $cleanRefreshToken = trim($refreshToken);
+        
         // THIS IS THE CRITICAL FIX - Look up session by refresh token
         $stmt = $pdo->prepare("
             SELECT us.*, u.id as user_id, u.username, u.is_admin 
@@ -98,7 +101,7 @@ try {
             WHERE us.refresh_token = ? AND us.expires_at > NOW() AND us.is_active = 1
             LIMIT 1
         ");
-        $stmt->execute([$refreshToken]);
+        $stmt->execute([$cleanRefreshToken]);
         $refreshSession = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($refreshSession) {
